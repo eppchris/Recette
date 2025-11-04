@@ -12,3 +12,5 @@ venv/
 # IDE
 .vscode/
 .DS_Store*.zip
+.DS_Store
+data/*.sqlite3

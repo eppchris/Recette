@@ -1,69 +1,94 @@
 # app/routes/recipe_routes.py
 from fastapi import APIRouter, Request, Query, UploadFile, File
 from fastapi.responses import HTMLResponse
-import tempfile, shutil, os
-from pathlib import Path
 from fastapi.templating import Jinja2Templates
+from jinja2 import pass_context
+from pathlib import Path
+import tempfile
+import shutil
+import os
 
-from app.models import db  # doit exposer list_recipes(lang) et get_recipe_by_slug(slug, lang)
+from app.models import db
 from app.services.recipe_importer import import_recipe_from_csv
 
 router = APIRouter()
 
-# chemin absolu vers app/templates
+# Configuration des templates
 TEMPLATES_DIR = str((Path(__file__).resolve().parents[1] / "templates"))
 templates = Jinja2Templates(directory=TEMPLATES_DIR)
 
-# --- ajouter S() dans CETTE instance de Jinja ---
-from jinja2 import pass_context
+# Dictionnaire de traductions (même que dans main.py)
+TRANSLATIONS = {
+    "fr": {
+        "recipes": "Recettes",
+        "all": "Toutes les recettes",
+        "import": "Importer",
+        "back": "Retour",
+        "type": "Type",
+        "servings": "Convives",
+        "tags": "Tags",
+        "ingredients": "Ingrédients",
+        "steps": "Étapes",
+        "source": "Source",
+        "lang_fr": "Français",
+        "lang_jp": "日本語",
+    },
+    "jp": {
+        "recipes": "レシピ一覧",
+        "all": "全てのレシピ",
+        "import": "インポート",
+        "back": "戻る",
+        "type": "タイプ",
+        "servings": "人数",
+        "tags": "タグ",
+        "ingredients": "材料",
+        "steps": "手順",
+        "source": "ソース",
+        "lang_fr": "Français",
+        "lang_jp": "日本語",
+    },
+}
 
 @pass_context
 def S(ctx, key: str):
+    """Fonction de traduction pour les templates"""
     lang = ctx.get("lang", "fr")
-    texts = {
-        "fr": {
-            "recipes": "Recettes",
-            "import": "Importer",
-            "back": "Retour",
-        },
-        "ja": {
-            "recipes": "レシピ一覧",
-            "import": "インポート",
-            "back": "戻る",
-        },
-    }
-    return texts.get(lang, {}).get(key, key)
+    return TRANSLATIONS.get(lang, {}).get(key, key)
 
 templates.env.globals["S"] = S
-# --- fin ajout ---
 
 # --------------------------------------------------------------------
-# Liste des recettes (bascule FR/JA via ?lang=fr|ja)
+# Liste des recettes
 # --------------------------------------------------------------------
 @router.get("/recipes", response_class=HTMLResponse)
-async def recipes(request: Request, lang: str = Query("fr")):
-    rows = db.list_recipes(lang)  # renvoie les lignes pour la langue demandée
+async def recipes_list(request: Request, lang: str = Query("fr")):
+    """Affiche la liste de toutes les recettes dans la langue demandée"""
+    rows = db.list_recipes(lang)
     return templates.TemplateResponse(
         "recipes_list.html",
         {"request": request, "lang": lang, "rows": rows}
     )
 
 # --------------------------------------------------------------------
-# Détail d'une recette par slug/uid
-# URL: /recipe/{slug}?lang=fr
+# Détail d'une recette
 # --------------------------------------------------------------------
 @router.get("/recipe/{slug}", response_class=HTMLResponse)
 async def recipe_detail(request: Request, slug: str, lang: str = Query("fr")):
-    rec = db.get_recipe_by_slug(slug, lang)  # doit renvoyer titre, ingrédients et étapes localisés
-    if not rec:
+    """Affiche le détail d'une recette"""
+    result = db.get_recipe_by_slug(slug, lang)
+    
+    if not result:
         return templates.TemplateResponse(
-            "not_found.html",  # mets un template simple "introuvable", ou remplace par recipes_list
-            {"request": request, "lang": lang, "slug": slug},
+            "not_found.html",
+            {"request": request, "lang": lang, "message": f"Recette '{slug}' introuvable"},
             status_code=404,
         )
+    
+    rec, ings, steps = result
+    
     return templates.TemplateResponse(
         "recipe_detail.html",
-        {"request": request, "lang": lang, "recipe": rec}
+        {"request": request, "lang": lang, "rec": rec, "ings": ings, "steps": steps}
     )
 
 # --------------------------------------------------------------------
@@ -71,7 +96,7 @@ async def recipe_detail(request: Request, slug: str, lang: str = Query("fr")):
 # --------------------------------------------------------------------
 @router.get("/import", response_class=HTMLResponse)
 async def import_form(request: Request, lang: str = Query("fr")):
-    # Réutilise ton template existant import_recipes.html
+    """Affiche le formulaire d'import"""
     return templates.TemplateResponse(
         "import_recipes.html",
         {"request": request, "lang": lang, "message": None}
@@ -83,24 +108,38 @@ async def import_post(
     file: UploadFile = File(...),
     lang: str = Query("fr")
 ):
-    # Enregistre temporairement le CSV uploadé
-    tmp_path = tempfile.mktemp(suffix=".csv")
-    with open(tmp_path, "wb") as out:
-        shutil.copyfileobj(file.file, out)
-
-    # Lance l'import
+    """Traite l'upload et l'import d'un fichier CSV"""
+    # Créer un fichier temporaire sécurisé (se ferme automatiquement)
+    temp_file = None
+    tmp_path = None
+    
     try:
+        # Créer un fichier temporaire qui ne sera pas supprimé automatiquement
+        temp_file = tempfile.NamedTemporaryFile(mode='wb', suffix='.csv', delete=False)
+        tmp_path = temp_file.name
+        
+        # Écrire le contenu uploadé dans le fichier temporaire
+        shutil.copyfileobj(file.file, temp_file)
+        temp_file.close()
+        
+        # Lancer l'import
         import_recipe_from_csv(tmp_path)
         message = f"✅ Fichier « {file.filename} » importé avec succès."
+        
     except Exception as e:
-        message = f"❌ Erreur pendant l'import : {e}"
+        message = f"❌ Erreur pendant l'import : {str(e)}"
+        
     finally:
-        try:
-            os.remove(tmp_path)
-        except Exception:
-            pass
-
-    # Réaffiche la fenêtre d'import avec le message
+        # Fermer et supprimer le fichier temporaire
+        if temp_file and not temp_file.closed:
+            temp_file.close()
+        if tmp_path and os.path.exists(tmp_path):
+            try:
+                os.remove(tmp_path)
+            except Exception:
+                pass
+    
+    # Réafficher le formulaire avec le message
     return templates.TemplateResponse(
         "import_recipes.html",
         {"request": request, "lang": lang, "message": message}
