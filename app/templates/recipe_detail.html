@@ -1,0 +1,36 @@
+{% extends 'base.html' %}
+{% block content %}
+<article class="bg-white border p-4 rounded">
+  <header class="mb-4">
+    <h1 class="text-2xl font-bold mb-1">{{ rec['name'] }}</h1>
+    <p class="text-sm text-gray-600">
+      {{ S('type') }}: {{ rec['type'] or '-' }} •
+      {{ S('servings') }}: {{ rec['servings'] or '-' }}
+      {% if rec['source'] %} • {{ S('source') }}:
+        <a class="text-blue-700" href="{{ rec['source'] }}" target="_blank">link</a>{% endif %}
+    </p>
+  </header>
+  <div class="grid md:grid-cols-2 gap-6">
+    <div>
+      <h2 class="font-semibold mb-2">{{ S('ingredients') }}</h2>
+      <ul class="list-disc ml-5 space-y-1">
+        {% for ig in ings %}
+          <li>
+            {% if ig['qty'] %}{{ ig['qty'] }}{% endif %}
+            {% if ig['unit_code'] %} {{ ig['unit_code'] }}{% endif %}
+            {{ ig['name'] }}
+          </li>
+        {% endfor %}
+      </ul>
+    </div>
+    <div>
+      <h2 class="font-semibold mb-2">{{ S('steps') }}</h2>
+      <ol class="list-decimal ml-5 space-y-1">
+        {% for s in steps %}
+          <li>{{ s['text'] }}</li>
+        {% endfor %}
+      </ol>
+    </div>
+  </div>
+</article>
+{% endblock %}

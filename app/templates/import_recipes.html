@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block content %}
+<h1 class="text-2xl font-bold mb-4">Importer des recettes</h1>
+
+<div class="bg-white rounded-lg border p-6 max-w-xl">
+  <p class="text-sm text-gray-600 mb-3">
+    CSV (UTF-8) avec en-têtes exacts :
+    <code>recipe_name,recipe_type,country,servings_default</code>
+  </p>
+
+  <form action="/import" method="post" enctype="multipart/form-data" class="space-y-3">
+    <input type="file" name="file" accept=".csv" required class="block w-full text-sm" />
+    <button class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">Importer</button>
+  </form>
+
+  {% if message %}
+    <p class="mt-4 text-sm {{ 'text-green-700' if '✅' in message else 'text-red-700' }}">{{ message }}</p>
+  {% endif %}
+
+  <details class="mt-4">
+    <summary class="cursor-pointer text-sm text-gray-700">Exemple</summary>
+    <pre class="text-xs bg-gray-50 p-3 rounded border mt-2">recipe_name,recipe_type,country,servings_default
+Pâtes à l'ail,PRO,IT,2
+Poulet teriyaki,MASTER,JP,4
+Miso soup,PERSO,JP,2
+</pre>
+  </details>
+</div>
+{% endblock %}

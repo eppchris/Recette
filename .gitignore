@@ -1,0 +1,36 @@
+# === Environnements virtuels ===
+venv/
+.venv/
+
+# === Python bytecode / cache ===
+__pycache__/
+*.py[cod]
+*$py.class
+
+# === Fichiers d’environnement ===
+.env
+*.env
+
+# === IDE / éditeurs ===
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# === Données locales et fichiers générés ===
+data/uploads/
+data/*.sqlite*
+instance/
+*.log
+
+# === Migrations automatiques ===
+migrations/versions/
+
+# === Système / macOS ===
+.DS_Store
+Thumbs.db
+
+# === Tests / rapports ===
+.coverage
+htmlcov/
+pytest_cache/
