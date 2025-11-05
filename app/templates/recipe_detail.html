@@ -1,36 +1,80 @@
 {% extends 'base.html' %}
 {% block content %}
-<article class="bg-white border p-4 rounded">
-  <header class="mb-4">
-    <h1 class="text-2xl font-bold mb-1">{{ rec['name'] }}</h1>
-    <p class="text-sm text-gray-600">
-      {{ S('type') }}: {{ rec['type'] or '-' }} •
-      {{ S('servings') }}: {{ rec['servings'] or '-' }}
-      {% if rec['source'] %} • {{ S('source') }}:
-        <a class="text-blue-700" href="{{ rec['source'] }}" target="_blank">link</a>{% endif %}
-    </p>
+<article class="bg-white border p-6 rounded">
+  <!-- En-tête de la recette -->
+  <header class="mb-6 pb-4 border-b">
+    <h1 class="text-3xl font-bold mb-3">{{ rec['name'] }}</h1>
+    <div class="flex flex-wrap gap-4 text-sm text-gray-700">
+      <div>
+        <span class="font-semibold">{{ S('type') }}:</span> 
+        <span class="bg-blue-100 text-blue-800 px-2 py-1 rounded">{{ rec['type_label'] or rec['type'] or '-' }}</span>
+      </div>
+      <div>
+        <span class="font-semibold">{{ S('servings') }}:</span> 
+        <span class="bg-green-100 text-green-800 px-2 py-1 rounded">{{ rec['servings'] or '-' }}</span>
+      </div>
+      {% if rec['source'] %}
+      <div>
+        <span class="font-semibold">{{ S('source') }}:</span>
+        <a class="text-blue-600 hover:underline" href="{{ rec['source'] }}" target="_blank">lien</a>
+      </div>
+      {% endif %}
+    </div>
   </header>
-  <div class="grid md:grid-cols-2 gap-6">
-    <div>
-      <h2 class="font-semibold mb-2">{{ S('ingredients') }}</h2>
-      <ul class="list-disc ml-5 space-y-1">
-        {% for ig in ings %}
-          <li>
-            {% if ig['qty'] %}{{ ig['qty'] }}{% endif %}
-            {% if ig['unit_code'] %} {{ ig['unit_code'] }}{% endif %}
-            {{ ig['name'] }}
-          </li>
-        {% endfor %}
-      </ul>
+
+  <!-- Section Ingrédients -->
+  <section class="mb-8">
+    <h2 class="text-xl font-bold mb-3">{{ S('ingredients') }}</h2>
+    <div class="overflow-x-auto">
+      <table class="w-full border-collapse border border-gray-300 text-sm">
+        <thead>
+          <tr class="bg-gray-100">
+            <th class="border border-gray-300 px-3 py-2 text-left font-semibold">{{ S('ingredients') }}</th>
+            <th class="border border-gray-300 px-3 py-2 text-center font-semibold w-24">Quantité</th>
+            <th class="border border-gray-300 px-3 py-2 text-center font-semibold w-24">Unité</th>
+            <th class="border border-gray-300 px-3 py-2 text-left font-semibold">Commentaire</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for ig in ings %}
+          <tr class="hover:bg-gray-50">
+            <td class="border border-gray-300 px-3 py-2">{{ ig['name'] or '-' }}</td>
+            <td class="border border-gray-300 px-3 py-2 text-center">
+              {{ ig['quantity'] if ig['quantity'] is not none else '-' }}
+            </td>
+            <td class="border border-gray-300 px-3 py-2 text-center">
+              {{ ig['unit'] or '-' }}
+            </td>
+            <td class="border border-gray-300 px-3 py-2 text-gray-600">
+              {{ ig['notes'] or '-' }}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
     </div>
-    <div>
-      <h2 class="font-semibold mb-2">{{ S('steps') }}</h2>
-      <ol class="list-decimal ml-5 space-y-1">
-        {% for s in steps %}
-          <li>{{ s['text'] }}</li>
-        {% endfor %}
-      </ol>
-    </div>
+  </section>
+
+  <!-- Section Étapes -->
+  <section>
+    <h2 class="text-xl font-bold mb-3">{{ S('steps') }}</h2>
+    <ol class="space-y-3">
+      {% for s in steps %}
+      <li class="flex gap-3">
+        <span class="flex-shrink-0 w-8 h-8 bg-blue-600 text-white rounded-full flex items-center justify-center font-semibold text-sm">
+          {{ loop.index }}
+        </span>
+        <p class="flex-1 pt-1">{{ s['text'] }}</p>
+      </li>
+      {% endfor %}
+    </ol>
+  </section>
+
+  <!-- Bouton retour -->
+  <div class="mt-8 pt-4 border-t">
+    <a href="/recipes?lang={{ lang }}" class="text-blue-600 hover:underline">
+      ← {{ S('back') if S('back') != 'back' else 'Retour' }}
+    </a>
   </div>
 </article>
 {% endblock %}

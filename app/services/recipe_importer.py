@@ -1,7 +1,5 @@
 # app/services/recipe_importer.py
-import csv
 import sqlite3
-import os
 import re
 
 from app.models.db import DB_PATH
@@ -15,7 +13,7 @@ def import_recipe_from_csv(file_path: str):
     - Ligne 3 : Index (slug/identifiant unique)
     - Ligne 4 : Pays d'origine
     - Ligne 5 : Nombre de convives
-    - Ligne 6 : Population cible (PRO, MASTER, etc.)
+    - Ligne 6 : Type de recette (PRO, MASTER, etc.)
     - Ligne 7 : "ingredients"
     - Lignes suivantes : Nom;Quantité;Unité;Commentaire
     - Ligne X : "Procedure" ou "Procédure"
@@ -33,7 +31,7 @@ def import_recipe_from_csv(file_path: str):
     recipe_title = lines[0]
     recipe_lang = lines[1].lower().strip()
     
-    # Normalisation : ja → jp
+    # Normalisation de la langue
     if recipe_lang in ['ja', 'jp', 'jpn']:
         recipe_lang = 'jp'
     elif recipe_lang in ['fr', 'fra']:
@@ -41,10 +39,10 @@ def import_recipe_from_csv(file_path: str):
     else:
         raise ValueError(f"Langue non supportée : {recipe_lang}. Utilisez 'fr' ou 'jp'")
     
-    recipe_index = lines[2]
+    recipe_slug = lines[2]
     recipe_country = lines[3]
     recipe_servings = int(lines[4]) if lines[4].isdigit() else 4
-    recipe_population = lines[5]
+    recipe_type = lines[5]
     
     # Trouver la section ingredients
     ingredients_start = None
@@ -64,18 +62,17 @@ def import_recipe_from_csv(file_path: str):
     ingredients = []
     for line in lines[ingredients_start:procedure_start-1]:
         parts = line.split(';')
-        if len(parts) >= 3:
+        if len(parts) >= 1 and parts[0].strip():
             ingredients.append({
                 'name': parts[0].strip(),
-                'qty': parts[1].strip() if len(parts) > 1 else '',
+                'quantity': parts[1].strip() if len(parts) > 1 else '',
                 'unit': parts[2].strip() if len(parts) > 2 else '',
-                'comment': parts[3].strip() if len(parts) > 3 else ''
+                'notes': parts[3].strip() if len(parts) > 3 else ''
             })
     
     # Parser les étapes
     steps = []
     for line in lines[procedure_start:]:
-        # Nettoyer les numéros au début (①, ②, 1., 2., etc.)
         clean_line = re.sub(r'^[①-⑳\d]+[\.\)）]?\s*', '', line)
         if clean_line:
             steps.append(clean_line)
@@ -86,66 +83,78 @@ def import_recipe_from_csv(file_path: str):
     
     try:
         # Vérifier si la recette existe déjà
-        cur.execute("SELECT id FROM recipe WHERE slug=?", (recipe_index,))
+        cur.execute("SELECT id FROM recipe WHERE slug = ?", (recipe_slug,))
         row = cur.fetchone()
         
         if row:
             recipe_id = row[0]
-            # Supprimer les anciennes données pour cette langue
-            cur.execute("DELETE FROM ingredient_i18n WHERE ingredient_id IN (SELECT id FROM ingredients WHERE recipe_id=?) AND lang=?", (recipe_id, recipe_lang))
-            cur.execute("DELETE FROM step_i18n WHERE step_id IN (SELECT id FROM steps WHERE recipe_id=?) AND lang=?", (recipe_id, recipe_lang))
-            cur.execute("DELETE FROM recipe_i18n WHERE recipe_id=? AND lang=?", (recipe_id, recipe_lang))
+            print(f"📝 Ajout/Mise à jour de la langue {recipe_lang} pour : {recipe_title}")
+            
+            # Vérifier si cette langue existe déjà
+            cur.execute("SELECT COUNT(*) FROM recipe_translation WHERE recipe_id = ? AND lang = ?", (recipe_id, recipe_lang))
+            lang_exists = cur.fetchone()[0] > 0
+            
+            if lang_exists:
+                print(f"   ⚠️  Langue {recipe_lang} existe déjà, mise à jour...")
+                cur.execute("DELETE FROM recipe_ingredient_translation WHERE recipe_ingredient_id IN (SELECT id FROM recipe_ingredient WHERE recipe_id = ?) AND lang = ?", (recipe_id, recipe_lang))
+                cur.execute("DELETE FROM step_translation WHERE step_id IN (SELECT id FROM step WHERE recipe_id = ?) AND lang = ?", (recipe_id, recipe_lang))
+                cur.execute("DELETE FROM recipe_translation WHERE recipe_id = ? AND lang = ?", (recipe_id, recipe_lang))
+            else:
+                print(f"   ✨ Nouvelle langue {recipe_lang} ajoutée")
+            
+            cur.execute("UPDATE recipe SET country = ?, servings_default = ? WHERE id = ?", (recipe_country, recipe_servings, recipe_id))
+            
         else:
-            # Créer la recette
-            cur.execute("""
-                INSERT INTO recipe (slug, recipe_name, recipe_type, country, servings_default)
-                VALUES (?, ?, ?, ?, ?)
-            """, (recipe_index, recipe_title, recipe_population, recipe_country, recipe_servings))
+            print(f"✨ Création d'une nouvelle recette : {recipe_title} ({recipe_lang})")
+            cur.execute("INSERT INTO recipe (slug, country, servings_default) VALUES (?, ?, ?)", (recipe_slug, recipe_country, recipe_servings))
             recipe_id = cur.lastrowid
         
         # Insérer la traduction de la recette
-        cur.execute("""
-            INSERT OR REPLACE INTO recipe_i18n (recipe_id, lang, name, category, tags, source)
-            VALUES (?, ?, ?, ?, ?, ?)
-        """, (recipe_id, recipe_lang, recipe_title, recipe_population, '', ''))
+        cur.execute("INSERT INTO recipe_translation (recipe_id, lang, name, recipe_type) VALUES (?, ?, ?, ?)", (recipe_id, recipe_lang, recipe_title, recipe_type))
+        
+        # Récupérer les recipe_ingredient existants
+        cur.execute("SELECT id FROM recipe_ingredient WHERE recipe_id = ? ORDER BY position", (recipe_id,))
+        existing_recipe_ingredients = [row[0] for row in cur.fetchall()]
         
         # Insérer les ingrédients
         for position, ing in enumerate(ingredients, start=1):
-            # Convertir la quantité en float si possible
-            try:
-                qty_float = float(ing['qty']) if ing['qty'] else None
-            except ValueError:
-                qty_float = None
+            quantity_float = None
+            if ing['quantity']:
+                try:
+                    quantity_float = float(ing['quantity'])
+                except ValueError:
+                    pass
             
-            cur.execute("""
-                INSERT INTO ingredients (recipe_id, position, qty, unit_code)
-                VALUES (?, ?, ?, ?)
-            """, (recipe_id, position, qty_float, ing['unit']))
-            ing_id = cur.lastrowid
+            if position <= len(existing_recipe_ingredients):
+                recipe_ingredient_id = existing_recipe_ingredients[position - 1]
+                cur.execute("UPDATE recipe_ingredient SET quantity = ? WHERE id = ?", (quantity_float, recipe_ingredient_id))
+            else:
+                cur.execute("INSERT INTO recipe_ingredient (recipe_id, position, quantity) VALUES (?, ?, ?)", (recipe_id, position, quantity_float))
+                recipe_ingredient_id = cur.lastrowid
             
-            cur.execute("""
-                INSERT INTO ingredient_i18n (ingredient_id, lang, name)
-                VALUES (?, ?, ?)
-            """, (ing_id, recipe_lang, ing['name']))
+            cur.execute("INSERT INTO recipe_ingredient_translation (recipe_ingredient_id, lang, name, unit, notes) VALUES (?, ?, ?, ?, ?)",
+                       (recipe_ingredient_id, recipe_lang, ing['name'], ing['unit'] if ing['unit'] else None, ing['notes'] if ing['notes'] else None))
+        
+        # Récupérer les steps existants
+        cur.execute("SELECT id FROM step WHERE recipe_id = ? ORDER BY position", (recipe_id,))
+        existing_steps = [row[0] for row in cur.fetchall()]
         
         # Insérer les étapes
         for position, step_text in enumerate(steps, start=1):
-            cur.execute("""
-                INSERT INTO steps (recipe_id, position)
-                VALUES (?, ?)
-            """, (recipe_id, position))
-            step_id = cur.lastrowid
+            if position <= len(existing_steps):
+                step_id = existing_steps[position - 1]
+            else:
+                cur.execute("INSERT INTO step (recipe_id, position) VALUES (?, ?)", (recipe_id, position))
+                step_id = cur.lastrowid
             
-            cur.execute("""
-                INSERT INTO step_i18n (step_id, lang, text)
-                VALUES (?, ?, ?)
-            """, (step_id, recipe_lang, step_text))
+            cur.execute("INSERT INTO step_translation (step_id, lang, text) VALUES (?, ?, ?)", (step_id, recipe_lang, step_text))
         
         con.commit()
         print(f"✅ Import réussi : {recipe_title} ({recipe_lang}) - {len(ingredients)} ingrédients, {len(steps)} étapes")
         
     except Exception as e:
         con.rollback()
+        print(f"❌ Erreur lors de l'import : {str(e)}")
         raise e
     finally:
         con.close()

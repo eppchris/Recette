@@ -1,10 +1,13 @@
 # app/models/db.py
-import os, sqlite3, contextlib
+import os
+import sqlite3
+import contextlib
 
 DB_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "data", "recette_dev.sqlite3"))
 
 @contextlib.contextmanager
 def get_db():
+    """Context manager pour obtenir une connexion à la base de données"""
     con = sqlite3.connect(DB_PATH)
     con.row_factory = sqlite3.Row
     try:
@@ -13,78 +16,95 @@ def get_db():
     finally:
         con.close()
 
-def _table_exists(con, name: str) -> bool:
-    return con.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?", (name,)).fetchone() is not None
 
 def list_recipes(lang: str):
+    """
+    Liste toutes les recettes dans la langue demandée
+    
+    Args:
+        lang: Code de langue ('fr' ou 'jp')
+    
+    Returns:
+        Liste des recettes avec leurs informations de base
+    """
     with get_db() as con:
-        if _table_exists(con, "recipe_i18n"):
-            sql = """
-              SELECT r.id, r.slug, r.recipe_type AS type, r.servings_default AS servings,
-                     COALESCE(ri.name, r.recipe_name) AS name, ri.category, ri.tags
-              FROM recipe r
-              LEFT JOIN recipe_i18n ri ON ri.recipe_id=r.id AND ri.lang=?
-              ORDER BY name COLLATE NOCASE;"""
-            return con.execute(sql, (lang,)).fetchall()
-        else:
-            sql = """
-              SELECT r.id, r.slug, r.recipe_type AS type, r.servings_default AS servings,
-                     r.recipe_name AS name, NULL AS category, NULL AS tags
-              FROM recipe r
-              ORDER BY name COLLATE NOCASE;"""
-            return con.execute(sql).fetchall()
+        sql = """
+            SELECT 
+                r.id,
+                r.slug,
+                r.servings_default AS servings,
+                r.country,
+                COALESCE(rt.name, r.slug) AS name,
+                rt.recipe_type AS type
+            FROM recipe r
+            LEFT JOIN recipe_translation rt ON rt.recipe_id = r.id AND rt.lang = ?
+            ORDER BY name COLLATE NOCASE
+        """
+        return con.execute(sql, (lang,)).fetchall()
+
 
 def get_recipe_by_slug(slug: str, lang: str):
+    """
+    Récupère une recette complète avec ses ingrédients et étapes
+    
+    Args:
+        slug: Identifiant unique de la recette
+        lang: Code de langue ('fr' ou 'jp')
+    
+    Returns:
+        Tuple (recipe, ingredients, steps) ou None si non trouvée
+    """
     with get_db() as con:
-        has_ri = _table_exists(con, "recipe_i18n")
-        has_ing = _table_exists(con, "ingredients")
-        has_ii  = _table_exists(con, "ingredient_i18n")
-        has_s   = _table_exists(con, "steps")
-        has_si  = _table_exists(con, "step_i18n")
-
-        if has_ri:
-            rec = con.execute("""
-              SELECT r.id, r.slug, r.recipe_type AS type, r.servings_default AS servings,
-                     COALESCE(ri.name, r.recipe_name) AS name, ri.category, ri.tags, ri.source
-              FROM recipe r
-              LEFT JOIN recipe_i18n ri ON ri.recipe_id=r.id AND ri.lang=?
-              WHERE r.slug=?;""", (lang, slug)).fetchone()
-        else:
-            rec = con.execute("""
-              SELECT r.id, r.slug, r.recipe_type AS type, r.servings_default AS servings,
-                     r.recipe_name AS name, NULL AS category, NULL AS tags, NULL AS source
-              FROM recipe r WHERE r.slug=?;""", (slug,)).fetchone()
-        if not rec:
+        # Récupérer la recette
+        recipe_sql = """
+            SELECT 
+                r.id,
+                r.slug,
+                r.servings_default AS servings,
+                r.country,
+                COALESCE(rt.name, r.slug) AS name,
+                rt.recipe_type AS type
+            FROM recipe r
+            LEFT JOIN recipe_translation rt ON rt.recipe_id = r.id AND rt.lang = ?
+            WHERE r.slug = ?
+        """
+        recipe = con.execute(recipe_sql, (lang, slug)).fetchone()
+        
+        if not recipe:
             return None
-
-        if has_ing:
-            if has_ii:
-                ings = con.execute("""
-                  SELECT ing.id, ing.position, ing.qty, ing.unit_code,
-                         COALESCE(ii.name,'') AS name
-                  FROM ingredients ing
-                  LEFT JOIN ingredient_i18n ii ON ii.ingredient_id=ing.id AND ii.lang=?
-                  WHERE ing.recipe_id=? ORDER BY ing.position;""", (lang, rec["id"])).fetchall()
-            else:
-                ings = con.execute("""
-                  SELECT ing.id, ing.position, ing.qty, ing.unit_code, '' AS name
-                  FROM ingredients ing
-                  WHERE ing.recipe_id=? ORDER BY ing.position;""", (rec["id"],)).fetchall()
-        else:
-            ings = []
-
-        if has_s:
-            if has_si:
-                steps = con.execute("""
-                  SELECT s.position, COALESCE(si.text,'') AS text
-                  FROM steps s
-                  LEFT JOIN step_i18n si ON si.step_id=s.id AND si.lang=?
-                  WHERE s.recipe_id=? ORDER BY s.position;""", (lang, rec["id"])).fetchall()
-            else:
-                steps = con.execute("""
-                  SELECT s.position, '' AS text
-                  FROM steps s WHERE s.recipe_id=? ORDER BY s.position;""", (rec["id"],)).fetchall()
-        else:
-            steps = []
-
-        return rec, ings, steps
+        
+        # Récupérer les ingrédients avec leurs traductions
+        ingredients_sql = """
+            SELECT 
+                ri.id,
+                ri.position,
+                ri.quantity,
+                COALESCE(rit.name, '') AS name,
+                COALESCE(rit.unit, '') AS unit,
+                COALESCE(rit.notes, '') AS notes
+            FROM recipe_ingredient ri
+            LEFT JOIN recipe_ingredient_translation rit
+                ON rit.recipe_ingredient_id = ri.id AND rit.lang = ?
+            WHERE ri.recipe_id = ?
+            ORDER BY ri.position
+        """
+        ingredients = con.execute(ingredients_sql, (lang, recipe['id'])).fetchall()
+        
+        # DEBUG : afficher les ingrédients récupérés
+        print(f"DEBUG - Ingrédients récupérés pour recipe_id={recipe['id']}, lang={lang}:")
+        for ing in ingredients:
+            print(f"  - {dict(ing)}")
+        
+        # Récupérer les étapes avec leurs traductions
+        steps_sql = """
+            SELECT 
+                s.position,
+                COALESCE(st.text, '') AS text
+            FROM step s
+            LEFT JOIN step_translation st ON st.step_id = s.id AND st.lang = ?
+            WHERE s.recipe_id = ?
+            ORDER BY s.position
+        """
+        steps = con.execute(steps_sql, (lang, recipe['id'])).fetchall()
+        
+        return recipe, ingredients, steps
