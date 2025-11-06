@@ -40,7 +40,9 @@ def list_recipes(lang: str):
             LEFT JOIN recipe_translation rt ON rt.recipe_id = r.id AND rt.lang = ?
             ORDER BY name COLLATE NOCASE
         """
-        return con.execute(sql, (lang,)).fetchall()
+        rows = con.execute(sql, (lang,)).fetchall()
+        # Convertir les Row en dictionnaires pour le JSON
+        return [dict(row) for row in rows]
 
 
 def get_recipe_by_slug(slug: str, lang: str):

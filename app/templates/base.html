@@ -1,23 +1,149 @@
 <!DOCTYPE html>
-<html lang="{{ 'jp' if lang=='jp' else 'fr' }}">
+<html lang="{{ 'jp' if lang=='jp' else 'fr' }}" x-data="{ darkMode: false, sidebarOpen: true }" :class="{ 'dark': darkMode }">
 <head>
   <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{{ S('recipes') }}</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.1/dist/cdn.min.js"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+    }
+  </script>
+  <style>
+    [x-cloak] { display: none !important; }
+  </style>
 </head>
-<body class="bg-gray-50 text-gray-900">
-  <nav class="bg-white border-b">
-    <div class="max-w-5xl mx-auto px-4 py-3 flex justify-between items-center">
-      <a href="/recipes?lang={{ lang }}" class="font-semibold text-lg">🍳 {{ S('recipes') }}</a>
-      <div class="flex gap-2 text-sm">
-        <a href="?lang=fr" class="{{ 'font-bold' if lang=='fr' else '' }}">{{ S('lang_fr') }}</a>
-        <span>·</span>
-        <a href="?lang=jp" class="{{ 'font-bold' if lang=='jp' else '' }}">{{ S('lang_jp') }}</a>
+<body class="bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100 transition-colors duration-200">
+  
+  <!-- Sidebar -->
+  <aside 
+    :class="sidebarOpen ? 'w-64' : 'w-20'" 
+    class="fixed left-0 top-0 h-screen bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 transition-all duration-300 z-50"
+  >
+    <!-- Header -->
+    <div class="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
+      <div x-show="sidebarOpen" x-transition class="flex items-center gap-2">
+        <span class="text-2xl">🍳</span>
+        <span class="font-bold text-lg">Recette App</span>
+      </div>
+      <span x-show="!sidebarOpen" class="text-2xl mx-auto">🍳</span>
+      <button 
+        @click="sidebarOpen = !sidebarOpen"
+        class="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition"
+        :class="!sidebarOpen && 'hidden'"
+      >
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 19l-7-7 7-7m8 14l-7-7 7-7"/>
+        </svg>
+      </button>
+    </div>
+
+    <!-- Navigation -->
+    <nav class="p-4 space-y-2">
+      <!-- Section Recettes -->
+      <div>
+        <a 
+          href="/recipes?lang={{ lang }}" 
+          class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition group"
+          :class="'{{ request.path }}'.includes('/recipe') && 'bg-blue-50 dark:bg-blue-900 text-blue-600 dark:text-blue-300'"
+        >
+          <span class="text-xl">📖</span>
+          <span x-show="sidebarOpen" x-transition class="font-medium">{{ S('menu_recipes') }}</span>
+        </a>
+        <div x-show="sidebarOpen" x-transition class="ml-11 mt-1 space-y-1">
+          <a href="/recipes?lang={{ lang }}" class="block px-3 py-1.5 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 rounded">
+            {{ S('all_recipes') }}
+          </a>
+          <a href="/import?lang={{ lang }}" class="block px-3 py-1.5 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 rounded">
+            {{ S('import_recipe') }}
+          </a>
+        </div>
+      </div>
+
+      <!-- Section Événements (futur) -->
+      <div>
+        <div 
+          class="flex items-center gap-3 px-3 py-2 rounded-lg opacity-50 cursor-not-allowed"
+          title="{{ S('coming_soon') }}"
+        >
+          <span class="text-xl">📦</span>
+          <span x-show="sidebarOpen" x-transition class="font-medium">{{ S('menu_events') }}</span>
+          <span x-show="sidebarOpen" class="text-xs bg-gray-200 dark:bg-gray-700 px-2 py-0.5 rounded">{{ S('coming_soon') }}</span>
+        </div>
+      </div>
+
+      <!-- Section Gestion (futur) -->
+      <div>
+        <div 
+          class="flex items-center gap-3 px-3 py-2 rounded-lg opacity-50 cursor-not-allowed"
+          title="{{ S('coming_soon') }}"
+        >
+          <span class="text-xl">⚙️</span>
+          <span x-show="sidebarOpen" x-transition class="font-medium">{{ S('menu_settings') }}</span>
+          <span x-show="sidebarOpen" class="text-xs bg-gray-200 dark:bg-gray-700 px-2 py-0.5 rounded">{{ S('coming_soon') }}</span>
+        </div>
+      </div>
+    </nav>
+
+    <!-- Footer Sidebar -->
+    <div class="absolute bottom-0 left-0 right-0 p-4 border-t border-gray-200 dark:border-gray-700 space-y-2">
+      <!-- Toggle mode sombre -->
+      <button 
+        @click="darkMode = !darkMode"
+        class="w-full flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition"
+      >
+        <span class="text-xl" x-text="darkMode ? '☀️' : '🌙'"></span>
+        <span x-show="sidebarOpen" x-transition class="text-sm" x-text="darkMode ? '{{ S('light_mode') }}' : '{{ S('dark_mode') }}'"></span>
+      </button>
+
+      <!-- Sélecteur de langue -->
+      <div x-show="sidebarOpen" x-transition class="flex gap-2 px-3">
+        <a 
+          href="?lang=fr" 
+          class="flex-1 text-center py-1.5 text-sm rounded {{ 'font-bold bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-300' if lang=='fr' else 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700' }}"
+        >
+          FR
+        </a>
+        <a 
+          href="?lang=jp" 
+          class="flex-1 text-center py-1.5 text-sm rounded {{ 'font-bold bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-300' if lang=='jp' else 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700' }}"
+        >
+          JP
+        </a>
       </div>
     </div>
-  </nav>
-  <main class="max-w-5xl mx-auto p-4">
-    {% block content %}{% endblock %}
+
+    <!-- Bouton pour rouvrir sidebar quand fermée -->
+    <button 
+      x-show="!sidebarOpen"
+      @click="sidebarOpen = true"
+      class="absolute -right-3 top-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-full p-1 hover:bg-gray-100 dark:hover:bg-gray-700 transition"
+    >
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 5l7 7-7 7M5 5l7 7-7 7"/>
+      </svg>
+    </button>
+  </aside>
+
+  <!-- Main Content -->
+  <main 
+    :class="sidebarOpen ? 'ml-64' : 'ml-20'" 
+    class="min-h-screen transition-all duration-300 p-6"
+  >
+    <!-- Breadcrumb -->
+    <div class="mb-6 text-sm text-gray-600 dark:text-gray-400">
+      <span>{{ S('recipes') }}</span>
+      <span class="mx-2">›</span>
+      <span class="text-gray-900 dark:text-gray-100">{% block breadcrumb %}{{ S('all') }}{% endblock %}</span>
+    </div>
+
+    <!-- Contenu de la page -->
+    <div class="max-w-7xl">
+      {% block content %}{% endblock %}
+    </div>
   </main>
+
 </body>
 </html>

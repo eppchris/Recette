@@ -17,7 +17,7 @@ router = APIRouter()
 TEMPLATES_DIR = str((Path(__file__).resolve().parents[1] / "templates"))
 templates = Jinja2Templates(directory=TEMPLATES_DIR)
 
-# Dictionnaire de traductions (même que dans main.py)
+# Dictionnaire de traductions COMPLET
 TRANSLATIONS = {
     "fr": {
         "recipes": "Recettes",
@@ -32,6 +32,14 @@ TRANSLATIONS = {
         "source": "Source",
         "lang_fr": "Français",
         "lang_jp": "日本語",
+        "menu_recipes": "Recettes",
+        "menu_events": "Événements",
+        "menu_settings": "Gestion",
+        "all_recipes": "Toutes les recettes",
+        "import_recipe": "Importer",
+        "coming_soon": "Bientôt",
+        "dark_mode": "Mode nuit",
+        "light_mode": "Mode jour",
     },
     "jp": {
         "recipes": "レシピ一覧",
@@ -46,6 +54,14 @@ TRANSLATIONS = {
         "source": "ソース",
         "lang_fr": "Français",
         "lang_jp": "日本語",
+        "menu_recipes": "レシピ",
+        "menu_events": "イベント",
+        "menu_settings": "設定",
+        "all_recipes": "全てのレシピ",
+        "import_recipe": "インポート",
+        "coming_soon": "近日公開",
+        "dark_mode": "ダークモード",
+        "light_mode": "ライトモード",
     },
 }
 
@@ -109,20 +125,16 @@ async def import_post(
     lang: str = Query("fr")
 ):
     """Traite l'upload et l'import d'un fichier CSV"""
-    # Créer un fichier temporaire sécurisé (se ferme automatiquement)
     temp_file = None
     tmp_path = None
     
     try:
-        # Créer un fichier temporaire qui ne sera pas supprimé automatiquement
         temp_file = tempfile.NamedTemporaryFile(mode='wb', suffix='.csv', delete=False)
         tmp_path = temp_file.name
         
-        # Écrire le contenu uploadé dans le fichier temporaire
         shutil.copyfileobj(file.file, temp_file)
         temp_file.close()
         
-        # Lancer l'import
         import_recipe_from_csv(tmp_path)
         message = f"✅ Fichier « {file.filename} » importé avec succès."
         
@@ -130,7 +142,6 @@ async def import_post(
         message = f"❌ Erreur pendant l'import : {str(e)}"
         
     finally:
-        # Fermer et supprimer le fichier temporaire
         if temp_file and not temp_file.closed:
             temp_file.close()
         if tmp_path and os.path.exists(tmp_path):
@@ -139,7 +150,6 @@ async def import_post(
             except Exception:
                 pass
     
-    # Réafficher le formulaire avec le message
     return templates.TemplateResponse(
         "import_recipes.html",
         {"request": request, "lang": lang, "message": message}
