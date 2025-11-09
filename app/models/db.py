@@ -91,15 +91,13 @@ def get_recipe_by_slug(slug: str, lang: str):
             ORDER BY ri.position
         """
         ingredients = con.execute(ingredients_sql, (lang, recipe['id'])).fetchall()
-        
-        # DEBUG : afficher les ingrédients récupérés
-        print(f"DEBUG - Ingrédients récupérés pour recipe_id={recipe['id']}, lang={lang}:")
-        for ing in ingredients:
-            print(f"  - {dict(ing)}")
-        
+
+        # Convertir en dictionnaires pour faciliter la manipulation
+        ingredients_list = [dict(ing) for ing in ingredients]
+
         # Récupérer les étapes avec leurs traductions
         steps_sql = """
-            SELECT 
+            SELECT
                 s.position,
                 COALESCE(st.text, '') AS text
             FROM step s
@@ -108,5 +106,189 @@ def get_recipe_by_slug(slug: str, lang: str):
             ORDER BY s.position
         """
         steps = con.execute(steps_sql, (lang, recipe['id'])).fetchall()
-        
-        return recipe, ingredients, steps
+        steps_list = [dict(step) for step in steps]
+
+        return dict(recipe), ingredients_list, steps_list
+
+
+def get_recipe_steps_with_ids(recipe_id: int, lang: str):
+    """
+    Récupère les étapes d'une recette avec leurs IDs
+
+    Args:
+        recipe_id: ID de la recette
+        lang: Langue des traductions
+
+    Returns:
+        Liste de dictionnaires contenant id, position et text
+    """
+    with get_db() as con:
+        sql = """
+            SELECT
+                s.id,
+                s.position,
+                COALESCE(st.text, '') AS text
+            FROM step s
+            LEFT JOIN step_translation st ON st.step_id = s.id AND st.lang = ?
+            WHERE s.recipe_id = ?
+            ORDER BY s.position
+        """
+        steps = con.execute(sql, (lang, recipe_id)).fetchall()
+        return [dict(step) for step in steps]
+
+
+def check_translation_exists(recipe_id: int, lang: str) -> bool:
+    """
+    Vérifie si une traduction existe pour une recette dans une langue donnée
+
+    Args:
+        recipe_id: ID de la recette
+        lang: Code de langue ('fr' ou 'jp')
+
+    Returns:
+        True si la traduction existe, False sinon
+    """
+    with get_db() as con:
+        sql = "SELECT COUNT(*) as count FROM recipe_translation WHERE recipe_id = ? AND lang = ?"
+        result = con.execute(sql, (recipe_id, lang)).fetchone()
+        return result['count'] > 0
+
+
+def get_recipe_id_by_slug(slug: str) -> int:
+    """
+    Récupère l'ID d'une recette à partir de son slug
+
+    Args:
+        slug: Slug de la recette
+
+    Returns:
+        ID de la recette ou None si non trouvée
+    """
+    with get_db() as con:
+        sql = "SELECT id FROM recipe WHERE slug = ?"
+        result = con.execute(sql, (slug,)).fetchone()
+        return result['id'] if result else None
+
+
+def get_source_language(recipe_id: int) -> str:
+    """
+    Détermine la langue source disponible pour une recette
+
+    Args:
+        recipe_id: ID de la recette
+
+    Returns:
+        Code de langue ('fr' ou 'jp') ou None si aucune traduction
+    """
+    with get_db() as con:
+        sql = "SELECT lang FROM recipe_translation WHERE recipe_id = ? LIMIT 1"
+        result = con.execute(sql, (recipe_id,)).fetchone()
+        return result['lang'] if result else None
+
+
+def insert_recipe_translation(recipe_id: int, lang: str, name: str, recipe_type: str):
+    """
+    Insère une nouvelle traduction de recette
+
+    Args:
+        recipe_id: ID de la recette
+        lang: Code de langue
+        name: Nom traduit
+        recipe_type: Type de recette (copié de la version source)
+    """
+    with get_db() as con:
+        sql = """
+            INSERT INTO recipe_translation (recipe_id, lang, name, recipe_type)
+            VALUES (?, ?, ?, ?)
+        """
+        con.execute(sql, (recipe_id, lang, name, recipe_type))
+
+
+def insert_ingredient_translation(ingredient_id: int, lang: str, name: str, unit: str):
+    """
+    Insère une nouvelle traduction d'ingrédient
+
+    Args:
+        ingredient_id: ID de l'ingrédient
+        lang: Code de langue
+        name: Nom traduit
+        unit: Unité (copiée)
+    """
+    with get_db() as con:
+        sql = """
+            INSERT INTO recipe_ingredient_translation (recipe_ingredient_id, lang, name, unit)
+            VALUES (?, ?, ?, ?)
+        """
+        con.execute(sql, (ingredient_id, lang, name, unit))
+
+
+def insert_step_translation(step_id: int, lang: str, text: str):
+    """
+    Insère une nouvelle traduction d'étape
+
+    Args:
+        step_id: ID de l'étape
+        lang: Code de langue
+        text: Texte traduit de l'étape
+    """
+    with get_db() as con:
+        sql = """
+            INSERT INTO step_translation (step_id, lang, text)
+            VALUES (?, ?, ?)
+        """
+        con.execute(sql, (step_id, lang, text))
+
+
+def update_ingredient_translation(ingredient_id: int, lang: str, name: str, unit: str, notes: str = None):
+    """
+    Met à jour la traduction d'un ingrédient
+
+    Args:
+        ingredient_id: ID de l'ingrédient
+        lang: Code de langue
+        name: Nom de l'ingrédient
+        unit: Unité
+        notes: Notes optionnelles
+    """
+    with get_db() as con:
+        sql = """
+            UPDATE recipe_ingredient_translation
+            SET name = ?, unit = ?, notes = ?
+            WHERE recipe_ingredient_id = ? AND lang = ?
+        """
+        con.execute(sql, (name, unit, notes, ingredient_id, lang))
+
+
+def update_ingredient_quantity(ingredient_id: int, quantity: float):
+    """
+    Met à jour la quantité d'un ingrédient
+
+    Args:
+        ingredient_id: ID de l'ingrédient
+        quantity: Nouvelle quantité
+    """
+    with get_db() as con:
+        sql = """
+            UPDATE recipe_ingredient
+            SET quantity = ?
+            WHERE id = ?
+        """
+        con.execute(sql, (quantity, ingredient_id))
+
+
+def update_step_translation(step_id: int, lang: str, text: str):
+    """
+    Met à jour la traduction d'une étape
+
+    Args:
+        step_id: ID de l'étape
+        lang: Code de langue
+        text: Texte de l'étape
+    """
+    with get_db() as con:
+        sql = """
+            UPDATE step_translation
+            SET text = ?
+            WHERE step_id = ? AND lang = ?
+        """
+        con.execute(sql, (text, step_id, lang))

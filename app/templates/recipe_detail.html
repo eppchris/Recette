@@ -1,16 +1,41 @@
 {% extends 'base.html' %}
 {% block content %}
-<article class="bg-white border p-6 rounded">
+<article class="bg-white border p-6 rounded" x-data="recipeDetail()">
   <!-- En-tête de la recette -->
   <header class="mb-6 pb-4 border-b">
-    <h1 class="text-3xl font-bold mb-3">{{ rec['name'] }}</h1>
+    <div class="flex justify-between items-start mb-3">
+      <h1 class="text-3xl font-bold">{{ rec['name'] }}</h1>
+
+      <div class="flex gap-2">
+        <!-- Bouton de modification -->
+        <button
+          @click="openEditModal()"
+          class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded font-semibold transition-colors"
+        >
+          {{ '編集' if lang == 'jp' else 'Modifier' }}
+        </button>
+
+        <!-- Bouton de traduction (affiché seulement si pas de traduction) -->
+        {% if not rec['name'] or rec['name'] == rec['slug'] %}
+        <button
+          @click="translateRecipe()"
+          :disabled="translating"
+          :class="apiStatus === 'operational' ? 'bg-green-600 hover:bg-green-700' : 'bg-red-600 hover:bg-red-700'"
+          class="px-4 py-2 text-white rounded font-semibold disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+        >
+          <span x-show="!translating">{{ '翻訳' if lang == 'jp' else 'Traduction' }}</span>
+          <span x-show="translating">⏳ Traduction...</span>
+        </button>
+        {% endif %}
+      </div>
+    </div>
     <div class="flex flex-wrap gap-4 text-sm text-gray-700">
       <div>
-        <span class="font-semibold">{{ S('type') }}:</span> 
+        <span class="font-semibold">{{ S('type') }}:</span>
         <span class="bg-blue-100 text-blue-800 px-2 py-1 rounded">{{ rec['type_label'] or rec['type'] or '-' }}</span>
       </div>
       <div>
-        <span class="font-semibold">{{ S('servings') }}:</span> 
+        <span class="font-semibold">{{ S('servings') }}:</span>
         <span class="bg-green-100 text-green-800 px-2 py-1 rounded">{{ rec['servings'] or '-' }}</span>
       </div>
       {% if rec['source'] %}
@@ -21,6 +46,15 @@
       {% endif %}
     </div>
   </header>
+
+  <!-- Message de statut -->
+  <div x-show="message"
+       x-transition
+       :class="messageType === 'success' ? 'bg-green-100 border-green-400 text-green-700' : 'bg-red-100 border-red-400 text-red-700'"
+       class="border px-4 py-3 rounded mb-4"
+       role="alert">
+    <p x-text="message"></p>
+  </div>
 
   <!-- Section Ingrédients -->
   <section class="mb-8">
@@ -76,5 +110,240 @@
       ← {{ S('back') if S('back') != 'back' else 'Retour' }}
     </a>
   </div>
+
+  <!-- Modal de modification -->
+  <div x-show="editMode"
+       x-cloak
+       class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50"
+       @click.self="closeEditModal()">
+    <div class="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto p-6">
+      <!-- En-tête du modal -->
+      <div class="flex justify-between items-center mb-6 pb-4 border-b">
+        <h2 class="text-2xl font-bold">{{ 'レシピの編集' if lang == 'jp' else 'Modification de la recette' }}</h2>
+        <button @click="closeEditModal()" class="text-gray-500 hover:text-gray-700 text-2xl">
+          ×
+        </button>
+      </div>
+
+      <!-- Section Ingrédients -->
+      <div class="mb-8">
+        <h3 class="text-xl font-bold mb-3">{{ S('ingredients') }}</h3>
+        <div class="space-y-2">
+          <template x-for="(ing, index) in editData.ingredients" :key="index">
+            <div class="grid grid-cols-12 gap-2 items-center p-2 border rounded">
+              <div class="col-span-5">
+                <input
+                  type="text"
+                  x-model="ing.name"
+                  placeholder="Nom de l'ingrédient"
+                  class="w-full px-2 py-1 border rounded"
+                />
+              </div>
+              <div class="col-span-2">
+                <input
+                  type="number"
+                  step="0.01"
+                  x-model="ing.quantity"
+                  placeholder="Qté"
+                  class="w-full px-2 py-1 border rounded"
+                />
+              </div>
+              <div class="col-span-2">
+                <input
+                  type="text"
+                  x-model="ing.unit"
+                  placeholder="Unité"
+                  class="w-full px-2 py-1 border rounded"
+                />
+              </div>
+              <div class="col-span-3">
+                <input
+                  type="text"
+                  x-model="ing.notes"
+                  placeholder="Notes"
+                  class="w-full px-2 py-1 border rounded"
+                />
+              </div>
+            </div>
+          </template>
+        </div>
+      </div>
+
+      <!-- Section Étapes -->
+      <div class="mb-8">
+        <h3 class="text-xl font-bold mb-3">{{ S('steps') }}</h3>
+        <div class="space-y-3">
+          <template x-for="(step, index) in editData.steps" :key="index">
+            <div class="flex gap-3">
+              <span class="flex-shrink-0 w-8 h-8 bg-blue-600 text-white rounded-full flex items-center justify-center font-semibold text-sm" x-text="index + 1"></span>
+              <textarea
+                x-model="step.text"
+                rows="3"
+                class="flex-1 px-3 py-2 border rounded resize-y"
+                :placeholder="'Étape ' + (index + 1)"
+              ></textarea>
+            </div>
+          </template>
+        </div>
+      </div>
+
+      <!-- Boutons d'action -->
+      <div class="flex justify-end gap-3 pt-4 border-t">
+        <button
+          @click="closeEditModal()"
+          class="px-6 py-2 bg-gray-300 hover:bg-gray-400 text-gray-800 rounded font-semibold transition-colors"
+        >
+          {{ 'キャンセル' if lang == 'jp' else 'Annuler' }}
+        </button>
+        <button
+          @click="saveRecipe()"
+          :disabled="saving"
+          class="px-6 py-2 bg-green-600 hover:bg-green-700 text-white rounded font-semibold disabled:opacity-50 transition-colors"
+        >
+          <span x-show="!saving">{{ '保存' if lang == 'jp' else 'Enregistrer' }}</span>
+          <span x-show="saving">{{ '保存中...' if lang == 'jp' else 'Enregistrement...' }}</span>
+        </button>
+      </div>
+    </div>
+  </div>
 </article>
+
+<style>
+  [x-cloak] { display: none !important; }
+</style>
+
+<script>
+  function recipeDetail() {
+    return {
+      apiStatus: 'checking',
+      translating: false,
+      message: '',
+      messageType: 'info',
+      editMode: false,
+      saving: false,
+      editData: {
+        ingredients: [],
+        steps: []
+      },
+      originalData: null,
+
+      async init() {
+        // Vérifier le statut de l'API au chargement
+        await this.checkApiStatus();
+        // Initialiser les données d'édition
+        this.initEditData();
+      },
+
+      initEditData() {
+        // Récupérer les données actuelles depuis le DOM
+        this.originalData = {
+          ingredients: {{ ings | tojson | safe }},
+          steps: {{ steps | tojson | safe }}
+        };
+      },
+
+      async checkApiStatus() {
+        try {
+          const response = await fetch('/api/translation/status');
+          const data = await response.json();
+          this.apiStatus = data.status;
+        } catch (error) {
+          console.error('Erreur lors de la vérification du statut API:', error);
+          this.apiStatus = 'error';
+        }
+      },
+
+      async translateRecipe() {
+        this.translating = true;
+        this.message = '';
+
+        try {
+          const response = await fetch('/api/translate/{{ rec["slug"] }}?target_lang={{ lang }}', {
+            method: 'POST'
+          });
+
+          const data = await response.json();
+
+          if (data.success) {
+            this.message = data.message;
+            this.messageType = 'success';
+
+            // Recharger la page après 2 secondes pour afficher la traduction
+            setTimeout(() => {
+              window.location.reload();
+            }, 2000);
+          } else {
+            this.message = data.message;
+            this.messageType = 'error';
+            this.translating = false;
+          }
+        } catch (error) {
+          console.error('Erreur lors de la traduction:', error);
+          this.message = 'Erreur lors de la communication avec le serveur';
+          this.messageType = 'error';
+          this.translating = false;
+        }
+      },
+
+      openEditModal() {
+        // Créer une copie profonde des données originales
+        this.editData = {
+          ingredients: JSON.parse(JSON.stringify(this.originalData.ingredients)),
+          steps: JSON.parse(JSON.stringify(this.originalData.steps))
+        };
+        this.editMode = true;
+        this.message = '';
+      },
+
+      closeEditModal() {
+        // Fermer le modal sans sauvegarder
+        this.editMode = false;
+        this.editData = {
+          ingredients: [],
+          steps: []
+        };
+      },
+
+      async saveRecipe() {
+        this.saving = true;
+        this.message = '';
+
+        try {
+          const response = await fetch('/api/recipe/{{ rec["slug"] }}?lang={{ lang }}', {
+            method: 'PUT',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              ingredients: this.editData.ingredients,
+              steps: this.editData.steps
+            })
+          });
+
+          const data = await response.json();
+
+          if (data.success) {
+            this.message = data.message;
+            this.messageType = 'success';
+            this.editMode = false;
+
+            // Recharger la page après 1 seconde pour afficher les modifications
+            setTimeout(() => {
+              window.location.reload();
+            }, 1000);
+          } else {
+            this.message = data.message;
+            this.messageType = 'error';
+            this.saving = false;
+          }
+        } catch (error) {
+          console.error('Erreur lors de la sauvegarde:', error);
+          this.message = 'Erreur lors de la communication avec le serveur';
+          this.messageType = 'error';
+          this.saving = false;
+        }
+      }
+    }
+  }
+</script>
 {% endblock %}

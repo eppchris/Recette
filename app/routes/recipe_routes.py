@@ -1,6 +1,6 @@
 # app/routes/recipe_routes.py
 from fastapi import APIRouter, Request, Query, UploadFile, File
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 from jinja2 import pass_context
 from pathlib import Path
@@ -10,6 +10,7 @@ import os
 
 from app.models import db
 from app.services.recipe_importer import import_recipe_from_csv
+from app.services.translation_service import get_translation_service
 
 router = APIRouter()
 
@@ -92,19 +93,29 @@ async def recipes_list(request: Request, lang: str = Query("fr")):
 async def recipe_detail(request: Request, slug: str, lang: str = Query("fr")):
     """Affiche le détail d'une recette"""
     result = db.get_recipe_by_slug(slug, lang)
-    
+
     if not result:
         return templates.TemplateResponse(
             "not_found.html",
             {"request": request, "lang": lang, "message": f"Recette '{slug}' introuvable"},
             status_code=404,
         )
-    
+
     rec, ings, steps = result
-    
+
+    # Récupérer les steps avec leurs IDs pour l'édition
+    recipe_id = db.get_recipe_id_by_slug(slug)
+    steps_with_ids = db.get_recipe_steps_with_ids(recipe_id, lang) if recipe_id else []
+
     return templates.TemplateResponse(
         "recipe_detail.html",
-        {"request": request, "lang": lang, "rec": rec, "ings": ings, "steps": steps}
+        {
+            "request": request,
+            "lang": lang,
+            "rec": rec,
+            "ings": ings,
+            "steps": steps_with_ids  # Utiliser steps_with_ids au lieu de steps
+        }
     )
 
 # --------------------------------------------------------------------
@@ -154,3 +165,226 @@ async def import_post(
         "import_recipes.html",
         {"request": request, "lang": lang, "message": message}
     )
+
+# --------------------------------------------------------------------
+# API de traduction
+# --------------------------------------------------------------------
+@router.get("/api/translation/status")
+async def translation_api_status():
+    """Vérifie le statut de l'API de traduction Groq"""
+    service = get_translation_service()
+
+    if not service:
+        return JSONResponse({"status": "unavailable", "message": "Service non initialisé"})
+
+    is_operational = service.check_api_status()
+
+    return JSONResponse({
+        "status": "operational" if is_operational else "error",
+        "message": "API Groq opérationnelle" if is_operational else "API Groq non disponible"
+    })
+
+
+@router.post("/api/translate/{slug}")
+async def translate_recipe(slug: str, target_lang: str = Query(...)):
+    """Traduit une recette vers une langue cible
+
+    Args:
+        slug: Slug de la recette à traduire
+        target_lang: Langue cible (fr ou jp)
+
+    Returns:
+        JSON avec le statut de la traduction
+    """
+    service = get_translation_service()
+
+    if not service:
+        return JSONResponse(
+            {"success": False, "message": "Service de traduction non disponible"},
+            status_code=503
+        )
+
+    # Vérifier que la recette existe
+    recipe_id = db.get_recipe_id_by_slug(slug)
+    if not recipe_id:
+        return JSONResponse(
+            {"success": False, "message": f"Recette '{slug}' introuvable"},
+            status_code=404
+        )
+
+    # Vérifier si la traduction existe déjà
+    if db.check_translation_exists(recipe_id, target_lang):
+        return JSONResponse(
+            {"success": False, "message": f"La traduction existe déjà en {target_lang}"},
+            status_code=400
+        )
+
+    # Déterminer la langue source
+    source_lang = db.get_source_language(recipe_id)
+    if not source_lang:
+        return JSONResponse(
+            {"success": False, "message": "Aucune langue source trouvée pour cette recette"},
+            status_code=400
+        )
+
+    # Récupérer la recette dans la langue source
+    recipe, ingredients, steps = db.get_recipe_by_slug(slug, source_lang)
+
+    # Récupérer les étapes avec leurs IDs
+    steps_with_ids = db.get_recipe_steps_with_ids(recipe_id, source_lang)
+
+    try:
+        # Traduire le titre
+        translated_title = service.translate_recipe_title(
+            recipe['name'],
+            source_lang,
+            target_lang
+        )
+
+        if not translated_title:
+            return JSONResponse(
+                {"success": False, "message": "Erreur lors de la traduction du titre"},
+                status_code=500
+            )
+
+        # Préparer les ingrédients pour la traduction
+        ingredients_to_translate = [
+            {'name': ing['name'], 'unit': ing['unit']}
+            for ing in ingredients
+        ]
+
+        # Traduire les ingrédients
+        translated_ingredients = service.translate_ingredients(
+            ingredients_to_translate,
+            source_lang,
+            target_lang
+        )
+
+        if translated_ingredients is None:
+            return JSONResponse(
+                {"success": False, "message": "Erreur lors de la traduction des ingrédients"},
+                status_code=500
+            )
+
+        # Préparer les étapes pour la traduction
+        steps_to_translate = [step['text'] for step in steps_with_ids]
+
+        # Traduire les étapes
+        translated_steps = service.translate_steps(
+            steps_to_translate,
+            source_lang,
+            target_lang
+        )
+
+        if translated_steps is None:
+            return JSONResponse(
+                {"success": False, "message": "Erreur lors de la traduction des étapes"},
+                status_code=500
+            )
+
+        # Insérer la traduction de la recette
+        db.insert_recipe_translation(
+            recipe_id,
+            target_lang,
+            translated_title,
+            recipe['type']  # Copie du type
+        )
+
+        # Insérer les traductions des ingrédients
+        for i, ing in enumerate(ingredients):
+            db.insert_ingredient_translation(
+                ing['id'],
+                target_lang,
+                translated_ingredients[i]['name'],
+                translated_ingredients[i]['unit']
+            )
+
+        # Insérer les traductions des étapes
+        for i, step in enumerate(steps_with_ids):
+            db.insert_step_translation(
+                step['id'],
+                target_lang,
+                translated_steps[i]
+            )
+
+        return JSONResponse({
+            "success": True,
+            "message": f"Recette traduite avec succès en {target_lang}",
+            "translated_title": translated_title,
+            "translated_ingredients_count": len(translated_ingredients),
+            "translated_steps_count": len(translated_steps)
+        })
+
+    except Exception as e:
+        print(f"Erreur lors de la traduction: {e}")
+        return JSONResponse(
+            {"success": False, "message": f"Erreur: {str(e)}"},
+            status_code=500
+        )
+
+# --------------------------------------------------------------------
+# API de modification de recette
+# --------------------------------------------------------------------
+@router.put("/api/recipe/{slug}")
+async def update_recipe(slug: str, request: Request, lang: str = Query(...)):
+    """Met à jour les données d'une recette
+
+    Args:
+        slug: Slug de la recette à modifier
+        lang: Langue des modifications
+        request: Données JSON contenant ingredients et steps
+
+    Returns:
+        JSON avec le statut de la mise à jour
+    """
+    # Vérifier que la recette existe
+    recipe_id = db.get_recipe_id_by_slug(slug)
+    if not recipe_id:
+        return JSONResponse(
+            {"success": False, "message": f"Recette '{slug}' introuvable"},
+            status_code=404
+        )
+
+    try:
+        data = await request.json()
+        ingredients = data.get('ingredients', [])
+        steps = data.get('steps', [])
+
+        # Mettre à jour les ingrédients
+        for ing in ingredients:
+            # Mettre à jour la quantité (indépendante de la langue)
+            if 'quantity' in ing:
+                db.update_ingredient_quantity(ing['id'], ing['quantity'])
+
+            # Mettre à jour la traduction (nom, unité, notes)
+            if 'name' in ing or 'unit' in ing:
+                db.update_ingredient_translation(
+                    ing['id'],
+                    lang,
+                    ing.get('name', ''),
+                    ing.get('unit', ''),
+                    ing.get('notes', '')
+                )
+
+        # Mettre à jour les étapes
+        for step in steps:
+            if 'text' in step:
+                db.update_step_translation(
+                    step['id'],
+                    lang,
+                    step['text']
+                )
+
+        return JSONResponse({
+            "success": True,
+            "message": "Recette mise à jour avec succès",
+            "updated_ingredients": len(ingredients),
+            "updated_steps": len(steps)
+        })
+
+    except Exception as e:
+        print(f"Erreur lors de la mise à jour de la recette: {e}")
+        return JSONResponse(
+            {"success": False, "message": f"Erreur: {str(e)}"},
+            status_code=500
+        )

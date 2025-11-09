@@ -6,7 +6,17 @@ from fastapi.templating import Jinja2Templates
 from jinja2 import pass_context
 from pathlib import Path
 
+from config import DevConfig
+from app.services.translation_service import init_translation_service
+
 app = FastAPI(title="Recette FR/JP")
+
+# Initialiser le service de traduction si la clé API est configurée
+if DevConfig.GROQ_API_KEY:
+    init_translation_service(DevConfig.GROQ_API_KEY)
+    print("✅ Service de traduction Groq initialisé")
+else:
+    print("⚠️  Clé API Groq non configurée - la traduction automatique est désactivée")
 
 # Montage des fichiers statiques
 app.mount("/static", StaticFiles(directory="static"), name="static")
