@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="{{ lang }}">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ event.name }} - Recette</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+</head>
+<body class="bg-gray-50" x-data="{ darkMode: false, showAddRecipe: false, selectedRecipe: '' }">
+    <div :class="darkMode ? 'dark bg-gray-900' : 'bg-gray-50'" class="min-h-screen">
+        <!-- Header -->
+        <header class="bg-white dark:bg-gray-800 shadow-sm border-b border-gray-200 dark:border-gray-700">
+            <div class="max-w-7xl mx-auto px-4 py-4 flex justify-between items-center">
+                <div class="flex items-center gap-4">
+                    <a href="/events?lang={{ lang }}" class="text-blue-600 dark:text-blue-400 hover:underline">
+                        ← {{ S('back') }}
+                    </a>
+                    <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ event.name }}</h1>
+                </div>
+
+                <div class="flex items-center gap-4">
+                    <!-- Sélecteur de langue -->
+                    <div class="flex gap-2">
+                        <a href="?lang=fr"
+                           class="px-3 py-1.5 rounded-lg {{ 'bg-blue-500 text-white' if lang == 'fr' else 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600' }}">
+                            FR
+                        </a>
+                        <a href="?lang=jp"
+                           class="px-3 py-1.5 rounded-lg {{ 'bg-blue-500 text-white' if lang == 'jp' else 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600' }}">
+                            JP
+                        </a>
+                    </div>
+
+                    <!-- Toggle mode sombre -->
+                    <button @click="darkMode = !darkMode"
+                            class="p-2 rounded-lg bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600">
+                        <span x-show="!darkMode">🌙</span>
+                        <span x-show="darkMode">☀️</span>
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        <!-- Contenu principal -->
+        <main class="max-w-7xl mx-auto px-4 py-8">
+            <!-- Informations de l'événement -->
+            <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6 mb-6">
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
+                    <div>
+                        <span class="text-sm text-gray-500 dark:text-gray-400">{{ S('event_type') }}</span>
+                        <p class="font-medium text-gray-900 dark:text-white">{{ event.event_type_name }}</p>
+                    </div>
+                    <div>
+                        <span class="text-sm text-gray-500 dark:text-gray-400">{{ S('event_date') }}</span>
+                        <p class="font-medium text-gray-900 dark:text-white">{{ event.event_date }}</p>
+                    </div>
+                    <div>
+                        <span class="text-sm text-gray-500 dark:text-gray-400">{{ S('event_location') }}</span>
+                        <p class="font-medium text-gray-900 dark:text-white">{{ event.location }}</p>
+                    </div>
+                    <div>
+                        <span class="text-sm text-gray-500 dark:text-gray-400">{{ S('event_attendees') }}</span>
+                        <p class="font-medium text-gray-900 dark:text-white">{{ event.attendees }}</p>
+                    </div>
+                </div>
+
+                {% if event.notes %}
+                <div class="mt-4">
+                    <span class="text-sm text-gray-500 dark:text-gray-400">{{ S('event_notes') }}</span>
+                    <p class="text-gray-700 dark:text-gray-300 mt-1">{{ event.notes }}</p>
+                </div>
+                {% endif %}
+
+                <div class="mt-4 flex gap-3">
+                    <a href="/events/{{ event.id }}/edit?lang={{ lang }}"
+                       class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                        {{ S('edit') }}
+                    </a>
+                    <form method="POST" action="/events/{{ event.id }}/delete"
+                          onsubmit="return confirm('{{ 'Êtes-vous sûr de vouloir supprimer cet événement ?' if lang == 'fr' else 'このイベントを削除してもよろしいですか？' }}');">
+                        <input type="hidden" name="lang" value="{{ lang }}">
+                        <button type="submit" class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700">
+                            {{ S('delete') }}
+                        </button>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Recettes de l'événement -->
+            <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6 mb-6">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-xl font-bold text-gray-900 dark:text-white">{{ S('recipes') }}</h2>
+                    <div class="flex gap-2">
+                        <form method="POST" action="/events/{{ event.id }}/recipes/add-all-by-type"
+                              onsubmit="return confirm('{{ 'Ajouter toutes les recettes ' + event.event_type_name + ' ?' if lang == 'fr' else 'すべての' + event.event_type_name + 'レシピを追加しますか？' }}');">
+                            <input type="hidden" name="lang" value="{{ lang }}">
+                            <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 whitespace-nowrap">
+                                ++ {{ 'Ajouter tout ' + event.event_type_name if lang == 'fr' else 'すべて追加 ' + event.event_type_name }}
+                            </button>
+                        </form>
+                        <button @click="showAddRecipe = !showAddRecipe"
+                                class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700">
+                            <span x-show="!showAddRecipe">+ {{ S('add_recipe') }}</span>
+                            <span x-show="showAddRecipe">{{ S('cancel') }}</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Formulaire d'ajout de recette -->
+                <div x-show="showAddRecipe" class="mb-6 p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                    <form method="POST" action="/events/{{ event.id }}/recipes/add">
+                        <input type="hidden" name="lang" value="{{ lang }}">
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div class="md:col-span-2">
+                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                    {{ S('recipes') if lang == 'fr' else 'レシピ' }}
+                                </label>
+                                <select name="recipe_id" required
+                                        class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-600 dark:text-white">
+                                    <option value="">{{ 'Sélectionner une recette' if lang == 'fr' else 'レシピを選択' }}</option>
+                                    {% for recipe in all_recipes %}
+                                    <option value="{{ recipe.id }}">{{ recipe.name }} ({{ recipe.servings }} {{ S('servings') }})</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                    {{ 'Multiplicateur' if lang == 'fr' else '倍数' }}
+                                </label>
+                                <input type="number" name="servings_multiplier" value="1.0" step="0.1" min="0.1" required
+                                       class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-600 dark:text-white">
+                            </div>
+                        </div>
+                        <div class="mt-3">
+                            <button type="submit" class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700">
+                                {{ 'Ajouter' if lang == 'fr' else '追加' }}
+                            </button>
+                        </div>
+                    </form>
+                </div>
+
+                <!-- Liste des recettes -->
+                {% if recipes %}
+                <div class="space-y-3">
+                    {% for recipe in recipes %}
+                    <div class="flex items-center justify-between p-4 border border-gray-200 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700">
+                        <div class="flex-1">
+                            <a href="/recipe/{{ recipe.id }}?lang={{ lang }}" class="font-medium text-blue-600 dark:text-blue-400 hover:underline">
+                                {{ recipe.name }}
+                            </a>
+                            <p class="text-sm text-gray-500 dark:text-gray-400">
+                                {{ recipe.servings_default }} × {{ recipe.servings_multiplier }} = {{ (recipe.servings_default * recipe.servings_multiplier)|int }} {{ S('servings') }}
+                            </p>
+                        </div>
+                        <div class="flex items-center gap-3">
+                            <form method="POST" action="/events/{{ event.id }}/recipes/{{ recipe.id }}/remove"
+                                  onsubmit="return confirm('{{ 'Retirer cette recette ?' if lang == 'fr' else 'このレシピを削除しますか？' }}');">
+                                <input type="hidden" name="lang" value="{{ lang }}">
+                                <button type="submit" class="px-3 py-1 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900 rounded">
+                                    {{ S('remove') }}
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+
+                <!-- Bouton liste de courses -->
+                <div class="mt-6">
+                    <a href="/events/{{ event.id }}/shopping-list?lang={{ lang }}"
+                       class="inline-flex items-center gap-2 px-6 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 font-medium">
+                        <span>📝</span>
+                        <span>{% if has_shopping_list %}{{ 'Modifier la liste' if lang == 'fr' else 'リストを編集' }}{% else %}{{ S('generate_shopping_list') }}{% endif %}</span>
+                    </a>
+                </div>
+                {% else %}
+                <p class="text-gray-500 dark:text-gray-400 text-center py-8">
+                    {{ 'Aucune recette ajoutée' if lang == 'fr' else 'レシピが追加されていません' }}
+                </p>
+                {% endif %}
+            </div>
+        </main>
+    </div>
+</body>
+</html>

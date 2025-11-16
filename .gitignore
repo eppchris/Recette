@@ -13,3 +13,24 @@ venv/
 .vscode/
 .DS_Store*.zip
 .DS_Store
+
+# Base de données (données locales uniquement)
+data/*.sqlite3
+data/*.sqlite3-shm
+data/*.sqlite3-wal
+data/OLD/
+
+# Images uploadées par les utilisateurs
+static/images/recipes/
+static/images/recipes/thumbnails/
+
+# Logs
+logs/
+*.log
+
+# Scripts de déploiement spécifiques
+deploy/*.sh
+!deploy/deploy_synology.sh
+
+# Fichiers de service système
+*.service

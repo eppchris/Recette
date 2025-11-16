@@ -56,9 +56,76 @@
     <p x-text="message"></p>
   </div>
 
+  <!-- Section Conversion de recette -->
+  <section class="mb-8">
+    <div class="bg-gradient-to-r from-green-50 to-blue-50 border border-green-200 rounded-lg p-4">
+      <div class="flex flex-col md:flex-row gap-4 items-center">
+        <div class="flex-shrink-0">
+          <h3 class="text-lg font-bold text-green-900">
+            🧮 {{ 'Conversion de quantités' if lang == 'fr' else '分量変換' }}
+          </h3>
+        </div>
+
+        <div class="flex items-center gap-3">
+          <label class="text-sm font-semibold text-gray-700 whitespace-nowrap">
+            {{ 'Nombre de personnes:' if lang == 'fr' else '人数:' }}
+          </label>
+          <div class="flex items-center gap-2">
+            <button
+              @click="targetServings = Math.max(1, targetServings - 1)"
+              class="w-8 h-8 bg-gray-200 hover:bg-gray-300 rounded-full font-bold transition"
+            >
+              −
+            </button>
+            <input
+              type="number"
+              x-model.number="targetServings"
+              min="1"
+              max="50"
+              class="w-16 text-center px-2 py-1 border rounded"
+            >
+            <button
+              @click="targetServings = Math.min(50, targetServings + 1)"
+              class="w-8 h-8 bg-gray-200 hover:bg-gray-300 rounded-full font-bold transition"
+            >
+              +
+            </button>
+          </div>
+        </div>
+
+        <button
+          @click="convertRecipe()"
+          :disabled="converting || targetServings === originalServings"
+          class="px-6 py-2 bg-green-600 hover:bg-green-700 text-white rounded font-semibold disabled:opacity-50 disabled:cursor-not-allowed transition-colors whitespace-nowrap"
+        >
+          <span x-show="!converting">{{ '✨ Convertir' if lang == 'fr' else '✨ 変換' }}</span>
+          <span x-show="converting">{{ '⏳ Conversion...' if lang == 'fr' else '⏳ 変換中...' }}</span>
+        </button>
+
+        <p class="text-xs text-gray-600 ml-auto whitespace-nowrap">
+          {{ 'Recette originale:' if lang == 'fr' else '元のレシピ:' }}
+          <strong x-text="originalServings"></strong>
+          {{ 'pers.' if lang == 'fr' else '人分' }}
+        </p>
+      </div>
+    </div>
+  </section>
+
   <!-- Section Ingrédients -->
   <section class="mb-8">
-    <h2 class="text-xl font-bold mb-3">{{ S('ingredients') }}</h2>
+    <h2 class="text-xl font-bold mb-3">
+      {{ S('ingredients') }}
+      <span x-show="showingConversion" class="text-sm text-green-600 ml-2">
+        ({{ 'pour' if lang == 'fr' else '' }} <span x-text="targetServings"></span> {{ 'personne(s)' if lang == 'fr' else '人分' }})
+      </span>
+      <button
+        x-show="showingConversion"
+        @click="resetConversion()"
+        class="ml-3 text-sm text-blue-600 hover:underline"
+      >
+        {{ 'Afficher quantités originales' if lang == 'fr' else '元の量を表示' }}
+      </button>
+    </h2>
     <div class="overflow-x-auto">
       <table class="w-full border-collapse border border-gray-300 text-sm">
         <thead>
@@ -71,7 +138,7 @@
         </thead>
         <tbody>
           {% for ig in ings %}
-          <tr class="hover:bg-gray-50">
+          <tr class="hover:bg-gray-50" x-show="!showingConversion">
             <td class="border border-gray-300 px-3 py-2">{{ ig['name'] or '-' }}</td>
             <td class="border border-gray-300 px-3 py-2 text-center">
               {{ ig['quantity'] if ig['quantity'] is not none else '-' }}
@@ -84,13 +151,33 @@
             </td>
           </tr>
           {% endfor %}
+
+          <template x-for="ing in convertedIngredients" :key="ing.id">
+            <tr class="hover:bg-gray-50" x-show="showingConversion" :class="ing.is_negligible ? 'bg-yellow-50' : ''">
+              <td class="border border-gray-300 px-3 py-2">
+                <span x-text="ing.name"></span>
+                <span x-show="ing.is_negligible" class="ml-2 text-xs bg-yellow-200 text-yellow-800 px-2 py-0.5 rounded">
+                  {{ 'négligeable' if lang == 'fr' else '無視可能' }}
+                </span>
+              </td>
+              <td class="border border-gray-300 px-3 py-2 text-center font-semibold text-green-700">
+                <span x-text="ing.converted_quantity !== null && ing.converted_quantity !== undefined ? ing.converted_quantity : '-'"></span>
+              </td>
+              <td class="border border-gray-300 px-3 py-2 text-center">
+                <span x-text="ing.purchase_unit || ing.unit || '-'"></span>
+              </td>
+              <td class="border border-gray-300 px-3 py-2 text-gray-600">
+                <span x-text="ing.notes || '-'"></span>
+              </td>
+            </tr>
+          </template>
         </tbody>
       </table>
     </div>
   </section>
 
   <!-- Section Étapes -->
-  <section>
+  <section class="mb-8">
     <h2 class="text-xl font-bold mb-3">{{ S('steps') }}</h2>
     <ol class="space-y-3">
       {% for s in steps %}
@@ -102,6 +189,69 @@
       </li>
       {% endfor %}
     </ol>
+  </section>
+
+  <!-- Section Image et informations -->
+  <section class="mb-8">
+    <div class="flex flex-col md:flex-row gap-6 items-start">
+      <!-- Affichage de l'image -->
+      <div class="w-full md:w-1/2">
+        <div class="relative group">
+          <img
+            :src="recipeImage || '/static/images/recipe-placeholder.jpg'"
+            alt="{{ rec['name'] }}"
+            class="w-full rounded-lg shadow-md object-cover"
+            style="max-height: 400px"
+          >
+          <!-- Boutons d'action sur l'image (affichés au survol) -->
+          <div class="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-40 transition-all rounded-lg flex items-center justify-center gap-4 opacity-0 group-hover:opacity-100">
+            <button
+              @click="$refs.imageInput.click()"
+              class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold transition-colors shadow-lg"
+            >
+              📷 {{ 'Modifier' if lang == 'fr' else '変更' }}
+            </button>
+            <button
+              x-show="recipeImage"
+              @click="deleteImage()"
+              class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-semibold transition-colors shadow-lg"
+            >
+              🗑️ {{ 'Supprimer' if lang == 'fr' else '削除' }}
+            </button>
+          </div>
+        </div>
+
+        <!-- Input file caché -->
+        <input
+          type="file"
+          x-ref="imageInput"
+          @change="uploadImage($event)"
+          accept="image/jpeg,image/png,image/webp"
+          class="hidden"
+        >
+
+        <!-- Indicateur de chargement -->
+        <div x-show="uploadingImage" class="mt-3 text-center">
+          <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+          <p class="mt-2 text-sm text-gray-600">{{ 'Upload en cours...' if lang == 'fr' else 'アップロード中...' }}</p>
+        </div>
+      </div>
+
+      <!-- Informations photo -->
+      <div class="w-full md:w-1/2">
+        <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
+          <h3 class="font-semibold text-blue-900 mb-2">📷 {{ 'Photo de la recette' if lang == 'fr' else 'レシピ写真' }}</h3>
+          <ul class="text-sm text-blue-800 space-y-1">
+            <li>✓ {{ 'Formats acceptés: JPG, PNG, WebP, GIF' if lang == 'fr' else '対応形式: JPG、PNG、WebP、GIF' }}</li>
+            <li>✓ {{ 'Taille max: 5 MB' if lang == 'fr' else '最大サイズ: 5 MB' }}</li>
+            <li>💡 {{ 'Conseil: optimisez vos images avant upload' if lang == 'fr' else 'ヒント: アップロード前に画像を最適化してください' }}</li>
+          </ul>
+          <p class="mt-3 text-sm text-gray-700">
+            {{ 'Survolez l\'image pour afficher les options de modification.' if lang == 'fr' else '画像にカーソルを合わせると編集オプションが表示されます。' }}
+          </p>
+        </div>
+      </div>
+    </div>
   </section>
 
   <!-- Bouton retour -->
@@ -123,6 +273,36 @@
         <button @click="closeEditModal()" class="text-gray-500 hover:text-gray-700 text-2xl">
           ×
         </button>
+      </div>
+
+      <!-- Section Informations générales -->
+      <div class="mb-8 p-4 bg-gray-50 rounded-lg">
+        <h3 class="text-xl font-bold mb-4">{{ '基本情報' if lang == 'jp' else 'Informations générales' }}</h3>
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <label class="block text-sm font-semibold mb-1">
+              {{ 'タイプ' if lang == 'jp' else 'Type de recette' }}
+            </label>
+            <input
+              type="text"
+              x-model="editData.recipe_type"
+              placeholder="{{ 'タイプ' if lang == 'jp' else 'Ex: Plat principal, Dessert...' }}"
+              class="w-full px-3 py-2 border rounded"
+            />
+          </div>
+          <div>
+            <label class="block text-sm font-semibold mb-1">
+              {{ '人数' if lang == 'jp' else 'Nombre de personnes' }}
+            </label>
+            <input
+              type="number"
+              min="1"
+              x-model="editData.servings_default"
+              placeholder="{{ '人数' if lang == 'jp' else 'Ex: 4' }}"
+              class="w-full px-3 py-2 border rounded"
+            />
+          </div>
+        </div>
       </div>
 
       <!-- Section Ingrédients -->
@@ -221,11 +401,19 @@
       messageType: 'info',
       editMode: false,
       saving: false,
+      uploadingImage: false,
+      recipeImage: '{{ rec["image_url"] or "" }}',
       editData: {
         ingredients: [],
         steps: []
       },
       originalData: null,
+      // Conversion
+      originalServings: {{ rec['servings'] or 1 }},
+      targetServings: {{ rec['servings'] or 1 }},
+      converting: false,
+      showingConversion: false,
+      convertedIngredients: [],
 
       async init() {
         // Vérifier le statut de l'API au chargement
@@ -238,7 +426,9 @@
         // Récupérer les données actuelles depuis le DOM
         this.originalData = {
           ingredients: {{ ings | tojson | safe }},
-          steps: {{ steps | tojson | safe }}
+          steps: {{ steps | tojson | safe }},
+          recipe_type: '{{ rec["type"] or "" }}',
+          servings_default: {{ rec['servings'] or 'null' }}
         };
       },
 
@@ -289,7 +479,9 @@
         // Créer une copie profonde des données originales
         this.editData = {
           ingredients: JSON.parse(JSON.stringify(this.originalData.ingredients)),
-          steps: JSON.parse(JSON.stringify(this.originalData.steps))
+          steps: JSON.parse(JSON.stringify(this.originalData.steps)),
+          recipe_type: this.originalData.recipe_type,
+          servings_default: this.originalData.servings_default
         };
         this.editMode = true;
         this.message = '';
@@ -316,7 +508,9 @@
             },
             body: JSON.stringify({
               ingredients: this.editData.ingredients,
-              steps: this.editData.steps
+              steps: this.editData.steps,
+              recipe_type: this.editData.recipe_type,
+              servings_default: this.editData.servings_default
             })
           });
 
@@ -342,6 +536,141 @@
           this.messageType = 'error';
           this.saving = false;
         }
+      },
+
+      async uploadImage(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+
+        // Vérifier la taille (5MB max)
+        if (file.size > 5 * 1024 * 1024) {
+          this.message = '{{ "Fichier trop volumineux (max 5 MB)" if lang == "fr" else "ファイルが大きすぎます（最大5 MB）" }}';
+          this.messageType = 'error';
+          return;
+        }
+
+        // Vérifier le type
+        const allowedTypes = ['image/jpeg', 'image/png', 'image/webp'];
+        if (!allowedTypes.includes(file.type)) {
+          this.message = '{{ "Format non supporté. Utilisez JPG, PNG ou WebP" if lang == "fr" else "非対応の形式です。JPG、PNG、WebPを使用してください" }}';
+          this.messageType = 'error';
+          return;
+        }
+
+        this.uploadingImage = true;
+        this.message = '';
+
+        try {
+          const formData = new FormData();
+          formData.append('file', file);
+
+          const response = await fetch('/api/recipe/{{ rec["slug"] }}/image', {
+            method: 'POST',
+            body: formData
+          });
+
+          const data = await response.json();
+
+          if (data.success) {
+            this.recipeImage = data.image_url;
+            this.message = data.message;
+            this.messageType = 'success';
+
+            // Réinitialiser l'input file
+            event.target.value = '';
+          } else {
+            this.message = data.message;
+            this.messageType = 'error';
+          }
+        } catch (error) {
+          console.error('Erreur lors de l\'upload:', error);
+          this.message = '{{ "Erreur lors de l\\'upload" if lang == "fr" else "アップロードエラー" }}';
+          this.messageType = 'error';
+        } finally {
+          this.uploadingImage = false;
+        }
+      },
+
+      async deleteImage() {
+        if (!confirm('{{ "Êtes-vous sûr de vouloir supprimer cette image ?" if lang == "fr" else "この画像を削除してもよろしいですか？" }}')) {
+          return;
+        }
+
+        this.uploadingImage = true;
+        this.message = '';
+
+        try {
+          const response = await fetch('/api/recipe/{{ rec["slug"] }}/image', {
+            method: 'DELETE'
+          });
+
+          const data = await response.json();
+
+          if (data.success) {
+            this.recipeImage = '';
+            this.message = data.message;
+            this.messageType = 'success';
+          } else {
+            this.message = data.message;
+            this.messageType = 'error';
+          }
+        } catch (error) {
+          console.error('Erreur lors de la suppression:', error);
+          this.message = '{{ "Erreur lors de la suppression" if lang == "fr" else "削除エラー" }}';
+          this.messageType = 'error';
+        } finally {
+          this.uploadingImage = false;
+        }
+      },
+
+      async convertRecipe() {
+        this.converting = true;
+        this.message = '';
+
+        try {
+          const response = await fetch('/api/recipe/{{ rec["slug"] }}/convert?lang={{ lang }}', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              target_servings: this.targetServings
+            })
+          });
+
+          const data = await response.json();
+
+          if (data.success) {
+            this.convertedIngredients = data.ingredients;
+            this.showingConversion = true;
+            this.message = data.message;
+            this.messageType = 'success';
+
+            // Scroll vers la section des ingrédients
+            setTimeout(() => {
+              const ingredientsSection = document.querySelector('section.mb-8:has(table)');
+              if (ingredientsSection) {
+                ingredientsSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+              }
+            }, 300);
+          } else {
+            this.message = data.message;
+            this.messageType = 'error';
+          }
+        } catch (error) {
+          console.error('Erreur lors de la conversion:', error);
+          this.message = '{{ "Erreur lors de la conversion" if lang == "fr" else "変換エラー" }}';
+          this.messageType = 'error';
+        } finally {
+          this.converting = false;
+        }
+      },
+
+      resetConversion() {
+        this.showingConversion = false;
+        this.convertedIngredients = [];
+        this.targetServings = this.originalServings;
+        this.message = '';
       }
     }
   }

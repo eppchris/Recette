@@ -1,8 +1,37 @@
 # app/services/recipe_importer.py
 import sqlite3
 import re
+import unicodedata
 
 from app.models.db import DB_PATH
+
+
+def slugify(text: str) -> str:
+    """
+    Convertit un texte en slug URL-friendly
+
+    Exemples:
+        "Saumon mariné" -> "saumon-marine"
+        "なす の辛味噌炒え" -> "nasu-no-xinwei-chao"
+        "Blinis" -> "blinis"
+    """
+    # Normaliser les caractères unicode
+    text = unicodedata.normalize('NFKD', text)
+    # Convertir en minuscules
+    text = text.lower()
+    # Remplacer les espaces et caractères spéciaux par des tirets
+    text = re.sub(r'[^\w\s-]', '', text)
+    text = re.sub(r'[-\s]+', '-', text)
+    # Supprimer les tirets en début et fin
+    text = text.strip('-')
+
+    # Si le slug est vide (par exemple pour des caractères japonais uniquement)
+    # ou trop court, garder le texte original
+    if not text or len(text) < 2:
+        text = re.sub(r'[^\w]+', '-', unicodedata.normalize('NFKD', text.lower()))
+        text = text.strip('-')
+
+    return text[:50]  # Limiter à 50 caractères
 
 
 def import_recipe_from_csv(file_path: str):

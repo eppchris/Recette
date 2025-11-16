@@ -7,26 +7,17 @@
 <h1 class="text-2xl font-bold mb-4">{{ S('import') }}</h1>
 
 <div class="bg-white rounded-lg border p-6 max-w-xl">
-  <p class="text-sm text-gray-600 mb-3">
-    Uploadez un fichier CSV (UTF-8) au format suivant :
-  </p>
-  
-  <div class="text-xs bg-gray-50 p-3 rounded border mb-4">
-    <strong>Structure du CSV :</strong><br>
-    Ligne 1 : Titre de la recette<br>
-    Ligne 2 : Langue (fr ou jp)<br>
-    Ligne 3 : Index/slug unique<br>
-    Ligne 4 : Pays d'origine<br>
-    Ligne 5 : Nombre de convives<br>
-    Ligne 6 : Population (PRO, MASTER, etc.)<br>
-    Ligne 7 : "ingredients"<br>
-    Lignes suivantes : Nom;Quantité;Unité;Commentaire<br>
-    Ligne X : "Procedure"<br>
-    Lignes suivantes : Étapes de préparation
-  </div>
-
   <form action="/import?lang={{ lang }}" method="post" enctype="multipart/form-data" class="space-y-3">
-    <input type="file" name="file" accept=".csv" required class="block w-full text-sm" />
+    <div class="relative">
+      <input
+        type="file"
+        name="file"
+        id="file-input"
+        accept=".csv"
+        required
+        class="block w-full text-sm file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+      />
+    </div>
     <button class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">
       {{ S('import') }}
     </button>
@@ -38,4 +29,29 @@
     </p>
   {% endif %}
 </div>
+
+<script>
+  // Traduire les textes du bouton "Choisir un fichier" selon la langue
+  const translations = {
+    fr: {
+      choose: "{{ S('choose_file') }}",
+      noFile: "{{ S('no_file_chosen') }}"
+    },
+    jp: {
+      choose: "{{ S('choose_file') }}",
+      noFile: "{{ S('no_file_chosen') }}"
+    }
+  };
+
+  const lang = "{{ lang }}";
+  const fileInput = document.getElementById('file-input');
+
+  // Note: Les navigateurs ne permettent pas de traduire le texte du bouton "Parcourir"/"Browse"
+  // Mais on peut afficher un message personnalisé quand aucun fichier n'est sélectionné
+  fileInput.addEventListener('change', function(e) {
+    if (this.files.length === 0) {
+      console.log(translations[lang].noFile);
+    }
+  });
+</script>
 {% endblock %}

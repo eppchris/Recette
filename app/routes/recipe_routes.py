@@ -1,9 +1,6 @@
 # app/routes/recipe_routes.py
 from fastapi import APIRouter, Request, Query, UploadFile, File
 from fastapi.responses import HTMLResponse, JSONResponse
-from fastapi.templating import Jinja2Templates
-from jinja2 import pass_context
-from pathlib import Path
 import tempfile
 import shutil
 import os
@@ -11,68 +8,10 @@ import os
 from app.models import db
 from app.services.recipe_importer import import_recipe_from_csv
 from app.services.translation_service import get_translation_service
+from app.services.conversion_service import get_conversion_service
+from app.template_config import templates
 
 router = APIRouter()
-
-# Configuration des templates
-TEMPLATES_DIR = str((Path(__file__).resolve().parents[1] / "templates"))
-templates = Jinja2Templates(directory=TEMPLATES_DIR)
-
-# Dictionnaire de traductions COMPLET
-TRANSLATIONS = {
-    "fr": {
-        "recipes": "Recettes",
-        "all": "Toutes les recettes",
-        "import": "Importer",
-        "back": "Retour",
-        "type": "Type",
-        "servings": "Convives",
-        "tags": "Tags",
-        "ingredients": "Ingrédients",
-        "steps": "Étapes",
-        "source": "Source",
-        "lang_fr": "Français",
-        "lang_jp": "日本語",
-        "menu_recipes": "Recettes",
-        "menu_events": "Événements",
-        "menu_settings": "Gestion",
-        "all_recipes": "Toutes les recettes",
-        "import_recipe": "Importer",
-        "coming_soon": "Bientôt",
-        "dark_mode": "Mode nuit",
-        "light_mode": "Mode jour",
-    },
-    "jp": {
-        "recipes": "レシピ一覧",
-        "all": "全てのレシピ",
-        "import": "インポート",
-        "back": "戻る",
-        "type": "タイプ",
-        "servings": "人数",
-        "tags": "タグ",
-        "ingredients": "材料",
-        "steps": "手順",
-        "source": "ソース",
-        "lang_fr": "Français",
-        "lang_jp": "日本語",
-        "menu_recipes": "レシピ",
-        "menu_events": "イベント",
-        "menu_settings": "設定",
-        "all_recipes": "全てのレシピ",
-        "import_recipe": "インポート",
-        "coming_soon": "近日公開",
-        "dark_mode": "ダークモード",
-        "light_mode": "ライトモード",
-    },
-}
-
-@pass_context
-def S(ctx, key: str):
-    """Fonction de traduction pour les templates"""
-    lang = ctx.get("lang", "fr")
-    return TRANSLATIONS.get(lang, {}).get(key, key)
-
-templates.env.globals["S"] = S
 
 # --------------------------------------------------------------------
 # Liste des recettes
@@ -138,20 +77,29 @@ async def import_post(
     """Traite l'upload et l'import d'un fichier CSV"""
     temp_file = None
     tmp_path = None
-    
+
     try:
         temp_file = tempfile.NamedTemporaryFile(mode='wb', suffix='.csv', delete=False)
         tmp_path = temp_file.name
-        
+
         shutil.copyfileobj(file.file, temp_file)
         temp_file.close()
-        
+
         import_recipe_from_csv(tmp_path)
-        message = f"✅ Fichier « {file.filename} » importé avec succès."
-        
+
+        # Message de succès
+        if lang == "fr":
+            message = f"✅ {file.filename} importé avec succès"
+        else:
+            message = f"✅ {file.filename} のインポートに成功しました"
+
     except Exception as e:
-        message = f"❌ Erreur pendant l'import : {str(e)}"
-        
+        # Message d'erreur
+        if lang == "fr":
+            message = f"❌ Erreur lors de l'import : {str(e)}"
+        else:
+            message = f"❌ インポートエラー: {str(e)}"
+
     finally:
         if temp_file and not temp_file.closed:
             temp_file.close()
@@ -160,7 +108,7 @@ async def import_post(
                 os.remove(tmp_path)
             except Exception:
                 pass
-    
+
     return templates.TemplateResponse(
         "import_recipes.html",
         {"request": request, "lang": lang, "message": message}
@@ -249,7 +197,7 @@ async def translate_recipe(slug: str, target_lang: str = Query(...)):
 
         # Préparer les ingrédients pour la traduction
         ingredients_to_translate = [
-            {'name': ing['name'], 'unit': ing['unit']}
+            {'name': ing['name'], 'unit': ing['unit'], 'notes': ing.get('notes', '')}
             for ing in ingredients
         ]
 
@@ -282,12 +230,34 @@ async def translate_recipe(slug: str, target_lang: str = Query(...)):
                 status_code=500
             )
 
+        # Traduire le type de recette
+        recipe_type_map = {
+            "fr": {
+                "PRO": "PRO",
+                "MASTER": "MASTER",
+                "PERSO": "PERSO",
+                "プロ": "PRO",
+                "マイスター": "MASTER",
+                "じぶん": "PERSO"
+            },
+            "jp": {
+                "PRO": "プロ",
+                "MASTER": "マイスター",
+                "PERSO": "じぶん",
+                "プロ": "プロ",
+                "マイスター": "マイスター",
+                "じぶん": "じぶん"
+            }
+        }
+
+        translated_type = recipe_type_map.get(target_lang, {}).get(recipe['type'], recipe['type'])
+
         # Insérer la traduction de la recette
         db.insert_recipe_translation(
             recipe_id,
             target_lang,
             translated_title,
-            recipe['type']  # Copie du type
+            translated_type
         )
 
         # Insérer les traductions des ingrédients
@@ -296,7 +266,8 @@ async def translate_recipe(slug: str, target_lang: str = Query(...)):
                 ing['id'],
                 target_lang,
                 translated_ingredients[i]['name'],
-                translated_ingredients[i]['unit']
+                translated_ingredients[i]['unit'],
+                translated_ingredients[i].get('notes', '')
             )
 
         # Insérer les traductions des étapes
@@ -347,43 +318,249 @@ async def update_recipe(slug: str, request: Request, lang: str = Query(...)):
 
     try:
         data = await request.json()
-        ingredients = data.get('ingredients', [])
-        steps = data.get('steps', [])
 
-        # Mettre à jour les ingrédients
-        for ing in ingredients:
-            # Mettre à jour la quantité (indépendante de la langue)
-            if 'quantity' in ing:
-                db.update_ingredient_quantity(ing['id'], ing['quantity'])
-
-            # Mettre à jour la traduction (nom, unité, notes)
-            if 'name' in ing or 'unit' in ing:
-                db.update_ingredient_translation(
-                    ing['id'],
-                    lang,
-                    ing.get('name', ''),
-                    ing.get('unit', ''),
-                    ing.get('notes', '')
-                )
-
-        # Mettre à jour les étapes
-        for step in steps:
-            if 'text' in step:
-                db.update_step_translation(
-                    step['id'],
-                    lang,
-                    step['text']
-                )
+        # Utiliser une seule transaction pour toutes les mises à jour
+        db.update_recipe_complete(recipe_id, lang, data)
 
         return JSONResponse({
             "success": True,
             "message": "Recette mise à jour avec succès",
-            "updated_ingredients": len(ingredients),
-            "updated_steps": len(steps)
+            "updated_ingredients": len(data.get('ingredients', [])),
+            "updated_steps": len(data.get('steps', []))
         })
 
     except Exception as e:
         print(f"Erreur lors de la mise à jour de la recette: {e}")
+        return JSONResponse(
+            {"success": False, "message": f"Erreur: {str(e)}"},
+            status_code=500
+        )
+
+
+# --------------------------------------------------------------------
+# API de suppression de recette
+# --------------------------------------------------------------------
+@router.delete("/api/recipe/{slug}")
+async def delete_recipe(slug: str, lang: str = Query(...)):
+    """Supprime une recette et toutes ses données associées
+
+    Args:
+        slug: Slug de la recette à supprimer
+        lang: Langue (utilisée pour les messages de retour)
+
+    Returns:
+        JSON avec le statut de la suppression
+    """
+    try:
+        # Tenter de supprimer la recette
+        success = db.delete_recipe(slug)
+
+        if success:
+            return JSONResponse({
+                "success": True,
+                "message": "Recette supprimée avec succès" if lang == 'fr' else "レシピが削除されました"
+            })
+        else:
+            return JSONResponse(
+                {
+                    "success": False,
+                    "message": f"Recette '{slug}' introuvable" if lang == 'fr' else f"レシピ '{slug}' が見つかりません"
+                },
+                status_code=404
+            )
+
+    except Exception as e:
+        print(f"Erreur lors de la suppression de la recette: {e}")
+        return JSONResponse(
+            {
+                "success": False,
+                "message": f"Erreur: {str(e)}"
+            },
+            status_code=500
+        )
+
+
+# --------------------------------------------------------------------
+# API de gestion des images
+# --------------------------------------------------------------------
+@router.post("/api/recipe/{slug}/image")
+async def upload_recipe_image(slug: str, file: UploadFile = File(...)):
+    """
+    Upload une image pour une recette
+
+    Args:
+        slug: Slug de la recette
+        file: Fichier image uploadé
+
+    Returns:
+        JSON avec les URLs de l'image et du thumbnail
+    """
+    from app.services.image_service import save_recipe_image, delete_recipe_image
+
+    # Vérifier que la recette existe
+    recipe_id = db.get_recipe_id_by_slug(slug)
+    if not recipe_id:
+        return JSONResponse(
+            {"success": False, "message": f"Recette '{slug}' introuvable"},
+            status_code=404
+        )
+
+    try:
+        # Lire le fichier uploadé
+        file_data = await file.read()
+
+        # Récupérer les anciennes URLs pour les supprimer
+        old_image_url, old_thumbnail_url = db.get_recipe_image_urls(recipe_id)
+
+        # Sauvegarder la nouvelle image
+        image_url, thumbnail_url = save_recipe_image(file_data, file.filename)
+
+        # Mettre à jour la base de données
+        db.update_recipe_image(recipe_id, image_url, thumbnail_url)
+
+        # Supprimer les anciennes images si elles existaient
+        if old_image_url:
+            delete_recipe_image(old_image_url, old_thumbnail_url)
+
+        return JSONResponse({
+            "success": True,
+            "image_url": image_url,
+            "thumbnail_url": thumbnail_url,
+            "message": "Image uploadée avec succès"
+        })
+
+    except ValueError as e:
+        return JSONResponse(
+            {"success": False, "message": str(e)},
+            status_code=400
+        )
+    except Exception as e:
+        return JSONResponse(
+            {"success": False, "message": f"Erreur lors de l'upload: {str(e)}"},
+            status_code=500
+        )
+
+
+@router.delete("/api/recipe/{slug}/image")
+async def delete_recipe_image_endpoint(slug: str):
+    """
+    Supprime l'image d'une recette
+
+    Args:
+        slug: Slug de la recette
+
+    Returns:
+        JSON avec le statut de la suppression
+    """
+    from app.services.image_service import delete_recipe_image
+
+    # Vérifier que la recette existe
+    recipe_id = db.get_recipe_id_by_slug(slug)
+    if not recipe_id:
+        return JSONResponse(
+            {"success": False, "message": f"Recette '{slug}' introuvable"},
+            status_code=404
+        )
+
+    try:
+        # Récupérer les URLs actuelles
+        image_url, thumbnail_url = db.get_recipe_image_urls(recipe_id)
+
+        if not image_url:
+            return JSONResponse(
+                {"success": False, "message": "Aucune image à supprimer"},
+                status_code=404
+            )
+
+        # Supprimer les fichiers
+        delete_recipe_image(image_url, thumbnail_url)
+
+        # Mettre à jour la base de données (NULL)
+        db.update_recipe_image(recipe_id, None, None)
+
+        return JSONResponse({
+            "success": True,
+            "message": "Image supprimée avec succès"
+        })
+
+    except Exception as e:
+        return JSONResponse(
+            {"success": False, "message": f"Erreur lors de la suppression: {str(e)}"},
+            status_code=500
+        )
+
+
+# --------------------------------------------------------------------
+# API de conversion de recettes
+# --------------------------------------------------------------------
+@router.post("/api/recipe/{slug}/convert")
+async def convert_recipe_servings(slug: str, request: Request, lang: str = Query(...)):
+    """
+    Convertit une recette pour un nombre de personnes différent
+
+    Args:
+        slug: Slug de la recette
+        lang: Langue de la recette
+        request: Body JSON avec target_servings
+
+    Returns:
+        JSON avec les ingrédients convertis
+    """
+    service = get_conversion_service()
+
+    if not service:
+        return JSONResponse(
+            {"success": False, "message": "Service de conversion non disponible"},
+            status_code=503
+        )
+
+    # Vérifier que la recette existe
+    recipe_id = db.get_recipe_id_by_slug(slug)
+    if not recipe_id:
+        return JSONResponse(
+            {"success": False, "message": f"Recette '{slug}' introuvable"},
+            status_code=404
+        )
+
+    try:
+        data = await request.json()
+        target_servings = data.get('target_servings')
+
+        if not target_servings or target_servings <= 0:
+            return JSONResponse(
+                {"success": False, "message": "Nombre de personnes invalide"},
+                status_code=400
+            )
+
+        # Récupérer la recette
+        recipe, ingredients, steps = db.get_recipe_by_slug(slug, lang)
+
+        if not recipe:
+            return JSONResponse(
+                {"success": False, "message": "Recette introuvable"},
+                status_code=404
+            )
+
+        original_servings = recipe.get('servings', 1)
+
+        # Convertir les ingrédients
+        converted_ingredients = service.convert_recipe_servings(
+            ingredients,
+            original_servings,
+            target_servings,
+            lang
+        )
+
+        return JSONResponse({
+            "success": True,
+            "original_servings": original_servings,
+            "target_servings": target_servings,
+            "ingredients": converted_ingredients,
+            "message": f"Recette convertie pour {target_servings} personne(s)" if lang == 'fr' else f"{target_servings}人分に変換されました"
+        })
+
+    except Exception as e:
+        print(f"Erreur lors de la conversion: {e}")
         return JSONResponse(
             {"success": False, "message": f"Erreur: {str(e)}"},
             status_code=500

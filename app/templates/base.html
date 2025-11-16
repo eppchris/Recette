@@ -62,16 +62,16 @@
         </div>
       </div>
 
-      <!-- Section Événements (futur) -->
+      <!-- Section Événements -->
       <div>
-        <div 
-          class="flex items-center gap-3 px-3 py-2 rounded-lg opacity-50 cursor-not-allowed"
-          title="{{ S('coming_soon') }}"
+        <a
+          href="/events?lang={{ lang }}"
+          class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition group"
+          :class="'{{ request.path }}'.includes('/event') && 'bg-blue-50 dark:bg-blue-900 text-blue-600 dark:text-blue-300'"
         >
-          <span class="text-xl">📦</span>
+          <span class="text-xl">📅</span>
           <span x-show="sidebarOpen" x-transition class="font-medium">{{ S('menu_events') }}</span>
-          <span x-show="sidebarOpen" class="text-xs bg-gray-200 dark:bg-gray-700 px-2 py-0.5 rounded">{{ S('coming_soon') }}</span>
-        </div>
+        </a>
       </div>
 
       <!-- Section Gestion (futur) -->

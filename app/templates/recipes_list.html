@@ -11,13 +11,22 @@
 
 <div x-data="{
   search: '',
+  typeFilter: '',
   sortBy: 'name',
   sortOrder: 'asc',
   recipes: window.recipesData || [],
+  deleteModal: false,
+  recipeToDelete: null,
+  get availableTypes() {
+    const types = [...new Set(this.recipes.map(r => r.type).filter(t => t))];
+    return types.sort();
+  },
   get filteredRecipes() {
-    let filtered = this.recipes.filter(r => 
-      this.search === '' || r.name.toLowerCase().includes(this.search.toLowerCase())
-    );
+    let filtered = this.recipes.filter(r => {
+      const matchesSearch = this.search === '' || r.name.toLowerCase().includes(this.search.toLowerCase());
+      const matchesType = this.typeFilter === '' || r.type === this.typeFilter;
+      return matchesSearch && matchesType;
+    });
     return filtered.sort((a, b) => {
       let aVal = a[this.sortBy] || '';
       let bVal = b[this.sortBy] || '';
@@ -39,6 +48,35 @@
       this.sortBy = column;
       this.sortOrder = 'asc';
     }
+  },
+  confirmDelete(recipe) {
+    this.recipeToDelete = recipe;
+    this.deleteModal = true;
+  },
+  async deleteRecipe() {
+    if (!this.recipeToDelete) return;
+
+    try {
+      const response = await fetch(`/api/recipe/${this.recipeToDelete.slug}?lang={{ lang }}`, {
+        method: 'DELETE'
+      });
+
+      if (response.ok) {
+        // Supprimer de la liste locale
+        this.recipes = this.recipes.filter(r => r.id !== this.recipeToDelete.id);
+        this.deleteModal = false;
+        this.recipeToDelete = null;
+      } else {
+        alert('{{ 'Erreur lors de la suppression' if lang == 'fr' else '削除中にエラーが発生しました' }}');
+      }
+    } catch (error) {
+      console.error('Error:', error);
+      alert('{{ 'Erreur lors de la suppression' if lang == 'fr' else '削除中にエラーが発生しました' }}');
+    }
+  },
+  cancelDelete() {
+    this.deleteModal = false;
+    this.recipeToDelete = null;
   }
 }">
   <div class="flex justify-between items-center mb-4">
@@ -48,74 +86,106 @@
     </a>
   </div>
 
-  <!-- Barre de recherche -->
-  <div class="mb-4">
-    <input 
-      type="text" 
+  <!-- Barre de recherche et filtres -->
+  <div class="mb-4 flex gap-4">
+    <input
+      type="text"
       x-model="search"
-      placeholder="🔍 Rechercher une recette..."
-      class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+      placeholder="🔍 {{ 'Rechercher une recette...' if lang == 'fr' else 'レシピを検索...' }}"
+      class="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
     >
+    <select
+      x-model="typeFilter"
+      class="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white min-w-[200px]"
+    >
+      <option value="">{{ 'Tous les types' if lang == 'fr' else 'すべてのタイプ' }}</option>
+      <template x-for="type in availableTypes" :key="type">
+        <option :value="type" x-text="type"></option>
+      </template>
+    </select>
   </div>
 
-  <div class="bg-white rounded-lg border overflow-hidden">
-    <table class="w-full text-sm">
-      <thead class="bg-gray-100 border-b">
-        <tr>
-          <th @click="sort('name')" class="p-3 text-left cursor-pointer hover:bg-gray-200 select-none">
-            <div class="flex items-center gap-2">
-              <span>{{ S('recipes') }}</span>
-              <span class="text-xs" x-show="sortBy === 'name'">
-                <span x-show="sortOrder === 'asc'">▲</span>
-                <span x-show="sortOrder === 'desc'">▼</span>
-              </span>
-            </div>
-          </th>
-          <th @click="sort('type')" class="p-3 text-center cursor-pointer hover:bg-gray-200 select-none">
-            <div class="flex items-center justify-center gap-2">
-              <span>{{ S('type') }}</span>
-              <span class="text-xs" x-show="sortBy === 'type'">
-                <span x-show="sortOrder === 'asc'">▲</span>
-                <span x-show="sortOrder === 'desc'">▼</span>
-              </span>
-            </div>
-          </th>
-          <th @click="sort('servings')" class="p-3 text-center cursor-pointer hover:bg-gray-200 select-none">
-            <div class="flex items-center justify-center gap-2">
-              <span>{{ S('servings') }}</span>
-              <span class="text-xs" x-show="sortBy === 'servings'">
-                <span x-show="sortOrder === 'asc'">▲</span>
-                <span x-show="sortOrder === 'desc'">▼</span>
-              </span>
-            </div>
-          </th>
-        </tr>
-      </thead>
-      <tbody>
-        <template x-for="r in filteredRecipes" :key="r.id">
-          <tr class="border-t hover:bg-gray-50 transition">
-            <td class="p-3">
-              <a :href="`/recipe/${r.slug}?lang={{ lang }}`" class="text-blue-700 hover:underline" x-text="r.name"></a>
-            </td>
-            <td class="p-3 text-center" x-text="r.type || '-'"></td>
-            <td class="p-3 text-center" x-text="r.servings || '-'"></td>
-          </tr>
-        </template>
-        
-        <tr x-show="filteredRecipes.length === 0">
-          <td colspan="3" class="p-8 text-center text-gray-500">
-            <div class="text-4xl mb-2">🔍</div>
-            <div>Aucune recette trouvée</div>
-          </td>
-        </tr>
-      </tbody>
-    </table>
+  <!-- Grille de cartes de recettes -->
+  <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+    <template x-for="r in filteredRecipes" :key="r.id">
+      <div class="bg-white rounded-lg border overflow-hidden hover:shadow-lg transition-shadow">
+        <!-- Image -->
+        <a :href="`/recipe/${r.slug}?lang={{ lang }}`" class="block relative pb-[75%] overflow-hidden bg-gray-100">
+          <img
+            :src="r.thumbnail_url || '/static/images/recipe-placeholder.jpg'"
+            :alt="r.name"
+            class="absolute inset-0 w-full h-full object-cover"
+          >
+        </a>
+
+        <!-- Contenu -->
+        <div class="p-4">
+          <a :href="`/recipe/${r.slug}?lang={{ lang }}`" class="block">
+            <h3 class="font-semibold text-lg mb-2 hover:text-blue-600 transition" x-text="r.name"></h3>
+          </a>
+
+          <div class="flex items-center justify-between text-sm text-gray-600 mb-3">
+            <span x-text="r.type || '-'"></span>
+            <span x-show="r.servings">👥 <span x-text="r.servings"></span></span>
+          </div>
+
+          <!-- Actions -->
+          <button
+            @click="confirmDelete(r)"
+            class="w-full text-red-600 hover:text-red-800 hover:bg-red-50 py-2 rounded transition text-sm"
+          >
+            🗑️ {{ 'Supprimer' if lang == 'fr' else '削除' }}
+          </button>
+        </div>
+      </div>
+    </template>
+
+    <!-- Message si aucun résultat -->
+    <div x-show="filteredRecipes.length === 0" class="col-span-full p-12 text-center text-gray-500">
+      <div class="text-6xl mb-4">🔍</div>
+      <div class="text-xl">{{ 'Aucune recette trouvée' if lang == 'fr' else 'レシピが見つかりません' }}</div>
+    </div>
   </div>
 
   {% if not rows %}
   <div class="mt-4 p-4 bg-yellow-50 border border-yellow-200 rounded text-sm">
-    Aucune recette trouvée. <a href="/import?lang={{ lang }}" class="text-blue-700 underline">Importez-en une !</a>
+    {{ 'Aucune recette trouvée.' if lang == 'fr' else 'レシピが見つかりません。' }}
+    <a href="/import?lang={{ lang }}" class="text-blue-700 underline">
+      {{ 'Importez-en une !' if lang == 'fr' else 'インポートしてください！' }}
+    </a>
   </div>
   {% endif %}
+
+  <!-- Modal de confirmation de suppression -->
+  <div
+    x-show="deleteModal"
+    x-cloak
+    class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+    @click.self="cancelDelete()"
+  >
+    <div class="bg-white rounded-lg p-6 max-w-md w-full mx-4 shadow-xl">
+      <h2 class="text-xl font-bold mb-4">
+        {{ 'Confirmer la suppression' if lang == 'fr' else '削除の確認' }}
+      </h2>
+      <p class="mb-6 text-gray-700">
+        {{ 'Êtes-vous sûr de vouloir supprimer cette recette ?' if lang == 'fr' else 'このレシピを削除してもよろしいですか？' }}
+      </p>
+      <p class="mb-6 font-semibold text-gray-900" x-text="recipeToDelete?.name"></p>
+      <div class="flex gap-3 justify-end">
+        <button
+          @click="cancelDelete()"
+          class="px-4 py-2 bg-gray-200 text-gray-800 rounded hover:bg-gray-300 transition"
+        >
+          {{ 'Non' if lang == 'fr' else 'いいえ' }}
+        </button>
+        <button
+          @click="deleteRecipe()"
+          class="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 transition"
+        >
+          {{ 'Oui, supprimer' if lang == 'fr' else 'はい、削除' }}
+        </button>
+      </div>
+    </div>
+  </div>
 </div>
 {% endblock %}

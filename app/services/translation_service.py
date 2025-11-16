@@ -79,46 +79,94 @@ Titre: {title}"""
         """Traduit une liste d'ingrédients
 
         Args:
-            ingredients: Liste de dictionnaires avec 'name' et 'unit'
+            ingredients: Liste de dictionnaires avec 'name', 'unit' et optionnellement 'notes'
             source_lang: Langue source (fr ou jp)
             target_lang: Langue cible (fr ou jp)
 
         Returns:
-            Liste de dictionnaires avec 'name' traduit et 'unit' copié, ou None en cas d'erreur
+            Liste de dictionnaires avec 'name' et 'notes' traduits, 'unit' copié, ou None en cas d'erreur
         """
         if not ingredients:
             return []
 
         lang_names = {"fr": "français", "jp": "japonais"}
 
-        # Prépare la liste des noms d'ingrédients
-        ingredient_names = [ing['name'] for ing in ingredients]
+        # Prépare les données à traduire (nom et notes si présentes)
+        items_to_translate = []
+        for ing in ingredients:
+            item = {'name': ing['name']}
+            if ing.get('notes'):
+                item['notes'] = ing['notes']
+            items_to_translate.append(item)
 
         try:
             # Format JSON pour une traduction structurée
-            prompt = f"""Traduis cette liste d'ingrédients de recette du {lang_names[source_lang]} vers le {lang_names[target_lang]}.
-Réponds UNIQUEMENT avec un tableau JSON contenant les traductions dans le même ordre.
-Format attendu: ["traduction1", "traduction2", ...]
+            prompt = f"""Traduis ces ingrédients de recette du {lang_names[source_lang]} vers le {lang_names[target_lang]}.
+Pour chaque ingrédient, traduis le nom ('name') et les notes ('notes') si présentes.
+Réponds UNIQUEMENT avec un tableau JSON dans le même ordre.
+Format attendu: [{{"name": "nom traduit", "notes": "notes traduites"}}, ...]
+Si un ingrédient n'a pas de notes, ne mets pas la clé 'notes' dans la réponse.
 
 Ingrédients à traduire:
-{json.dumps(ingredient_names, ensure_ascii=False)}"""
+{json.dumps(items_to_translate, ensure_ascii=False)}"""
 
             response = self.client.chat.completions.create(
                 messages=[{"role": "user", "content": prompt}],
                 model=self.model,
                 temperature=0.3,
-                max_tokens=1000
+                max_tokens=1500
             )
 
-            # Parse la réponse JSON
-            translated_names = json.loads(response.choices[0].message.content.strip())
+            # Nettoyer la réponse et parser le JSON
+            import re
+            response_text = response.choices[0].message.content.strip()
+
+            # Si la réponse contient des blocs de code markdown, extraire juste le JSON
+            if '```' in response_text:
+                match = re.search(r'```(?:json)?\s*(\[.*?\])\s*```', response_text, re.DOTALL)
+                if match:
+                    response_text = match.group(1)
+
+            # Supprimer les caractères de contrôle invalides
+            response_text = re.sub(r'[\x00-\x1f\x7f-\x9f]', '', response_text)
+
+            # Réparer les erreurs JSON courantes de l'API (plusieurs passes)
+            for _ in range(3):  # Plusieurs passes pour traiter les cas complexes
+                # 1. Ajouter virgules manquantes entre objets JSON
+                response_text = re.sub(r'\}(\s*)\{', r'},\1{', response_text)
+                # 2. Fixer les chaînes non terminées avant } ou ]
+                response_text = re.sub(r'([^",])(\}|\])', r'\1"\2', response_text)
+                # 3. Éviter de doubler les guillemets qui sont déjà présents
+                response_text = re.sub(r'""(\}|\])', r'"\1', response_text)
+                # 4. Fixer les virgules manquantes après }
+                response_text = re.sub(r'\}([^\s,\]])', r'},\1', response_text)
+
+            try:
+                translated_items = json.loads(response_text)
+            except json.JSONDecodeError as e:
+                print(f"Erreur JSON: {e}")
+                print(f"Réponse brute (après nettoyage): {response_text[:800]}")
+                # Dernière tentative : extraire manuellement les objets valides
+                try:
+                    # Trouver tous les objets qui semblent valides
+                    import ast
+                    # Essayer de parser manuellement en cherchant les patterns
+                    objects = re.findall(r'\{"name":\s*"([^"]+)"(?:,\s*"notes":\s*"([^"]*)")?\}', response_text)
+                    if objects:
+                        translated_items = [{"name": name, "notes": notes or ""} for name, notes in objects]
+                        print(f"Récupération manuelle réussie: {len(translated_items)} ingrédients extraits")
+                    else:
+                        raise
+                except Exception:
+                    raise e
 
             # Combine les traductions avec les unités originales
             result = []
             for i, ing in enumerate(ingredients):
                 result.append({
-                    'name': translated_names[i],
-                    'unit': ing['unit']  # Copie à l'identique
+                    'name': translated_items[i]['name'],
+                    'unit': ing['unit'],  # Copie à l'identique
+                    'notes': translated_items[i].get('notes', '')  # Notes traduites ou vide
                 })
 
             return result
@@ -164,8 +212,34 @@ Format attendu: ["traduction étape 1", "traduction étape 2", ...]
                 max_tokens=2000
             )
 
-            # Parse la réponse JSON
-            translated_steps = json.loads(response.choices[0].message.content.strip())
+            # Nettoyer la réponse et parser le JSON
+            import re
+            response_text = response.choices[0].message.content.strip()
+
+            # Si la réponse contient des blocs de code markdown, extraire juste le JSON
+            if '```' in response_text:
+                match = re.search(r'```(?:json)?\s*(\[.*?\])\s*```', response_text, re.DOTALL)
+                if match:
+                    response_text = match.group(1)
+
+            # Supprimer les caractères de contrôle invalides
+            response_text = re.sub(r'[\x00-\x1f\x7f-\x9f]', '', response_text)
+
+            # Réparer les erreurs JSON courantes de l'API (plusieurs passes)
+            for _ in range(3):  # Plusieurs passes pour traiter les cas complexes
+                # 1. Ajouter virgules manquantes entre éléments
+                response_text = re.sub(r'"(\s*)"', r'",\1"', response_text)
+                # 2. Fixer les chaînes non terminées avant ]
+                response_text = re.sub(r'([^",])\]', r'\1"]', response_text)
+                # 3. Éviter de doubler les guillemets
+                response_text = re.sub(r'""([,\]])', r'"\1', response_text)
+
+            try:
+                translated_steps = json.loads(response_text)
+            except json.JSONDecodeError as e:
+                print(f"Erreur JSON: {e}")
+                print(f"Réponse brute (après nettoyage): {response_text[:800]}")
+                raise
 
             return translated_steps
 
