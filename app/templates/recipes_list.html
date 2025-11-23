@@ -10,23 +10,61 @@
 </script>
 
 <div x-data="{
+  lang: '{{ lang }}',
   search: '',
-  typeFilter: '',
   sortBy: 'name',
   sortOrder: 'asc',
   recipes: window.recipesData || [],
+  categories: [],
+  tags: [],
+  selectedCategories: [],
+  selectedTags: [],
+  showCategories: false,
+  showTags: false,
   deleteModal: false,
   recipeToDelete: null,
-  get availableTypes() {
-    const types = [...new Set(this.recipes.map(r => r.type).filter(t => t))];
-    return types.sort();
+
+  async init() {
+    await this.loadCategoriesAndTags();
   },
+
+  async loadCategoriesAndTags() {
+    try {
+      const [categoriesRes, tagsRes] = await Promise.all([
+        fetch('/api/categories'),
+        fetch('/api/tags')
+      ]);
+      this.categories = await categoriesRes.json();
+      this.tags = await tagsRes.json();
+    } catch (error) {
+      console.error('Erreur chargement catégories/tags:', error);
+    }
+  },
+
   get filteredRecipes() {
     let filtered = this.recipes.filter(r => {
+      // Filtre de recherche textuelle
       const matchesSearch = this.search === '' || r.name.toLowerCase().includes(this.search.toLowerCase());
-      const matchesType = this.typeFilter === '' || r.type === this.typeFilter;
-      return matchesSearch && matchesType;
+
+      // Filtre par catégories (si des catégories sont sélectionnées)
+      let matchesCategories = true;
+      if (this.selectedCategories.length > 0) {
+        matchesCategories = r.categories && r.categories.some(cat =>
+          this.selectedCategories.includes(cat.id)
+        );
+      }
+
+      // Filtre par tags (si des tags sont sélectionnés)
+      let matchesTags = true;
+      if (this.selectedTags.length > 0) {
+        matchesTags = r.tags && r.tags.some(tag =>
+          this.selectedTags.includes(tag.id)
+        );
+      }
+
+      return matchesSearch && matchesCategories && matchesTags;
     });
+
     return filtered.sort((a, b) => {
       let aVal = a[this.sortBy] || '';
       let bVal = b[this.sortBy] || '';
@@ -41,6 +79,45 @@
       }
     });
   },
+
+  toggleCategory(categoryId) {
+    const index = this.selectedCategories.indexOf(categoryId);
+    if (index > -1) {
+      this.selectedCategories.splice(index, 1);
+    } else {
+      this.selectedCategories.push(categoryId);
+    }
+  },
+
+  toggleTag(tagId) {
+    const index = this.selectedTags.indexOf(tagId);
+    if (index > -1) {
+      this.selectedTags.splice(index, 1);
+    } else {
+      this.selectedTags.push(tagId);
+    }
+  },
+
+  clearFilters() {
+    this.selectedCategories = [];
+    this.selectedTags = [];
+  },
+
+  getCategoryName(catId) {
+    const cat = this.categories.find(c => c.id === catId);
+    return cat ? (this.lang === 'jp' ? cat.name_jp : cat.name_fr) : '';
+  },
+
+  getTagName(tagId) {
+    const tag = this.tags.find(t => t.id === tagId);
+    return tag ? (this.lang === 'jp' ? tag.name_jp : tag.name_fr) : '';
+  },
+
+  getTagColor(tagId) {
+    const tag = this.tags.find(t => t.id === tagId);
+    return tag ? tag.color : '#3B82F6';
+  },
+
   sort(column) {
     if (this.sortBy === column) {
       this.sortOrder = this.sortOrder === 'asc' ? 'desc' : 'asc';
@@ -49,10 +126,12 @@
       this.sortOrder = 'asc';
     }
   },
+
   confirmDelete(recipe) {
     this.recipeToDelete = recipe;
     this.deleteModal = true;
   },
+
   async deleteRecipe() {
     if (!this.recipeToDelete) return;
 
@@ -74,6 +153,7 @@
       alert('{{ 'Erreur lors de la suppression' if lang == 'fr' else '削除中にエラーが発生しました' }}');
     }
   },
+
   cancelDelete() {
     this.deleteModal = false;
     this.recipeToDelete = null;
@@ -86,23 +166,109 @@
     </a>
   </div>
 
-  <!-- Barre de recherche et filtres -->
-  <div class="mb-4 flex gap-4">
+  <!-- Barre de recherche -->
+  <div class="mb-4">
     <input
       type="text"
       x-model="search"
       placeholder="🔍 {{ 'Rechercher une recette...' if lang == 'fr' else 'レシピを検索...' }}"
-      class="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+      class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
     >
-    <select
-      x-model="typeFilter"
-      class="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white min-w-[200px]"
-    >
-      <option value="">{{ 'Tous les types' if lang == 'fr' else 'すべてのタイプ' }}</option>
-      <template x-for="type in availableTypes" :key="type">
-        <option :value="type" x-text="type"></option>
-      </template>
-    </select>
+  </div>
+
+  <!-- Filtres avancés (accordéon) -->
+  <div class="mb-4 bg-white border rounded-lg">
+    <!-- Filtres actifs -->
+    <div x-show="selectedCategories.length > 0 || selectedTags.length > 0" class="p-3 border-b bg-blue-50">
+      <div class="flex items-center gap-2 flex-wrap">
+        <span class="text-sm font-medium text-gray-700">{{ 'Filtres actifs :' if lang == 'fr' else 'アクティブなフィルター:' }}</span>
+        <!-- Catégories actives -->
+        <template x-for="catId in selectedCategories" :key="catId">
+          <span class="inline-flex items-center gap-1 px-2 py-1 bg-blue-600 text-white text-xs rounded">
+            <span x-text="getCategoryName(catId)"></span>
+            <button @click="toggleCategory(catId)" class="hover:bg-blue-700 rounded">✕</button>
+          </span>
+        </template>
+        <!-- Tags actifs -->
+        <template x-for="tagId in selectedTags" :key="tagId">
+          <span class="inline-flex items-center gap-1 px-2 py-1 text-white text-xs rounded"
+                :style="`background-color: ${getTagColor(tagId)}`">
+            <span x-text="getTagName(tagId)"></span>
+            <button @click="toggleTag(tagId)" class="hover:opacity-80 rounded">✕</button>
+          </span>
+        </template>
+        <button @click="clearFilters()" class="text-xs text-red-600 hover:text-red-800 ml-2">
+          {{ 'Effacer tout' if lang == 'fr' else 'すべてクリア' }}
+        </button>
+      </div>
+    </div>
+
+    <!-- Accordéon Catégories -->
+    <div class="border-b">
+      <button @click="showCategories = !showCategories"
+              class="w-full flex items-center justify-between p-3 hover:bg-gray-50 transition">
+        <span class="font-medium">
+          📂 {{ 'Catégories' if lang == 'fr' else 'カテゴリー' }}
+          <span x-show="selectedCategories.length > 0" class="text-sm text-blue-600">
+            (<span x-text="selectedCategories.length"></span>)
+          </span>
+        </span>
+        <svg class="w-5 h-5 transition-transform" :class="showCategories && 'rotate-180'"
+             fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+        </svg>
+      </button>
+      <div x-show="showCategories" x-collapse class="p-3 bg-gray-50">
+        <div class="flex flex-wrap gap-2">
+          <template x-for="category in categories" :key="category.id">
+            <button
+              @click="toggleCategory(category.id)"
+              :class="selectedCategories.includes(category.id) ? 'bg-blue-600 text-white ring-2 ring-blue-600' : 'bg-white text-gray-700 hover:bg-gray-100'"
+              class="px-3 py-1.5 rounded-lg border text-sm transition-all">
+              <span x-text="lang === 'jp' ? category.name_jp : category.name_fr"></span>
+              <span class="ml-1 text-xs opacity-75">(<span x-text="category.recipe_count || 0"></span>)</span>
+            </button>
+          </template>
+        </div>
+      </div>
+    </div>
+
+    <!-- Accordéon Tags -->
+    <div class="border-b">
+      <button @click="showTags = !showTags"
+              class="w-full flex items-center justify-between p-3 hover:bg-gray-50 transition">
+        <span class="font-medium">
+          🏷️ {{ 'Tags' if lang == 'fr' else 'タグ' }}
+          <span x-show="selectedTags.length > 0" class="text-sm text-purple-600">
+            (<span x-text="selectedTags.length"></span>)
+          </span>
+        </span>
+        <svg class="w-5 h-5 transition-transform" :class="showTags && 'rotate-180'"
+             fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+        </svg>
+      </button>
+      <div x-show="showTags" x-collapse class="p-3 bg-gray-50">
+        <div class="flex flex-wrap gap-2">
+          <template x-for="tag in tags" :key="tag.id">
+            <button
+              @click="toggleTag(tag.id)"
+              :class="selectedTags.includes(tag.id) ? 'ring-2 ring-offset-1 opacity-100' : 'opacity-70 hover:opacity-90'"
+              :style="`background-color: ${tag.color}; color: white`"
+              class="px-3 py-1.5 rounded-lg text-sm transition-all">
+              <span x-text="lang === 'jp' ? tag.name_jp : tag.name_fr"></span>
+              <span class="ml-1 text-xs opacity-90">(<span x-text="tag.recipe_count || 0"></span>)</span>
+            </button>
+          </template>
+        </div>
+      </div>
+    </div>
+
+    <!-- Résultat du filtrage -->
+    <div class="p-3 text-sm text-gray-600 bg-gray-50">
+      <span x-text="filteredRecipes.length"></span>
+      {{ 'recette(s) trouvée(s)' if lang == 'fr' else 'レシピが見つかりました' }}
+    </div>
   </div>
 
   <!-- Grille de cartes de recettes -->

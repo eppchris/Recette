@@ -19,6 +19,7 @@ class AuthMiddleware(BaseHTTPMiddleware):
             "/login",
             "/static",
             "/health",
+            "/robots.txt",
         ]
 
     async def dispatch(self, request: Request, call_next):

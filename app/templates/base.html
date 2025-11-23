@@ -4,8 +4,8 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{{ S('recipes') }}</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.1/dist/cdn.min.js"></script>
+  <script src="/static/css/tailwind.min.js"></script>
+  <script defer src="/static/css/alpine.min.js"></script>
   <script>
     tailwind.config = {
       darkMode: 'class',
@@ -74,15 +74,29 @@
         </a>
       </div>
 
-      <!-- Section Gestion (futur) -->
+      <!-- Section Gestion -->
       <div>
-        <div 
-          class="flex items-center gap-3 px-3 py-2 rounded-lg opacity-50 cursor-not-allowed"
-          title="{{ S('coming_soon') }}"
+        <a
+          href="/ingredient-catalog?lang={{ lang }}"
+          class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition group"
+          :class="('{{ request.path }}'.includes('/ingredient-catalog') || '{{ request.path }}'.includes('/unit-conversions') || '{{ request.path }}'.includes('/access-logs') || '{{ request.path }}'.includes('/admin/tags')) && 'bg-blue-50 dark:bg-blue-900 text-blue-600 dark:text-blue-300'"
         >
-          <span class="text-xl">⚙️</span>
+          <span class="text-xl">📊</span>
           <span x-show="sidebarOpen" x-transition class="font-medium">{{ S('menu_settings') }}</span>
-          <span x-show="sidebarOpen" class="text-xs bg-gray-200 dark:bg-gray-700 px-2 py-0.5 rounded">{{ S('coming_soon') }}</span>
+        </a>
+        <div x-show="sidebarOpen" x-transition class="ml-11 mt-1 space-y-1">
+          <a href="/ingredient-catalog?lang={{ lang }}" class="block px-3 py-1.5 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 rounded">
+            {{ 'Catalogue des prix' if lang == 'fr' else '価格カタログ' }}
+          </a>
+          <a href="/unit-conversions?lang={{ lang }}" class="block px-3 py-1.5 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 rounded">
+            {{ 'Conversions d\'unités' if lang == 'fr' else '単位変換' }}
+          </a>
+          <a href="/admin/tags?lang={{ lang }}" class="block px-3 py-1.5 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 rounded">
+            {{ 'Tags et catégories' if lang == 'fr' else 'タグとカテゴリー' }}
+          </a>
+          <a href="/access-logs?lang={{ lang }}" class="block px-3 py-1.5 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 rounded">
+            {{ 'Logs d\'accès' if lang == 'fr' else 'アクセスログ' }}
+          </a>
         </div>
       </div>
     </nav>

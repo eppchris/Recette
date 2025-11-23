@@ -4,9 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{ S('shopping_list') }} - {{ event.name }}</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <script src="/static/css/tailwind.min.js"></script>
+    <script defer src="/static/css/alpine.min.js"></script>
 </head>
+{% set currency = '€' if event.currency == 'EUR' else '¥' %}
 <body class="bg-gray-50" x-data="shoppingListApp()">
     <div :class="darkMode ? 'dark bg-gray-900' : 'bg-gray-50'" class="min-h-screen">
         <!-- Header -->
@@ -86,7 +87,7 @@
                 <ul class="space-y-1 text-sm text-blue-800 dark:text-blue-200">
                     {% for recipe in recipes %}
                     <li>
-                        • <a href="/recipe/{{ recipe.recipe_id }}?lang={{ lang }}"
+                        • <a href="/recipe/{{ recipe.recipe_slug }}?lang={{ lang }}"
                              target="_blank"
                              class="hover:underline hover:text-blue-600 dark:hover:text-blue-300">
                             {{ recipe.recipe_name }}
@@ -112,6 +113,9 @@
                                 editing: false,
                                 purchaseQty: '{{ ingredient.purchase_quantity if ingredient.purchase_quantity else '' }}',
                                 purchaseUnit: '{{ ingredient.purchase_unit if ingredient.purchase_unit else '' }}',
+                                plannedPrice: '{{ ingredient.planned_unit_price if ingredient.planned_unit_price else '' }}',
+                                actualPrice: '{{ ingredient.actual_unit_price if ingredient.actual_unit_price else '' }}',
+                                isPurchased: {{ 'true' if ingredient.is_purchased else 'false' }},
                                 async save() {
                                     try {
                                         const formData = new FormData();
@@ -132,6 +136,28 @@
                                     } catch (error) {
                                         console.error('Erreur:', error);
                                         alert('Erreur lors de la mise à jour');
+                                    }
+                                },
+                                async savePrices() {
+                                    try {
+                                        const formData = new FormData();
+                                        formData.append('planned_unit_price', this.plannedPrice || '');
+                                        formData.append('actual_unit_price', this.actualPrice || '');
+                                        formData.append('is_purchased', this.isPurchased ? '1' : '0');
+
+                                        const response = await fetch('/api/shopping-list/items/{{ ingredient.id }}/update-prices', {
+                                            method: 'POST',
+                                            body: formData
+                                        });
+
+                                        if (response.ok) {
+                                            window.location.reload();
+                                        } else {
+                                            alert('{{ 'Erreur lors de la mise à jour' if lang == 'fr' else 'エラーが発生しました' }}');
+                                        }
+                                    } catch (error) {
+                                        console.error('Erreur:', error);
+                                        alert('{{ 'Erreur lors de la mise à jour' if lang == 'fr' else 'エラーが発生しました' }}');
                                     }
                                 }
                              }">
@@ -179,39 +205,65 @@
 
                             <!-- Mode édition -->
                             <div x-show="editing" class="print:hidden">
-                                <div class="flex items-center gap-3">
-                                    <div class="flex-1">
-                                        <div class="font-medium text-lg text-gray-900 dark:text-white">
-                                            {{ ingredient.ingredient_name }}
-                                        </div>
-                                        {% if ingredient.source_recipes %}
-                                        <div class="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                                            {{ 'Utilisé dans:' if lang == 'fr' else '使用レシピ:' }}
-                                            {% for source in ingredient.source_recipes %}
-                                            <span class="inline-block">
-                                                {{ source.recipe_name }}{% if source.quantity %} ({{ source.quantity }} {{ source.unit }}){% endif %}{% if not loop.last %}, {% endif %}
-                                            </span>
-                                            {% endfor %}
-                                        </div>
-                                        {% endif %}
+                                <div class="space-y-3">
+                                    <div class="font-medium text-lg text-gray-900 dark:text-white">
+                                        {{ ingredient.ingredient_name }}
                                     </div>
-                                    <input type="number"
-                                           x-model="purchaseQty"
-                                           step="0.01"
-                                           placeholder="{{ 'Quantité' if lang == 'fr' else '量' }}"
-                                           class="w-24 px-3 py-2 border border-gray-300 rounded-lg text-sm dark:bg-gray-600 dark:border-gray-500 dark:text-white">
-                                    <input type="text"
-                                           x-model="purchaseUnit"
-                                           placeholder="{{ 'Unité' if lang == 'fr' else '単位' }}"
-                                           class="w-24 px-3 py-2 border border-gray-300 rounded-lg text-sm dark:bg-gray-600 dark:border-gray-500 dark:text-white">
-                                    <button @click="save()"
-                                            class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 whitespace-nowrap">
-                                        ✓ {{ 'Enregistrer' if lang == 'fr' else '保存' }}
-                                    </button>
-                                    <button @click="editing = false"
-                                            class="px-4 py-2 bg-gray-400 text-white rounded-lg hover:bg-gray-500">
-                                        ✕
-                                    </button>
+
+                                    <!-- Ligne 1: Quantité et unité -->
+                                    <div class="flex items-center gap-3">
+                                        <label class="text-sm text-gray-600 dark:text-gray-400 w-32">{{ 'Quantité:' if lang == 'fr' else '量:' }}</label>
+                                        <input type="number"
+                                               x-model="purchaseQty"
+                                               step="0.01"
+                                               placeholder="{{ 'Quantité' if lang == 'fr' else '量' }}"
+                                               class="w-24 px-3 py-2 border border-gray-300 rounded-lg text-sm dark:bg-gray-600 dark:border-gray-500 dark:text-white">
+                                        <input type="text"
+                                               x-model="purchaseUnit"
+                                               placeholder="{{ 'Unité' if lang == 'fr' else '単位' }}"
+                                               class="w-24 px-3 py-2 border border-gray-300 rounded-lg text-sm dark:bg-gray-600 dark:border-gray-500 dark:text-white">
+                                    </div>
+
+                                    <!-- Ligne 2: Prix prévisionnel -->
+                                    <div class="flex items-center gap-3">
+                                        <label class="text-sm text-gray-600 dark:text-gray-400 w-32">{{ 'Prix prévu (' + currency + '):' if lang == 'fr' else '予定価格 (' + currency + '):' }}</label>
+                                        <input type="number"
+                                               x-model="plannedPrice"
+                                               step="0.01"
+                                               placeholder="{{ 'Prix unitaire prévu' if lang == 'fr' else '予定単価' }}"
+                                               class="w-32 px-3 py-2 border border-gray-300 rounded-lg text-sm dark:bg-gray-600 dark:border-gray-500 dark:text-white">
+                                        <span class="text-xs text-gray-500 dark:text-gray-400">{{ 'par unité' if lang == 'fr' else '単位あたり' }}</span>
+                                    </div>
+
+                                    <!-- Ligne 3: Prix réel -->
+                                    <div class="flex items-center gap-3">
+                                        <label class="text-sm text-gray-600 dark:text-gray-400 w-32">{{ 'Prix réel (' + currency + '):' if lang == 'fr' else '実際価格 (' + currency + '):' }}</label>
+                                        <input type="number"
+                                               x-model="actualPrice"
+                                               step="0.01"
+                                               placeholder="{{ 'Prix unitaire réel' if lang == 'fr' else '実際単価' }}"
+                                               class="w-32 px-3 py-2 border border-gray-300 rounded-lg text-sm dark:bg-gray-600 dark:border-gray-500 dark:text-white">
+                                        <label class="flex items-center gap-2">
+                                            <input type="checkbox" x-model="isPurchased" class="rounded">
+                                            <span class="text-sm text-gray-700 dark:text-gray-300">{{ 'Acheté' if lang == 'fr' else '購入済' }}</span>
+                                        </label>
+                                    </div>
+
+                                    <!-- Boutons d'action -->
+                                    <div class="flex gap-2 pt-2">
+                                        <button @click="save()"
+                                                class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 whitespace-nowrap text-sm">
+                                            {{ 'Enregistrer quantité' if lang == 'fr' else '量を保存' }}
+                                        </button>
+                                        <button @click="savePrices()"
+                                                class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 whitespace-nowrap text-sm">
+                                            {{ 'Enregistrer prix' if lang == 'fr' else '価格を保存' }}
+                                        </button>
+                                        <button @click="editing = false"
+                                                class="px-4 py-2 bg-gray-400 text-white rounded-lg hover:bg-gray-500">
+                                            {{ 'Annuler' if lang == 'fr' else 'キャンセル' }}
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
                         </div>

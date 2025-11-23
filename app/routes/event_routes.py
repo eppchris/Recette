@@ -434,3 +434,381 @@ async def event_regenerate_shopping_list(request: Request, event_id: int, lang: 
         url=f"/events/{event_id}/shopping-list?lang={lang}",
         status_code=303
     )
+
+
+# ============================================================================
+# Routes API pour la gestion du budget
+# ============================================================================
+
+@router.get("/events/{event_id}/budget")
+async def event_budget_view(request: Request, event_id: int, lang: str = "fr"):
+    """
+    Affiche la page de gestion du budget pour un événement
+    """
+    event = db.get_event_by_id(event_id)
+    if not event:
+        raise HTTPException(status_code=404, detail="Événement non trouvé")
+
+    # Récupérer les catégories de dépenses
+    categories = db.list_expense_categories(lang)
+
+    # Récupérer les dépenses existantes
+    expenses = db.get_event_expenses(event_id, lang)
+
+    # Récupérer le résumé budgétaire
+    budget_summary = db.get_event_budget_summary(event_id)
+
+    # Récupérer la liste de courses
+    shopping_list = db.get_shopping_list_items(event_id)
+
+    # Enrichir chaque ingrédient avec son prix calculé pour la quantité demandée
+    # Utiliser la langue de l'interface pour déterminer la devise à afficher
+    currency = 'EUR' if lang == 'fr' else 'JPY'
+    for item in shopping_list:
+        # Calculer le prix réel pour la quantité demandée (needed_quantity)
+        quantity = item.get('needed_quantity') or item.get('total_quantity', 0)
+        unit = item.get('needed_unit') or item.get('unit', '')
+
+        if quantity > 0 and unit:
+            price_result = db.calculate_ingredient_price(
+                item['ingredient_name'],
+                quantity,
+                unit,
+                currency
+            )
+            if price_result:
+                item['total_price'] = price_result['total_price']
+                item['unit_price'] = price_result['unit_price']
+                item['catalog_unit'] = price_result['catalog_unit']
+                item['catalog_qty'] = price_result['catalog_qty']
+                item['catalog_price'] = price_result['catalog_price']
+            else:
+                item['catalog_price'] = None
+                item['total_price'] = None
+        else:
+            item['catalog_price'] = None
+
+    return templates.TemplateResponse(
+        "event_budget.html",
+        {
+            "request": request,
+            "lang": lang,
+            "event": event,
+            "categories": categories,
+            "expenses": expenses,
+            "budget_summary": budget_summary,
+            "shopping_list": shopping_list,
+            "currency": currency
+        }
+    )
+
+
+@router.post("/events/{event_id}/budget/planned")
+async def event_update_budget_planned(
+    request: Request,
+    event_id: int,
+    lang: str = Form("fr"),
+    budget_planned: float = Form(...)
+):
+    """
+    Met à jour le budget prévisionnel d'un événement
+    """
+    # Récupérer l'événement pour vérifier la devise
+    event = db.get_event_by_id(event_id)
+    if not event:
+        raise HTTPException(status_code=404, detail="Événement non trouvé")
+
+    # Si la devise n'est pas définie, la définir en fonction de la langue actuelle
+    if not event.get('currency') or event.get('currency') is None:
+        currency = 'EUR' if lang == 'fr' else 'JPY'
+        db.update_event_currency(event_id, currency)
+
+    success = db.update_event_budget_planned(event_id, budget_planned)
+
+    if success:
+        return RedirectResponse(
+            url=f"/events/{event_id}/budget?lang={lang}",
+            status_code=303
+        )
+    else:
+        raise HTTPException(status_code=400, detail="Erreur lors de la mise à jour")
+
+
+@router.post("/events/{event_id}/expenses/add")
+async def event_add_expense(
+    request: Request,
+    event_id: int,
+    lang: str = Form("fr"),
+    category_id: int = Form(...),
+    description: str = Form(...),
+    planned_amount: float = Form(...),
+    actual_amount: Optional[str] = Form(None),
+    is_paid: Optional[str] = Form(None),
+    paid_date: Optional[str] = Form(None),
+    notes: Optional[str] = Form("")
+):
+    """
+    Ajoute une dépense à un événement
+    """
+    # Récupérer l'événement pour vérifier la devise
+    event = db.get_event_by_id(event_id)
+    if not event:
+        raise HTTPException(status_code=404, detail="Événement non trouvé")
+
+    # Si la devise n'est pas définie, la définir en fonction de la langue actuelle
+    if not event.get('currency') or event.get('currency') is None:
+        currency = 'EUR' if lang == 'fr' else 'JPY'
+        db.update_event_currency(event_id, currency)
+
+    # Convertir actual_amount en float (gérer chaîne vide)
+    actual_amount_float = None
+    if actual_amount and actual_amount.strip():
+        try:
+            actual_amount_float = float(actual_amount)
+        except ValueError:
+            actual_amount_float = None
+
+    # Convertir is_paid en booléen (checkbox non cochée = None, cochée = "1")
+    is_paid_bool = is_paid == "1" if is_paid else False
+
+    # Convertir paid_date (gérer chaîne vide)
+    paid_date_str = paid_date if paid_date and paid_date.strip() else None
+
+    expense_id = db.create_event_expense(
+        event_id=event_id,
+        category_id=category_id,
+        description=description,
+        planned_amount=planned_amount,
+        actual_amount=actual_amount_float,
+        is_paid=is_paid_bool,
+        paid_date=paid_date_str,
+        notes=notes
+    )
+
+    if expense_id:
+        return RedirectResponse(
+            url=f"/events/{event_id}/budget?lang={lang}",
+            status_code=303
+        )
+    else:
+        raise HTTPException(status_code=400, detail="Erreur lors de la création")
+
+
+@router.post("/events/{event_id}/expenses/ingredients/add")
+async def event_add_ingredients_expense(
+    request: Request,
+    event_id: int,
+    lang: str = Form("fr"),
+    description: str = Form(...)
+):
+    """
+    Crée une dépense basée sur la liste de courses avec les prix des ingrédients
+    """
+    # Récupérer l'événement
+    event = db.get_event_by_id(event_id)
+    if not event:
+        raise HTTPException(status_code=404, detail="Événement non trouvé")
+
+    # Récupérer tous les paramètres du formulaire
+    form_data = await request.form()
+
+    # Récupérer la liste de courses
+    shopping_list = db.get_shopping_list_items(event_id)
+
+    # Calculer le total et préparer les données des ingrédients
+    ingredients_data = []
+    total_planned = 0.0
+
+    for item in shopping_list:
+        price_key = f"ingredient_{item['id']}_price"
+        unit_price_str = form_data.get(price_key)
+
+        if unit_price_str:
+            try:
+                unit_price = float(unit_price_str)
+                # Utiliser needed_quantity ou purchase_quantity
+                quantity = float(item.get('needed_quantity') or item.get('purchase_quantity') or 0)
+                if quantity == 0:
+                    continue  # Ignorer si pas de quantité
+
+                item_total = unit_price * quantity
+                total_planned += item_total
+
+                # Utiliser needed_unit ou purchase_unit
+                unit = item.get('needed_unit') or item.get('purchase_unit') or ''
+
+                ingredients_data.append({
+                    'shopping_list_item_id': item['id'],
+                    'ingredient_name': item['ingredient_name'],
+                    'quantity': quantity,
+                    'unit': unit,
+                    'planned_unit_price': unit_price,
+                    'actual_unit_price': None
+                })
+            except (ValueError, TypeError):
+                pass  # Ignorer les prix invalides
+
+    # Créer la dépense avec catégorie None (ou créer une catégorie spéciale)
+    # Pour l'instant, on utilise la première catégorie disponible
+    categories = db.list_expense_categories(lang)
+    category_id = categories[0]['id'] if categories else 1
+
+    expense_id = db.create_event_expense(
+        event_id=event_id,
+        category_id=category_id,
+        description=description,
+        planned_amount=total_planned,
+        actual_amount=None,
+        is_paid=False,
+        paid_date=None,
+        notes="Dépense générée depuis la liste de courses"
+    )
+
+    if expense_id and ingredients_data:
+        # Sauvegarder le détail des ingrédients
+        db.save_expense_ingredient_details(expense_id, ingredients_data)
+
+    return RedirectResponse(
+        url=f"/events/{event_id}/budget?lang={lang}",
+        status_code=303
+    )
+
+
+@router.post("/events/{event_id}/expenses/{expense_id}/update")
+async def event_update_expense(
+    request: Request,
+    event_id: int,
+    expense_id: int,
+    lang: str = Form("fr"),
+    category_id: Optional[int] = Form(None),
+    description: Optional[str] = Form(None),
+    planned_amount: Optional[str] = Form(None),
+    actual_amount: Optional[str] = Form(None),
+    is_paid: Optional[str] = Form(None),
+    paid_date: Optional[str] = Form(None),
+    notes: Optional[str] = Form(None)
+):
+    """
+    Met à jour une dépense
+    """
+    # Convertir planned_amount en float si fourni
+    planned_amount_float = None
+    if planned_amount and planned_amount.strip():
+        try:
+            planned_amount_float = float(planned_amount)
+        except ValueError:
+            planned_amount_float = None
+
+    # Convertir actual_amount en float si fourni
+    actual_amount_float = None
+    if actual_amount and actual_amount.strip():
+        try:
+            actual_amount_float = float(actual_amount)
+        except ValueError:
+            actual_amount_float = None
+
+    # Convertir is_paid en booléen si fourni
+    is_paid_bool = None
+    if is_paid is not None:
+        is_paid_bool = is_paid == "1"
+
+    # Convertir paid_date (gérer chaîne vide)
+    paid_date_str = None
+    if paid_date and paid_date.strip():
+        paid_date_str = paid_date
+
+    success = db.update_event_expense(
+        expense_id=expense_id,
+        category_id=category_id,
+        description=description,
+        planned_amount=planned_amount_float,
+        actual_amount=actual_amount_float,
+        is_paid=is_paid_bool,
+        paid_date=paid_date_str,
+        notes=notes
+    )
+
+    if success:
+        return RedirectResponse(
+            url=f"/events/{event_id}/budget?lang={lang}",
+            status_code=303
+        )
+    else:
+        raise HTTPException(status_code=400, detail="Erreur lors de la mise à jour")
+
+
+@router.post("/events/{event_id}/expenses/{expense_id}/delete")
+async def event_delete_expense(
+    request: Request,
+    event_id: int,
+    expense_id: int,
+    lang: str = Form("fr")
+):
+    """
+    Supprime une dépense
+    """
+    success = db.delete_event_expense(expense_id)
+
+    if success:
+        return RedirectResponse(
+            url=f"/events/{event_id}/budget?lang={lang}",
+            status_code=303
+        )
+    else:
+        raise HTTPException(status_code=400, detail="Erreur lors de la suppression")
+
+
+@router.get("/api/ingredient-price-suggestion")
+async def api_get_ingredient_price_suggestion(
+    ingredient_name: str,
+    unit: str
+):
+    """
+    API: Récupère les suggestions de prix pour un ingrédient
+    """
+    suggestions = db.get_ingredient_price_suggestions(ingredient_name, unit)
+    return JSONResponse(content=suggestions)
+
+
+@router.post("/api/shopping-list/items/{item_id}/update-prices")
+async def api_update_shopping_list_item_prices(
+    item_id: int,
+    planned_unit_price: Optional[str] = Form(None),
+    actual_unit_price: Optional[str] = Form(None),
+    is_purchased: Optional[str] = Form(None)
+):
+    """
+    API: Met à jour les prix d'un item de liste de courses
+    """
+    # Convertir planned_unit_price en float si fourni
+    planned_price_float = None
+    if planned_unit_price and planned_unit_price.strip():
+        try:
+            planned_price_float = float(planned_unit_price)
+        except ValueError:
+            planned_price_float = None
+
+    # Convertir actual_unit_price en float si fourni
+    actual_price_float = None
+    if actual_unit_price and actual_unit_price.strip():
+        try:
+            actual_price_float = float(actual_unit_price)
+        except ValueError:
+            actual_price_float = None
+
+    # Convertir is_purchased en booléen si fourni
+    is_purchased_bool = None
+    if is_purchased is not None:
+        is_purchased_bool = is_purchased == "1"
+
+    success = db.update_shopping_list_item(
+        item_id=item_id,
+        planned_unit_price=planned_price_float,
+        actual_unit_price=actual_price_float,
+        is_purchased=is_purchased_bool
+    )
+
+    if success:
+        return JSONResponse(content={"success": True})
+    else:
+        raise HTTPException(status_code=400, detail="Erreur lors de la mise à jour")

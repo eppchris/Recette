@@ -1,0 +1,633 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="max-w-6xl mx-auto p-6" x-data="tagsAdmin()">
+  <!-- En-tête -->
+  <header class="mb-8">
+    <h1 class="text-3xl font-bold mb-2">
+      {{ 'タグとカテゴリーの管理' if lang == 'jp' else 'Gestion des Tags et Catégories' }}
+    </h1>
+    <p class="text-gray-600">
+      {{ 'タグとカテゴリーを作成、編集、削除します' if lang == 'jp' else 'Créer, modifier et supprimer des tags et catégories' }}
+    </p>
+  </header>
+
+  <!-- Messages -->
+  <div x-show="message" x-transition
+       :class="messageType === 'success' ? 'bg-green-100 border-green-400 text-green-700' : 'bg-red-100 border-red-400 text-red-700'"
+       class="border px-4 py-3 rounded mb-6">
+    <span x-text="message"></span>
+  </div>
+
+  <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+    <!-- ============== CATÉGORIES ============== -->
+    <section class="bg-white border rounded-lg p-6">
+      <h2 class="text-2xl font-bold mb-4 text-blue-600">
+        {{ 'カテゴリー' if lang == 'jp' else 'Catégories' }}
+      </h2>
+
+      <!-- Formulaire d'ajout -->
+      <div class="mb-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
+        <h3 class="font-semibold mb-3">{{ 'Nouvelle catégorie' if lang == 'fr' else '新しいカテゴリー' }}</h3>
+        <div class="space-y-3">
+          <div class="grid grid-cols-2 gap-2">
+            <input
+              type="text"
+              x-model="newCategory.name_fr"
+              placeholder="Nom FR"
+              class="px-3 py-2 border rounded text-sm"
+            />
+            <input
+              type="text"
+              x-model="newCategory.name_jp"
+              placeholder="名前 JP"
+              class="px-3 py-2 border rounded text-sm"
+            />
+          </div>
+          <div class="grid grid-cols-2 gap-2">
+            <input
+              type="text"
+              x-model="newCategory.description_fr"
+              placeholder="Description FR"
+              class="px-3 py-2 border rounded text-sm"
+            />
+            <input
+              type="text"
+              x-model="newCategory.description_jp"
+              placeholder="説明 JP"
+              class="px-3 py-2 border rounded text-sm"
+            />
+          </div>
+          <button
+            @click="createCategory()"
+            :disabled="!newCategory.name_fr || !newCategory.name_jp || creatingCategory"
+            class="w-full px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed">
+            <span x-show="!creatingCategory">{{ '+ Créer la catégorie' if lang == 'fr' else '+ カテゴリーを作成' }}</span>
+            <span x-show="creatingCategory">{{ 'Création...' if lang == 'fr' else '作成中...' }}</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Liste des catégories -->
+      <div class="space-y-2 max-h-96 overflow-y-auto">
+        <template x-for="category in categories" :key="category.id">
+          <div>
+            <!-- Mode affichage -->
+            <div
+              x-show="editingCategoryId !== category.id"
+              class="flex items-center justify-between p-3 bg-gray-50 rounded hover:bg-gray-100"
+            >
+              <div class="flex-1">
+                <div class="font-medium" x-text="lang === 'jp' ? category.name_jp : category.name_fr"></div>
+                <div class="text-xs text-gray-500" x-text="lang === 'jp' ? category.description_jp : category.description_fr"></div>
+              </div>
+              <div class="flex items-center gap-2">
+                <span class="text-xs px-2 py-1 bg-blue-100 rounded">
+                  <span x-text="category.recipe_count || 0"></span> {{ 'recettes' if lang == 'fr' else 'レシピ' }}
+                </span>
+                <button
+                  @click="startEditCategory(category)"
+                  class="text-blue-600 hover:text-blue-800 text-sm px-2 py-1"
+                  title="{{ 'Modifier' if lang == 'fr' else '編集' }}"
+                >
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
+                  </svg>
+                </button>
+                <button
+                  @click="deleteCategory(category.id, category.name_fr)"
+                  class="text-red-600 hover:text-red-800 text-sm px-2 py-1"
+                  title="{{ 'Supprimer' if lang == 'fr' else '削除' }}"
+                >
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            <!-- Mode édition -->
+            <div
+              x-show="editingCategoryId === category.id"
+              class="p-3 bg-blue-50 border-2 border-blue-300 rounded"
+            >
+              <div class="space-y-2">
+                <div class="grid grid-cols-2 gap-2">
+                  <input
+                    type="text"
+                    x-model="editingCategory.name_fr"
+                    placeholder="Nom FR"
+                    class="px-2 py-1 border rounded text-sm"
+                  />
+                  <input
+                    type="text"
+                    x-model="editingCategory.name_jp"
+                    placeholder="名前 JP"
+                    class="px-2 py-1 border rounded text-sm"
+                  />
+                </div>
+                <div class="grid grid-cols-2 gap-2">
+                  <input
+                    type="text"
+                    x-model="editingCategory.description_fr"
+                    placeholder="Description FR"
+                    class="px-2 py-1 border rounded text-sm"
+                  />
+                  <input
+                    type="text"
+                    x-model="editingCategory.description_jp"
+                    placeholder="説明 JP"
+                    class="px-2 py-1 border rounded text-sm"
+                  />
+                </div>
+                <div class="flex gap-2 mt-3">
+                  <button
+                    @click="updateCategory()"
+                    class="flex-1 px-3 py-1 bg-green-600 text-white rounded hover:bg-green-700 text-sm"
+                  >
+                    {{ 'Enregistrer' if lang == 'fr' else '保存' }}
+                  </button>
+                  <button
+                    @click="cancelEditCategory()"
+                    class="flex-1 px-3 py-1 bg-gray-400 text-white rounded hover:bg-gray-500 text-sm"
+                  >
+                    {{ 'Annuler' if lang == 'fr' else 'キャンセル' }}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </template>
+      </div>
+    </section>
+
+    <!-- ============== TAGS ============== -->
+    <section class="bg-white border rounded-lg p-6">
+      <h2 class="text-2xl font-bold mb-4 text-purple-600">
+        {{ 'タグ' if lang == 'jp' else 'Tags' }}
+      </h2>
+
+      <!-- Formulaire d'ajout -->
+      <div class="mb-6 p-4 bg-purple-50 rounded-lg border border-purple-200">
+        <h3 class="font-semibold mb-3">{{ 'Nouveau tag' if lang == 'fr' else '新しいタグ' }}</h3>
+        <div class="space-y-3">
+          <div class="grid grid-cols-2 gap-2">
+            <input
+              type="text"
+              x-model="newTag.name_fr"
+              placeholder="Nom FR"
+              class="px-3 py-2 border rounded text-sm"
+            />
+            <input
+              type="text"
+              x-model="newTag.name_jp"
+              placeholder="名前 JP"
+              class="px-3 py-2 border rounded text-sm"
+            />
+          </div>
+          <div class="grid grid-cols-2 gap-2">
+            <input
+              type="text"
+              x-model="newTag.description_fr"
+              placeholder="Description FR"
+              class="px-3 py-2 border rounded text-sm"
+            />
+            <input
+              type="text"
+              x-model="newTag.description_jp"
+              placeholder="説明 JP"
+              class="px-3 py-2 border rounded text-sm"
+            />
+          </div>
+          <div class="flex items-center gap-2">
+            <label class="text-sm font-medium">{{ 'Couleur' if lang == 'fr' else '色' }}:</label>
+            <input
+              type="color"
+              x-model="newTag.color"
+              class="w-16 h-10 border rounded cursor-pointer"
+            />
+            <span class="text-sm text-gray-600" x-text="newTag.color"></span>
+          </div>
+          <button
+            @click="createTag()"
+            :disabled="!newTag.name_fr || !newTag.name_jp || creating"
+            class="w-full px-4 py-2 bg-purple-600 text-white rounded hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed">
+            <span x-show="!creating">{{ '+ Créer le tag' if lang == 'fr' else '+ タグを作成' }}</span>
+            <span x-show="creating">{{ 'Création...' if lang == 'fr' else '作成中...' }}</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Liste des tags -->
+      <div class="space-y-2 max-h-96 overflow-y-auto">
+        <template x-for="tag in tags" :key="tag.id">
+          <div>
+            <!-- Mode affichage -->
+            <div
+              x-show="editingTagId !== tag.id"
+              class="flex items-center justify-between p-3 bg-gray-50 rounded hover:bg-gray-100"
+            >
+              <div class="flex items-center gap-3 flex-1">
+                <span
+                  class="w-4 h-4 rounded-full border"
+                  :style="`background-color: ${tag.color}`"
+                ></span>
+                <div class="flex-1">
+                  <div class="font-medium" x-text="lang === 'jp' ? tag.name_jp : tag.name_fr"></div>
+                  <div class="text-xs text-gray-500" x-text="lang === 'jp' ? tag.description_jp : tag.description_fr"></div>
+                </div>
+              </div>
+              <div class="flex items-center gap-2">
+                <span class="text-xs px-2 py-1 bg-gray-200 rounded">
+                  <span x-text="tag.recipe_count || 0"></span> {{ 'recettes' if lang == 'fr' else 'レシピ' }}
+                </span>
+                <span
+                  x-show="tag.is_system"
+                  class="text-xs px-2 py-1 bg-yellow-100 text-yellow-800 rounded"
+                >{{ 'Système' if lang == 'fr' else 'システム' }}</span>
+                <button
+                  x-show="!tag.is_system"
+                  @click="startEditTag(tag)"
+                  class="text-blue-600 hover:text-blue-800 text-sm px-2 py-1"
+                  title="{{ 'Modifier' if lang == 'fr' else '編集' }}"
+                >
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
+                  </svg>
+                </button>
+                <button
+                  x-show="!tag.is_system"
+                  @click="deleteTag(tag.id, tag.name_fr)"
+                  class="text-red-600 hover:text-red-800 text-sm px-2 py-1"
+                  title="{{ 'Supprimer' if lang == 'fr' else '削除' }}"
+                >
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            <!-- Mode édition -->
+            <div
+              x-show="editingTagId === tag.id"
+              class="p-3 bg-purple-50 border-2 border-purple-300 rounded"
+            >
+              <div class="space-y-2">
+                <div class="grid grid-cols-2 gap-2">
+                  <input
+                    type="text"
+                    x-model="editingTag.name_fr"
+                    placeholder="Nom FR"
+                    class="px-2 py-1 border rounded text-sm"
+                  />
+                  <input
+                    type="text"
+                    x-model="editingTag.name_jp"
+                    placeholder="名前 JP"
+                    class="px-2 py-1 border rounded text-sm"
+                  />
+                </div>
+                <div class="grid grid-cols-2 gap-2">
+                  <input
+                    type="text"
+                    x-model="editingTag.description_fr"
+                    placeholder="Description FR"
+                    class="px-2 py-1 border rounded text-sm"
+                  />
+                  <input
+                    type="text"
+                    x-model="editingTag.description_jp"
+                    placeholder="説明 JP"
+                    class="px-2 py-1 border rounded text-sm"
+                  />
+                </div>
+                <div class="flex items-center gap-2">
+                  <label class="text-sm font-medium">{{ 'Couleur' if lang == 'fr' else '色' }}:</label>
+                  <input
+                    type="color"
+                    x-model="editingTag.color"
+                    class="w-12 h-8 border rounded cursor-pointer"
+                  />
+                  <span class="text-sm text-gray-600" x-text="editingTag.color"></span>
+                </div>
+                <div class="flex gap-2 mt-3">
+                  <button
+                    @click="updateTag()"
+                    class="flex-1 px-3 py-1 bg-green-600 text-white rounded hover:bg-green-700 text-sm"
+                  >
+                    {{ 'Enregistrer' if lang == 'fr' else '保存' }}
+                  </button>
+                  <button
+                    @click="cancelEditTag()"
+                    class="flex-1 px-3 py-1 bg-gray-400 text-white rounded hover:bg-gray-500 text-sm"
+                  >
+                    {{ 'Annuler' if lang == 'fr' else 'キャンセル' }}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </template>
+      </div>
+    </section>
+  </div>
+
+  <!-- Bouton retour -->
+  <div class="mt-8 pt-4 border-t">
+    <a href="/recipes?lang={{ lang }}" class="text-blue-600 hover:underline">
+      ← {{ 'Retour aux recettes' if lang == 'fr' else 'レシピに戻る' }}
+    </a>
+  </div>
+</div>
+
+<script>
+function tagsAdmin() {
+  return {
+    lang: '{{ lang }}',
+    categories: [],
+    tags: [],
+    newCategory: {
+      name_fr: '',
+      name_jp: '',
+      description_fr: '',
+      description_jp: ''
+    },
+    newTag: {
+      name_fr: '',
+      name_jp: '',
+      description_fr: '',
+      description_jp: '',
+      color: '#3B82F6'
+    },
+    creatingCategory: false,
+    creating: false,
+    message: '',
+    messageType: 'info',
+    editingCategoryId: null,
+    editingCategory: {},
+    editingTagId: null,
+    editingTag: {},
+
+    async init() {
+      await this.loadData();
+    },
+
+    async loadData() {
+      try {
+        const [categoriesRes, tagsRes] = await Promise.all([
+          fetch('/api/categories'),
+          fetch('/api/tags')
+        ]);
+
+        this.categories = await categoriesRes.json();
+        this.tags = await tagsRes.json();
+
+        console.log('✅ Données chargées:', this.categories.length, 'catégories,', this.tags.length, 'tags');
+      } catch (error) {
+        console.error('Erreur de chargement:', error);
+        this.showMessage('Erreur de chargement des données', 'error');
+      }
+    },
+
+    async createTag() {
+      this.creating = true;
+      this.message = '';
+
+      try {
+        const response = await fetch('/api/tags', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(this.newTag)
+        });
+
+        const data = await response.json();
+
+        if (data.status === 'ok') {
+          this.showMessage(
+            this.lang === 'fr' ? 'Tag créé avec succès' : 'タグが正常に作成されました',
+            'success'
+          );
+          // Réinitialiser le formulaire
+          this.newTag = {
+            name_fr: '',
+            name_jp: '',
+            description_fr: '',
+            description_jp: '',
+            color: '#3B82F6'
+          };
+          // Recharger la liste
+          await this.loadData();
+        } else {
+          this.showMessage(data.message || 'Erreur', 'error');
+        }
+      } catch (error) {
+        console.error('Erreur création tag:', error);
+        this.showMessage('Erreur lors de la création du tag', 'error');
+      } finally {
+        this.creating = false;
+      }
+    },
+
+    async deleteTag(tagId, tagName) {
+      if (!confirm(`${this.lang === 'fr' ? 'Supprimer le tag' : 'タグを削除'} "${tagName}" ?`)) {
+        return;
+      }
+
+      try {
+        const response = await fetch(`/api/tags/${tagId}`, {
+          method: 'DELETE'
+        });
+
+        const data = await response.json();
+
+        if (data.status === 'ok') {
+          this.showMessage(
+            this.lang === 'fr' ? 'Tag supprimé' : 'タグが削除されました',
+            'success'
+          );
+          await this.loadData();
+        } else {
+          this.showMessage(data.message || 'Erreur', 'error');
+        }
+      } catch (error) {
+        console.error('Erreur suppression tag:', error);
+        this.showMessage('Erreur lors de la suppression', 'error');
+      }
+    },
+
+    startEditTag(tag) {
+      this.editingTagId = tag.id;
+      this.editingTag = {
+        id: tag.id,
+        name_fr: tag.name_fr,
+        name_jp: tag.name_jp,
+        description_fr: tag.description_fr || '',
+        description_jp: tag.description_jp || '',
+        color: tag.color
+      };
+    },
+
+    cancelEditTag() {
+      this.editingTagId = null;
+      this.editingTag = {};
+    },
+
+    async updateTag() {
+      try {
+        const response = await fetch(`/api/tags/${this.editingTag.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name_fr: this.editingTag.name_fr,
+            name_jp: this.editingTag.name_jp,
+            description_fr: this.editingTag.description_fr,
+            description_jp: this.editingTag.description_jp,
+            color: this.editingTag.color
+          })
+        });
+
+        const data = await response.json();
+
+        if (data.status === 'ok') {
+          this.showMessage(
+            this.lang === 'fr' ? 'Tag modifié avec succès' : 'タグが正常に更新されました',
+            'success'
+          );
+          this.editingTagId = null;
+          this.editingTag = {};
+          await this.loadData();
+        } else {
+          this.showMessage(data.message || 'Erreur', 'error');
+        }
+      } catch (error) {
+        console.error('Erreur modification tag:', error);
+        this.showMessage('Erreur lors de la modification du tag', 'error');
+      }
+    },
+
+    showMessage(text, type) {
+      this.message = text;
+      this.messageType = type;
+      setTimeout(() => {
+        this.message = '';
+      }, 5000);
+    },
+
+    // ========== Fonctions pour les catégories ==========
+
+    async createCategory() {
+      this.creatingCategory = true;
+      this.message = '';
+
+      try {
+        const response = await fetch('/api/categories', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(this.newCategory)
+        });
+
+        const data = await response.json();
+
+        if (data.status === 'ok') {
+          this.showMessage(
+            this.lang === 'fr' ? 'Catégorie créée avec succès' : 'カテゴリーが正常に作成されました',
+            'success'
+          );
+          // Réinitialiser le formulaire
+          this.newCategory = {
+            name_fr: '',
+            name_jp: '',
+            description_fr: '',
+            description_jp: ''
+          };
+          // Recharger la liste
+          await this.loadData();
+        } else {
+          this.showMessage(data.message || 'Erreur', 'error');
+        }
+      } catch (error) {
+        console.error('Erreur création catégorie:', error);
+        this.showMessage('Erreur lors de la création de la catégorie', 'error');
+      } finally {
+        this.creatingCategory = false;
+      }
+    },
+
+    async deleteCategory(categoryId, categoryName) {
+      if (!confirm(`${this.lang === 'fr' ? 'Supprimer la catégorie' : 'カテゴリーを削除'} "${categoryName}" ?`)) {
+        return;
+      }
+
+      try {
+        const response = await fetch(`/api/categories/${categoryId}`, {
+          method: 'DELETE'
+        });
+
+        const data = await response.json();
+
+        if (data.status === 'ok') {
+          this.showMessage(
+            this.lang === 'fr' ? 'Catégorie supprimée' : 'カテゴリーが削除されました',
+            'success'
+          );
+          await this.loadData();
+        } else {
+          this.showMessage(data.message || 'Erreur', 'error');
+        }
+      } catch (error) {
+        console.error('Erreur suppression catégorie:', error);
+        this.showMessage('Erreur lors de la suppression', 'error');
+      }
+    },
+
+    startEditCategory(category) {
+      this.editingCategoryId = category.id;
+      this.editingCategory = {
+        id: category.id,
+        name_fr: category.name_fr,
+        name_jp: category.name_jp,
+        description_fr: category.description_fr || '',
+        description_jp: category.description_jp || ''
+      };
+    },
+
+    cancelEditCategory() {
+      this.editingCategoryId = null;
+      this.editingCategory = {};
+    },
+
+    async updateCategory() {
+      try {
+        const response = await fetch(`/api/categories/${this.editingCategory.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name_fr: this.editingCategory.name_fr,
+            name_jp: this.editingCategory.name_jp,
+            description_fr: this.editingCategory.description_fr,
+            description_jp: this.editingCategory.description_jp
+          })
+        });
+
+        const data = await response.json();
+
+        if (data.status === 'ok') {
+          this.showMessage(
+            this.lang === 'fr' ? 'Catégorie modifiée avec succès' : 'カテゴリーが正常に更新されました',
+            'success'
+          );
+          this.editingCategoryId = null;
+          this.editingCategory = {};
+          await this.loadData();
+        } else {
+          this.showMessage(data.message || 'Erreur', 'error');
+        }
+      } catch (error) {
+        console.error('Erreur modification catégorie:', error);
+        this.showMessage('Erreur lors de la modification de la catégorie', 'error');
+      }
+    }
+  };
+}
+</script>
+{% endblock %}

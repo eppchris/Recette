@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html lang="{{ lang }}">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ 'Conversions d\'unités' if lang == 'fr' else '単位変換' }} - Recette</title>
+    <script src="/static/css/tailwind.min.js"></script>
+    <script defer src="/static/css/alpine.min.js"></script>
+</head>
+<body class="bg-gray-50" data-conversions='{{ conversions|tojson|safe }}' x-data="conversionData()" x-init="init()">
+    <script>
+        function conversionData() {
+            const lang = '{{ lang }}';  // FR ou JP
+            return {
+                darkMode: false,
+                sortBy: 'category',
+                sortOrder: 'asc',
+                sortedConversions: [],
+                showAddForm: false,
+
+                // Traductions des catégories
+                translateCategory(cat) {
+                    if (lang === 'jp') {
+                        const translations = {
+                            'volume': '容量',
+                            'poids': '重さ',
+                            'quantité': '数量'
+                        };
+                        return translations[cat] || cat;
+                    }
+                    return cat;
+                },
+
+                // Traduction des notes
+                translateNotes(notes) {
+                    if (!notes || lang !== 'jp') return notes || '-';
+
+                    // Remplacer les unités françaises par japonaises dans les notes
+                    return notes
+                        .replace(/c\.s\./g, '大さじ')
+                        .replace(/\bcs\b/g, '大さじ')
+                        .replace(/c\.c\./g, '小さじ')
+                        .replace(/\bcc\b/g, '小さじ')
+                        .replace(/tasse/g, 'カップ')
+                        .replace(/≈/g, '≈');
+                },
+
+                init() {
+                    const data = document.body.dataset.conversions;
+                    this.sortedConversions = JSON.parse(data);
+                    this.sortConversions();
+                },
+
+                sortConversions() {
+                    const isJp = lang === 'jp';
+                    this.sortedConversions = [...this.sortedConversions].sort((a, b) => {
+                        let aVal, bVal;
+
+                        if (this.sortBy === 'from_unit') {
+                            aVal = (isJp ? a.from_unit_jp : a.from_unit_fr || '').toLowerCase();
+                            bVal = (isJp ? b.from_unit_jp : b.from_unit_fr || '').toLowerCase();
+                        } else if (this.sortBy === 'to_unit') {
+                            aVal = (isJp ? a.to_unit_jp : a.to_unit_fr || '').toLowerCase();
+                            bVal = (isJp ? b.to_unit_jp : b.to_unit_fr || '').toLowerCase();
+                        } else if (this.sortBy === 'factor') {
+                            aVal = a.factor || 0;
+                            bVal = b.factor || 0;
+                        } else if (this.sortBy === 'category') {
+                            aVal = (a.category || '').toLowerCase();
+                            bVal = (b.category || '').toLowerCase();
+                        }
+
+                        if (this.sortOrder === 'asc') {
+                            return aVal.localeCompare ? aVal.localeCompare(bVal) : (aVal > bVal ? 1 : -1);
+                        } else {
+                            return aVal.localeCompare ? bVal.localeCompare(aVal) : (aVal < bVal ? 1 : -1);
+                        }
+                    });
+                },
+
+                toggleSort(column) {
+                    if (this.sortBy === column) {
+                        this.sortOrder = this.sortOrder === 'asc' ? 'desc' : 'asc';
+                    } else {
+                        this.sortBy = column;
+                        this.sortOrder = 'asc';
+                    }
+                    this.sortConversions();
+                }
+            }
+        }
+    </script>
+    <div :class="darkMode ? 'dark bg-gray-900' : 'bg-gray-50'" class="min-h-screen">
+        <!-- Header -->
+        <header class="bg-white dark:bg-gray-800 shadow-sm border-b border-gray-200 dark:border-gray-700">
+            <div class="max-w-7xl mx-auto px-4 py-4">
+                <div class="flex justify-between items-center">
+                    <div class="flex items-center gap-4">
+                        <a href="/recipes?lang={{ lang }}" class="text-blue-600 dark:text-blue-400 hover:underline">
+                            ← {{ 'Retour' if lang == 'fr' else '戻る' }}
+                        </a>
+                        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">
+                            🔄 {{ 'Conversions d\'unités' if lang == 'fr' else '単位変換' }}
+                        </h1>
+                    </div>
+
+                    <div class="flex items-center gap-4">
+                        <!-- Toggle dark mode -->
+                        <button @click="darkMode = !darkMode"
+                                class="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700">
+                            <span x-text="darkMode ? '☀️' : '🌙'" class="text-xl"></span>
+                        </button>
+
+                        <!-- Sélecteur de langue -->
+                        <div class="flex gap-2">
+                            <a href="?lang=fr"
+                               class="px-3 py-1.5 text-sm rounded {{ 'font-bold bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-300' if lang=='fr' else 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700' }}">
+                                FR
+                            </a>
+                            <a href="?lang=jp"
+                               class="px-3 py-1.5 text-sm rounded {{ 'font-bold bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-300' if lang=='jp' else 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700' }}">
+                                JP
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Contenu principal -->
+        <main class="max-w-7xl mx-auto px-4 py-8">
+            <!-- Actions -->
+            <div class="flex justify-between items-center mb-6">
+                <div class="text-gray-600 dark:text-gray-400">
+                    {{ conversions|length }} {{ 'conversions' if lang == 'fr' else '変換規則' }}
+                </div>
+
+                <button @click="showAddForm = !showAddForm"
+                        class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700">
+                    <span x-show="!showAddForm">➕ {{ 'Ajouter' if lang == 'fr' else '追加' }}</span>
+                    <span x-show="showAddForm">✕ {{ 'Annuler' if lang == 'fr' else 'キャンセル' }}</span>
+                </button>
+            </div>
+
+            <!-- Formulaire d'ajout -->
+            <div x-show="showAddForm" x-transition class="mb-6 bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+                <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+                    {{ 'Nouvelle conversion' if lang == 'fr' else '新しい変換規則' }}
+                </h2>
+                <form method="POST" action="/unit-conversions/add" class="space-y-4">
+                    <input type="hidden" name="lang" value="{{ lang }}">
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                {{ 'Unité source' if lang == 'fr' else '元の単位' }}
+                            </label>
+                            <input type="text" name="from_unit" required
+                                   placeholder="{{ 'Ex: c.s.' if lang == 'fr' else '例: 大' }}"
+                                   class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white">
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                {{ 'Unité cible' if lang == 'fr' else '変換後の単位' }}
+                            </label>
+                            <input type="text" name="to_unit" required
+                                   placeholder="{{ 'Ex: ml' if lang == 'fr' else '例: ml' }}"
+                                   class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white">
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                {{ 'Facteur' if lang == 'fr' else '係数' }}
+                            </label>
+                            <input type="number" name="factor" step="0.0001" required
+                                   placeholder="{{ 'Ex: 15' if lang == 'fr' else '例: 15' }}"
+                                   class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white">
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                {{ 'Catégorie' if lang == 'fr' else 'カテゴリ' }}
+                            </label>
+                            <input type="text" name="category"
+                                   placeholder="{{ 'Ex: volume' if lang == 'fr' else '例: volume' }}"
+                                   class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white">
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            {{ 'Notes' if lang == 'fr' else 'メモ' }}
+                        </label>
+                        <input type="text" name="notes"
+                               placeholder="{{ 'Ex: 1 c.s. = 15 ml' if lang == 'fr' else '例: 大さじ1 = 15 ml' }}"
+                               class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white">
+                    </div>
+
+                    <div class="flex justify-end">
+                        <button type="submit"
+                                class="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700">
+                            💾 {{ 'Enregistrer' if lang == 'fr' else '保存' }}
+                        </button>
+                    </div>
+                </form>
+            </div>
+
+            <!-- Recherche -->
+            <div class="mb-6 space-y-3">
+                <form method="GET" class="flex gap-2">
+                    <input type="hidden" name="lang" value="{{ lang }}">
+                    <input type="text"
+                           name="search"
+                           value="{{ search }}"
+                           placeholder="{{ 'Rechercher une conversion...' if lang == 'fr' else '変換を検索...' }}"
+                           class="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white">
+                    <button type="submit"
+                            class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                        🔍 {{ 'Rechercher' if lang == 'fr' else '検索' }}
+                    </button>
+                    {% if search %}
+                    <a href="?lang={{ lang }}"
+                       class="px-4 py-2 bg-gray-300 dark:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-400 dark:hover:bg-gray-500">
+                        ✕ {{ 'Effacer' if lang == 'fr' else 'クリア' }}
+                    </a>
+                    {% endif %}
+                </form>
+
+                <div class="text-sm text-gray-600 dark:text-gray-400">
+                    💡 {{ 'Astuce: Cliquez sur les en-têtes de colonnes pour trier' if lang == 'fr' else 'ヒント: 列見出しをクリックして並べ替えます' }}
+                </div>
+            </div>
+
+            <!-- Tableau des conversions -->
+            <div class="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
+                <table class="w-full">
+                    <thead class="bg-gray-50 dark:bg-gray-700">
+                        <tr>
+                            <th class="px-4 py-3 text-left text-sm font-medium text-gray-700 dark:text-gray-300">
+                                <button @click="toggleSort('category')" class="flex items-center gap-1 hover:text-blue-600 dark:hover:text-blue-400">
+                                    {{ 'Catégorie' if lang == 'fr' else 'カテゴリ' }}
+                                    <span x-show="sortBy === 'category'">
+                                        <span x-show="sortOrder === 'asc'">▲</span>
+                                        <span x-show="sortOrder === 'desc'">▼</span>
+                                    </span>
+                                </button>
+                            </th>
+                            <th class="px-4 py-3 text-left text-sm font-medium text-gray-700 dark:text-gray-300">
+                                <button @click="toggleSort('from_unit')" class="flex items-center gap-1 hover:text-blue-600 dark:hover:text-blue-400">
+                                    {{ 'De' if lang == 'fr' else '元' }}
+                                    <span x-show="sortBy === 'from_unit'">
+                                        <span x-show="sortOrder === 'asc'">▲</span>
+                                        <span x-show="sortOrder === 'desc'">▼</span>
+                                    </span>
+                                </button>
+                            </th>
+                            <th class="px-4 py-3 text-left text-sm font-medium text-gray-700 dark:text-gray-300">
+                                <button @click="toggleSort('to_unit')" class="flex items-center gap-1 hover:text-blue-600 dark:hover:text-blue-400">
+                                    {{ 'Vers' if lang == 'fr' else '先' }}
+                                    <span x-show="sortBy === 'to_unit'">
+                                        <span x-show="sortOrder === 'asc'">▲</span>
+                                        <span x-show="sortOrder === 'desc'">▼</span>
+                                    </span>
+                                </button>
+                            </th>
+                            <th class="px-4 py-3 text-left text-sm font-medium text-gray-700 dark:text-gray-300">
+                                <button @click="toggleSort('factor')" class="flex items-center gap-1 hover:text-blue-600 dark:hover:text-blue-400">
+                                    {{ 'Facteur' if lang == 'fr' else '係数' }}
+                                    <span x-show="sortBy === 'factor'">
+                                        <span x-show="sortOrder === 'asc'">▲</span>
+                                        <span x-show="sortOrder === 'desc'">▼</span>
+                                    </span>
+                                </button>
+                            </th>
+                            <th class="px-4 py-3 text-left text-sm font-medium text-gray-700 dark:text-gray-300">
+                                {{ 'Notes' if lang == 'fr' else 'メモ' }}
+                            </th>
+                            <th class="px-4 py-3 text-center text-sm font-medium text-gray-700 dark:text-gray-300">
+                                {{ 'Actions' if lang == 'fr' else 'アクション' }}
+                            </th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-200 dark:divide-gray-600">
+                        <template x-for="conv in sortedConversions" :key="conv.id">
+                            <tr x-data="{ editing: false }" class="hover:bg-gray-50 dark:hover:bg-gray-700">
+                                <!-- Mode affichage -->
+                                <template x-if="!editing">
+                                    <td class="px-4 py-3 text-sm text-gray-600 dark:text-gray-400" x-text="translateCategory(conv.category)"></td>
+                                </template>
+                                <template x-if="!editing">
+                                    <td class="px-4 py-3 text-sm font-medium text-gray-900 dark:text-white" x-text="{{ 'conv.from_unit_jp' if lang == 'jp' else 'conv.from_unit_fr' }}"></td>
+                                </template>
+                                <template x-if="!editing">
+                                    <td class="px-4 py-3 text-sm font-medium text-gray-900 dark:text-white" x-text="{{ 'conv.to_unit_jp' if lang == 'jp' else 'conv.to_unit_fr' }}"></td>
+                                </template>
+                                <template x-if="!editing">
+                                    <td class="px-4 py-3 text-sm text-gray-600 dark:text-gray-400" x-text="conv.factor"></td>
+                                </template>
+                                <template x-if="!editing">
+                                    <td class="px-4 py-3 text-sm text-gray-600 dark:text-gray-400" x-text="translateNotes(conv.notes)"></td>
+                                </template>
+                                <template x-if="!editing">
+                                    <td class="px-4 py-3 text-center space-x-2">
+                                        <button @click="editing = true"
+                                                class="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 text-sm">
+                                            ✏️
+                                        </button>
+                                        <form method="POST" :action="`/unit-conversions/${conv.id}/delete`"
+                                              style="display: inline;"
+                                              onsubmit="return confirm('{{ 'Supprimer cette conversion ?' if lang == 'fr' else 'この変換規則を削除しますか？' }}');">
+                                            <input type="hidden" name="lang" value="{{ lang }}">
+                                            <button type="submit"
+                                                    class="text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300 text-sm">
+                                                🗑️
+                                            </button>
+                                        </form>
+                                    </td>
+                                </template>
+
+                                <!-- Mode édition -->
+                                <template x-if="editing">
+                                    <td colspan="6" class="px-4 py-4 bg-gray-50 dark:bg-gray-700">
+                                        <form method="POST" :action="`/unit-conversions/${conv.id}/update`" class="space-y-3">
+                                            <input type="hidden" name="lang" value="{{ lang }}">
+
+                                            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+                                                <div>
+                                                    <label class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                                        {{ 'Unité source' if lang == 'fr' else '元の単位' }}
+                                                    </label>
+                                                    <input type="text" name="from_unit" :value="{{ 'conv.from_unit_jp' if lang == 'jp' else 'conv.from_unit_fr' }}" required
+                                                           class="w-full px-2 py-1 border border-gray-300 dark:border-gray-600 rounded dark:bg-gray-600 dark:text-white text-sm">
+                                                </div>
+
+                                                <div>
+                                                    <label class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                                        {{ 'Unité cible' if lang == 'fr' else '変換後の単位' }}
+                                                    </label>
+                                                    <input type="text" name="to_unit" :value="{{ 'conv.to_unit_jp' if lang == 'jp' else 'conv.to_unit_fr' }}" required
+                                                           class="w-full px-2 py-1 border border-gray-300 dark:border-gray-600 rounded dark:bg-gray-600 dark:text-white text-sm">
+                                                </div>
+
+                                                <div>
+                                                    <label class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                                        {{ 'Facteur' if lang == 'fr' else '係数' }}
+                                                    </label>
+                                                    <input type="number" name="factor" :value="conv.factor" step="0.0001" required
+                                                           class="w-full px-2 py-1 border border-gray-300 dark:border-gray-600 rounded dark:bg-gray-600 dark:text-white text-sm">
+                                                </div>
+
+                                                <div>
+                                                    <label class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                                        {{ 'Catégorie' if lang == 'fr' else 'カテゴリ' }}
+                                                    </label>
+                                                    <input type="text" name="category" :value="conv.category || ''"
+                                                           class="w-full px-2 py-1 border border-gray-300 dark:border-gray-600 rounded dark:bg-gray-600 dark:text-white text-sm">
+                                                </div>
+                                            </div>
+
+                                            <div>
+                                                <label class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                                    {{ 'Notes' if lang == 'fr' else 'メモ' }}
+                                                </label>
+                                                <input type="text" name="notes" :value="conv.notes || ''"
+                                                       class="w-full px-2 py-1 border border-gray-300 dark:border-gray-600 rounded dark:bg-gray-600 dark:text-white text-sm">
+                                            </div>
+
+                                            <div class="flex gap-2 justify-end">
+                                                <button type="submit"
+                                                        class="px-3 py-1 bg-green-600 text-white rounded text-sm hover:bg-green-700">
+                                                    💾 {{ 'Enregistrer' if lang == 'fr' else '保存' }}
+                                                </button>
+                                                <button type="button"
+                                                        @click="editing = false"
+                                                        class="px-3 py-1 bg-gray-500 text-white rounded text-sm hover:bg-gray-600">
+                                                    {{ 'Annuler' if lang == 'fr' else 'キャンセル' }}
+                                                </button>
+                                            </div>
+                                        </form>
+                                    </td>
+                                </template>
+                            </tr>
+                        </template>
+                    </tbody>
+                </table>
+
+                {% if not conversions %}
+                <div class="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
+                    {% if search %}
+                        {{ 'Aucune conversion trouvée' if lang == 'fr' else '変換規則が見つかりません' }}
+                    {% else %}
+                        {{ 'Aucune conversion configurée' if lang == 'fr' else '変換規則が設定されていません' }}
+                    {% endif %}
+                </div>
+                {% endif %}
+            </div>
+
+            <!-- Info -->
+            <div class="mt-6 text-sm text-gray-600 dark:text-gray-400 space-y-2">
+                <p>💡 {{ 'Les conversions d\'unités permettent de calculer automatiquement les prix lors de la création de budgets.' if lang == 'fr' else '単位変換により、予算作成時に価格を自動計算できます。' }}</p>
+                <p>📝 {{ 'Exemple: 1 c.s. = 15 ml permet de convertir une recette utilisant des cuillères à soupe vers un catalogue en millilitres.' if lang == 'fr' else '例: 大さじ1 = 15ml は、大さじ単位のレシピをml単位のカタログに変換できます。' }}</p>
+            </div>
+        </main>
+    </div>
+</body>
+</html>

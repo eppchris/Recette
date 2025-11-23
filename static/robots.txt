@@ -1,0 +1,5 @@
+# robots.txt pour Recette FR/JP
+# Application privée - bloquer tous les bots
+
+User-agent: *
+Disallow: /

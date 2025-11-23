@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="{{ lang }}">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ 'Catalogue des prix' if lang == 'fr' else '価格カタログ' }} - Recette</title>
+    <script src="/static/css/tailwind.min.js"></script>
+    <script defer src="/static/css/alpine.min.js"></script>
+</head>
+<body class="bg-gray-50" data-ingredients='{{ ingredients|tojson|safe }}' x-data="catalogData()" x-init="init()">
+    <script>
+        function catalogData() {
+            return {
+                darkMode: false,
+                sortBy: 'name',
+                sortOrder: 'asc',
+                sortedIngredients: [],
+
+                init() {
+                    const data = document.body.dataset.ingredients;
+                    this.sortedIngredients = JSON.parse(data);
+                    this.sortIngredients();
+                },
+
+                sortIngredients() {
+                    this.sortedIngredients = [...this.sortedIngredients].sort((a, b) => {
+                        let aVal, bVal;
+
+                        if (this.sortBy === 'name') {
+                            aVal = a.ingredient_name.toLowerCase();
+                            bVal = b.ingredient_name.toLowerCase();
+                        } else if (this.sortBy === 'price_eur') {
+                            aVal = a.price_eur || 99999;
+                            bVal = b.price_eur || 99999;
+                        } else if (this.sortBy === 'price_jpy') {
+                            aVal = a.price_jpy || 99999;
+                            bVal = b.price_jpy || 99999;
+                        } else if (this.sortBy === 'qty') {
+                            aVal = a.qty || 99999;
+                            bVal = b.qty || 99999;
+                        } else if (this.sortBy === 'unit') {
+                            aVal = a.unit.toLowerCase();
+                            bVal = b.unit.toLowerCase();
+                        }
+
+                        if (this.sortOrder === 'asc') {
+                            return aVal.localeCompare ? aVal.localeCompare(bVal) : (aVal > bVal ? 1 : -1);
+                        } else {
+                            return aVal.localeCompare ? bVal.localeCompare(aVal) : (aVal < bVal ? 1 : -1);
+                        }
+                    });
+                },
+
+                toggleSort(column) {
+                    if (this.sortBy === column) {
+                        this.sortOrder = this.sortOrder === 'asc' ? 'desc' : 'asc';
+                    } else {
+                        this.sortBy = column;
+                        this.sortOrder = 'asc';
+                    }
+                    this.sortIngredients();
+                }
+            }
+        }
+    </script>
+    <div :class="darkMode ? 'dark bg-gray-900' : 'bg-gray-50'" class="min-h-screen">
+        <!-- Header -->
+        <header class="bg-white dark:bg-gray-800 shadow-sm border-b border-gray-200 dark:border-gray-700">
+            <div class="max-w-7xl mx-auto px-4 py-4">
+                <div class="flex justify-between items-center">
+                    <div class="flex items-center gap-4">
+                        <a href="/recipes?lang={{ lang }}" class="text-blue-600 dark:text-blue-400 hover:underline">
+                            ← {{ 'Retour' if lang == 'fr' else '戻る' }}
+                        </a>
+                        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">
+                            📊 {{ 'Catalogue des prix' if lang == 'fr' else '価格カタログ' }}
+                        </h1>
+                    </div>
+
+                    <div class="flex items-center gap-4">
+                        <!-- Sélecteur de langue -->
+                        <div class="flex gap-2">
+                            <a href="?lang=fr&search={{ search }}"
+                               class="px-3 py-1.5 rounded-lg {{ 'bg-blue-500 text-white' if lang == 'fr' else 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600' }}">
+                                FR
+                            </a>
+                            <a href="?lang=jp&search={{ search }}"
+                               class="px-3 py-1.5 rounded-lg {{ 'bg-blue-500 text-white' if lang == 'jp' else 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600' }}">
+                                JP
+                            </a>
+                        </div>
+
+                        <!-- Toggle mode sombre -->
+                        <button @click="darkMode = !darkMode"
+                                class="p-2 rounded-lg bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600">
+                            <span x-show="!darkMode">🌙</span>
+                            <span x-show="darkMode">☀️</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Contenu principal -->
+        <main class="max-w-7xl mx-auto px-4 py-8">
+            <!-- Actions -->
+            <div class="flex justify-between items-center mb-6">
+                <div class="text-gray-600 dark:text-gray-400">
+                    {{ ingredients|length }} {{ 'ingrédients' if lang == 'fr' else '食材' }}
+                </div>
+
+                <div class="flex gap-3">
+                    <form method="POST" action="/ingredient-catalog/sync">
+                        <input type="hidden" name="lang" value="{{ lang }}">
+                        <button type="submit"
+                                class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                            🔄 {{ 'Synchroniser' if lang == 'fr' else '同期' }}
+                        </button>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Recherche et filtres -->
+            <div class="mb-6 space-y-3">
+                <!-- Barre de recherche -->
+                <form method="GET" class="flex gap-2">
+                    <input type="hidden" name="lang" value="{{ lang }}">
+                    <input type="text"
+                           name="search"
+                           value="{{ search }}"
+                           placeholder="{{ 'Rechercher un ingrédient...' if lang == 'fr' else '食材を検索...' }}"
+                           class="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white">
+                    <button type="submit"
+                            class="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700">
+                        🔍 {{ 'Rechercher' if lang == 'fr' else '検索' }}
+                    </button>
+                    {% if search %}
+                    <a href="?lang={{ lang }}"
+                       class="px-4 py-2 bg-gray-300 dark:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-400 dark:hover:bg-gray-500">
+                        ✕ {{ 'Effacer' if lang == 'fr' else 'クリア' }}
+                    </a>
+                    {% endif %}
+                </form>
+
+                <!-- Aide pour trier -->
+                <div class="text-sm text-gray-600 dark:text-gray-400">
+                    💡 {{ 'Astuce: Cliquez sur les en-têtes de colonnes pour trier' if lang == 'fr' else 'ヒント: 列見出しをクリックして並べ替えます' }}
+                </div>
+            </div>
+
+            <!-- Tableau des ingrédients -->
+            <div class="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
+                <table class="w-full">
+                    <thead class="bg-gray-50 dark:bg-gray-700">
+                        <tr>
+                            <th class="px-4 py-3 text-left text-sm font-medium text-gray-700 dark:text-gray-300">
+                                <button @click="toggleSort('name')" class="flex items-center gap-1 hover:text-blue-600 dark:hover:text-blue-400">
+                                    {{ 'Ingrédient' if lang == 'fr' else '食材名' }}
+                                    <span x-show="sortBy === 'name'">
+                                        <span x-show="sortOrder === 'asc'">▲</span>
+                                        <span x-show="sortOrder === 'desc'">▼</span>
+                                    </span>
+                                </button>
+                            </th>
+                            <th class="px-4 py-3 text-left text-sm font-medium text-gray-700 dark:text-gray-300">
+                                <button @click="toggleSort('price_eur')" class="flex items-center gap-1 hover:text-blue-600 dark:hover:text-blue-400">
+                                    {{ 'Prix €' if lang == 'fr' else '価格 €' }}
+                                    <span x-show="sortBy === 'price_eur'">
+                                        <span x-show="sortOrder === 'asc'">▲</span>
+                                        <span x-show="sortOrder === 'desc'">▼</span>
+                                    </span>
+                                </button>
+                            </th>
+                            <th class="px-4 py-3 text-left text-sm font-medium text-gray-700 dark:text-gray-300">
+                                <button @click="toggleSort('price_jpy')" class="flex items-center gap-1 hover:text-blue-600 dark:hover:text-blue-400">
+                                    {{ 'Prix ¥' if lang == 'fr' else '価格 ¥' }}
+                                    <span x-show="sortBy === 'price_jpy'">
+                                        <span x-show="sortOrder === 'asc'">▲</span>
+                                        <span x-show="sortOrder === 'desc'">▼</span>
+                                    </span>
+                                </button>
+                            </th>
+                            <th class="px-4 py-3 text-left text-sm font-medium text-gray-700 dark:text-gray-300">
+                                <button @click="toggleSort('qty')" class="flex items-center gap-1 hover:text-blue-600 dark:hover:text-blue-400">
+                                    {{ 'Qté' if lang == 'fr' else '量' }}
+                                    <span x-show="sortBy === 'qty'">
+                                        <span x-show="sortOrder === 'asc'">▲</span>
+                                        <span x-show="sortOrder === 'desc'">▼</span>
+                                    </span>
+                                </button>
+                            </th>
+                            <th class="px-4 py-3 text-left text-sm font-medium text-gray-700 dark:text-gray-300">
+                                <button @click="toggleSort('unit')" class="flex items-center gap-1 hover:text-blue-600 dark:hover:text-blue-400">
+                                    {{ 'Unité' if lang == 'fr' else '単位' }}
+                                    <span x-show="sortBy === 'unit'">
+                                        <span x-show="sortOrder === 'asc'">▲</span>
+                                        <span x-show="sortOrder === 'desc'">▼</span>
+                                    </span>
+                                </button>
+                            </th>
+                            <th class="px-4 py-3 text-center text-sm font-medium text-gray-700 dark:text-gray-300">
+                                {{ 'Actions' if lang == 'fr' else 'アクション' }}
+                            </th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-200 dark:divide-gray-600">
+                        <template x-for="ing in sortedIngredients" :key="ing.id">
+                            <tr x-data="{ editing: false }" class="hover:bg-gray-50 dark:hover:bg-gray-700">
+                                <template x-if="!editing">
+                                    <td class="px-4 py-3 text-sm text-gray-900 dark:text-white" x-text="ing.ingredient_name"></td>
+                                </template>
+                                <template x-if="editing">
+                                    <td colspan="6" class="px-4 py-4 bg-gray-50 dark:bg-gray-700">
+                                        <form method="POST" :action="`/ingredient-catalog/${ing.id}/update`" class="flex gap-3 items-center">
+                                            <input type="hidden" name="lang" value="{{ lang }}">
+
+                                            <div class="flex-1">
+                                                <span class="font-medium text-gray-900 dark:text-white" x-text="ing.ingredient_name"></span>
+                                            </div>
+
+                                            <div class="w-28">
+                                                <input type="number"
+                                                       name="price_eur"
+                                                       :value="ing.price_eur || ''"
+                                                       placeholder="Prix €"
+                                                       step="0.01"
+                                                       min="0"
+                                                       class="w-full px-2 py-1 border border-gray-300 dark:border-gray-600 rounded dark:bg-gray-600 dark:text-white text-sm">
+                                            </div>
+
+                                            <div class="w-28">
+                                                <input type="number"
+                                                       name="price_jpy"
+                                                       :value="ing.price_jpy || ''"
+                                                       placeholder="Prix ¥"
+                                                       step="0.01"
+                                                       min="0"
+                                                       class="w-full px-2 py-1 border border-gray-300 dark:border-gray-600 rounded dark:bg-gray-600 dark:text-white text-sm">
+                                            </div>
+
+                                            <div class="w-20">
+                                                <input type="number"
+                                                       name="qty"
+                                                       :value="ing.qty || '1'"
+                                                       placeholder="Qté"
+                                                       step="0.01"
+                                                       min="0"
+                                                       class="w-full px-2 py-1 border border-gray-300 dark:border-gray-600 rounded dark:bg-gray-600 dark:text-white text-sm">
+                                            </div>
+
+                                            <div class="w-20">
+                                                <input type="text"
+                                                       name="unit"
+                                                       :value="ing.unit"
+                                                       required
+                                                       class="w-full px-2 py-1 border border-gray-300 dark:border-gray-600 rounded dark:bg-gray-600 dark:text-white text-sm">
+                                            </div>
+
+                                            <div class="flex gap-2">
+                                                <button type="submit"
+                                                        class="px-3 py-1 bg-green-600 text-white rounded text-sm hover:bg-green-700">
+                                                    💾 {{ 'Enregistrer' if lang == 'fr' else '保存' }}
+                                                </button>
+                                                <button type="button"
+                                                        @click="editing = false"
+                                                        class="px-3 py-1 bg-gray-500 text-white rounded text-sm hover:bg-gray-600">
+                                                    {{ 'Annuler' if lang == 'fr' else 'キャンセル' }}
+                                                </button>
+                                            </div>
+                                        </form>
+                                    </td>
+                                </template>
+                                <template x-if="!editing">
+                                    <td class="px-4 py-3 text-sm text-gray-600 dark:text-gray-400" x-text="ing.price_eur ? ing.price_eur.toFixed(2) : '-'"></td>
+                                </template>
+                                <template x-if="!editing">
+                                    <td class="px-4 py-3 text-sm text-gray-600 dark:text-gray-400" x-text="ing.price_jpy ? ing.price_jpy.toFixed(2) : '-'"></td>
+                                </template>
+                                <template x-if="!editing">
+                                    <td class="px-4 py-3 text-sm text-gray-600 dark:text-gray-400" x-text="ing.qty ? ing.qty : '1'"></td>
+                                </template>
+                                <template x-if="!editing">
+                                    <td class="px-4 py-3 text-sm text-gray-600 dark:text-gray-400" x-text="ing.unit"></td>
+                                </template>
+                                <template x-if="!editing">
+                                    <td class="px-4 py-3 text-center">
+                                        <div class="flex justify-center gap-2">
+                                            <button @click="editing = true"
+                                                    class="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 text-sm">
+                                                ✏️ {{ 'Modifier' if lang == 'fr' else '編集' }}
+                                            </button>
+                                            <form method="POST" :action="`/ingredient-catalog/${ing.id}/delete`" class="inline"
+                                                  onsubmit="return confirm('{{ 'Êtes-vous sûr de vouloir supprimer cet ingrédient ?' if lang == 'fr' else 'この食材を削除してもよろしいですか？' }}');">
+                                                <input type="hidden" name="lang" value="{{ lang }}">
+                                                <button type="submit"
+                                                        class="text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300 text-sm">
+                                                    🗑️ {{ 'Supprimer' if lang == 'fr' else '削除' }}
+                                                </button>
+                                            </form>
+                                        </div>
+                                    </td>
+                                </template>
+                            </tr>
+                        </template>
+                    </tbody>
+                </table>
+
+                {% if not ingredients %}
+                <div class="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
+                    {% if search %}
+                        {{ 'Aucun ingrédient trouvé' if lang == 'fr' else '食材が見つかりません' }}
+                    {% else %}
+                        {{ 'Aucun ingrédient dans le catalogue' if lang == 'fr' else 'カタログに食材がありません' }}
+                    {% endif %}
+                </div>
+                {% endif %}
+            </div>
+
+            <!-- Info -->
+            <div class="mt-6 text-sm text-gray-600 dark:text-gray-400 space-y-2">
+                <p>💡 {{ 'Astuce: Utilisez le bouton "Synchroniser" pour ajouter automatiquement tous les nouveaux ingrédients de vos recettes. Les prix existants ne seront pas modifiés.' if lang == 'fr' else 'ヒント: 「同期」ボタンを使用して、レシピの新しい食材を自動的に追加します。既存の価格は変更されません。' }}</p>
+            </div>
+        </main>
+    </div>
+</body>
+</html>

@@ -45,6 +45,38 @@
       </div>
       {% endif %}
     </div>
+
+    <!-- Catégories et Tags affichés -->
+    <div class="mt-4 space-y-2">
+      <!-- Catégories -->
+      <div x-show="selectedCategories.length > 0" class="flex flex-wrap gap-2 items-center">
+        <span class="text-sm font-semibold text-gray-700">
+          {{ 'カテゴリー:' if lang == 'jp' else 'Catégories:' }}
+        </span>
+        <template x-for="catId in selectedCategories" :key="catId">
+          <span
+            x-data="{cat: categories.find(c => c.id === catId)}"
+            x-show="cat"
+            class="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm font-medium"
+            x-text="cat ? (lang === 'jp' ? cat.name_jp : cat.name_fr) : ''"></span>
+        </template>
+      </div>
+
+      <!-- Tags -->
+      <div x-show="selectedTags.length > 0" class="flex flex-wrap gap-2 items-center">
+        <span class="text-sm font-semibold text-gray-700">
+          {{ 'タグ:' if lang == 'jp' else 'Tags:' }}
+        </span>
+        <template x-for="tagId in selectedTags" :key="tagId">
+          <span
+            x-data="{tag: tags.find(t => t.id === tagId)}"
+            x-show="tag"
+            class="px-3 py-1 rounded-full text-sm font-medium"
+            :style="tag ? `background-color: ${tag.color}20; color: ${tag.color}; border: 1px solid ${tag.color}` : ''"
+            x-text="tag ? (lang === 'jp' ? tag.name_jp : tag.name_fr) : ''"></span>
+        </template>
+      </div>
+    </div>
   </header>
 
   <!-- Message de statut -->
@@ -196,13 +228,23 @@
     <div class="flex flex-col md:flex-row gap-6 items-start">
       <!-- Affichage de l'image -->
       <div class="w-full md:w-1/2">
-        <div class="relative group">
+        <div class="relative group"
+             @drop.prevent="handleDrop($event)"
+             @dragover.prevent="isDragging = true"
+             @dragleave.prevent="isDragging = false"
+             :class="isDragging ? 'ring-4 ring-blue-500 ring-opacity-50' : ''">
           <img
             :src="recipeImage || '/static/images/recipe-placeholder.jpg'"
             alt="{{ rec['name'] }}"
             class="w-full rounded-lg shadow-md object-cover"
             style="max-height: 400px"
           >
+          <!-- Overlay pour drag & drop -->
+          <div x-show="isDragging" class="absolute inset-0 bg-blue-500 bg-opacity-20 rounded-lg flex items-center justify-center">
+            <div class="text-white text-xl font-bold">
+              📥 {{ 'Déposer l\'image ici' if lang == 'fr' else '画像をここにドロップ' }}
+            </div>
+          </div>
           <!-- Boutons d'action sur l'image (affichés au survol) -->
           <div class="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-40 transition-all rounded-lg flex items-center justify-center gap-4 opacity-0 group-hover:opacity-100">
             <button
@@ -244,6 +286,8 @@
           <ul class="text-sm text-blue-800 space-y-1">
             <li>✓ {{ 'Formats acceptés: JPG, PNG, WebP, GIF' if lang == 'fr' else '対応形式: JPG、PNG、WebP、GIF' }}</li>
             <li>✓ {{ 'Taille max: 5 MB' if lang == 'fr' else '最大サイズ: 5 MB' }}</li>
+            <li>⌨️ {{ 'Coller une image: Ctrl+V ou Cmd+V' if lang == 'fr' else '画像を貼り付け: Ctrl+V または Cmd+V' }}</li>
+            <li>🖱️ {{ 'Ou glisser-déposer sur l\'image' if lang == 'fr' else 'または画像にドラッグ&ドロップ' }}</li>
             <li>💡 {{ 'Conseil: optimisez vos images avant upload' if lang == 'fr' else 'ヒント: アップロード前に画像を最適化してください' }}</li>
           </ul>
           <p class="mt-3 text-sm text-gray-700">
@@ -251,6 +295,75 @@
           </p>
         </div>
       </div>
+    </div>
+  </section>
+
+  <!-- Section Catégories et Tags (affichage en bas de page) -->
+  <section class="mb-8 p-6 bg-gradient-to-br from-blue-50 to-purple-50 rounded-lg border border-blue-200">
+    <h2 class="text-2xl font-bold mb-4 text-gray-800">
+      {{ 'カテゴリーとタグ' if lang == 'jp' else 'Classification' }}
+    </h2>
+
+    <div class="space-y-4">
+      <!-- Catégories -->
+      <div x-show="selectedCategories.length > 0">
+        <h3 class="text-sm font-semibold text-gray-700 mb-2">
+          {{ 'カテゴリー' if lang == 'jp' else 'Catégories' }}
+        </h3>
+        <div class="flex flex-wrap gap-2">
+          <template x-for="catId in selectedCategories" :key="catId">
+            <div x-data="{cat: categories.find(c => c.id === catId)}" x-show="cat">
+              <span class="inline-flex items-center px-4 py-2 bg-blue-500 text-white rounded-full text-sm font-medium shadow-md">
+                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"></path>
+                </svg>
+                <span x-text="cat ? (lang === 'jp' ? cat.name_jp : cat.name_fr) : ''"></span>
+              </span>
+            </div>
+          </template>
+        </div>
+        <div x-show="selectedCategories.length === 0" class="text-sm text-gray-500 italic">
+          {{ 'カテゴリーなし' if lang == 'jp' else 'Aucune catégorie définie' }}
+        </div>
+      </div>
+
+      <!-- Tags -->
+      <div>
+        <h3 class="text-sm font-semibold text-gray-700 mb-2">
+          {{ 'タグ' if lang == 'jp' else 'Tags' }}
+        </h3>
+        <div x-show="selectedTags.length > 0" class="flex flex-wrap gap-2">
+          <template x-for="tagId in selectedTags" :key="tagId">
+            <div x-data="{tag: tags.find(t => t.id === tagId)}" x-show="tag">
+              <span
+                class="inline-flex items-center px-4 py-2 rounded-full text-sm font-medium shadow-sm"
+                :style="tag ? `background-color: ${tag.color}; color: white` : ''"
+              >
+                <svg class="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                  <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"></path>
+                </svg>
+                <span x-text="tag ? (lang === 'jp' ? tag.name_jp : tag.name_fr) : ''"></span>
+              </span>
+            </div>
+          </template>
+        </div>
+        <div x-show="selectedTags.length === 0" class="text-sm text-gray-500 italic">
+          {{ 'タグなし' if lang == 'jp' else 'Aucun tag défini' }}
+        </div>
+      </div>
+    </div>
+
+    <!-- Bouton pour ouvrir le modal et modifier -->
+    <div class="mt-4 pt-4 border-t border-blue-300">
+      <button
+        @click="openEditModal()"
+        class="text-blue-600 hover:text-blue-800 text-sm font-medium flex items-center gap-2"
+      >
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
+        </svg>
+        {{ 'カテゴリーとタグを編集' if lang == 'jp' else 'Modifier les catégories et tags' }}
+      </button>
     </div>
   </section>
 
@@ -301,6 +414,68 @@
               placeholder="{{ '人数' if lang == 'jp' else 'Ex: 4' }}"
               class="w-full px-3 py-2 border rounded"
             />
+          </div>
+        </div>
+      </div>
+
+      <!-- Section Catégories et Tags -->
+      <div class="mb-8 p-4 bg-gray-50 rounded-lg">
+        <h3 class="text-xl font-bold mb-4">
+          {{ 'カテゴリーとタグ' if lang == 'jp' else 'Catégories et Tags' }}
+        </h3>
+
+        <!-- Catégories -->
+        <div class="mb-6">
+          <label class="block text-sm font-semibold mb-2">
+            {{ 'カテゴリー' if lang == 'jp' else 'Catégories' }}
+          </label>
+          <div class="space-y-2">
+            <template x-for="category in categories" :key="category.id">
+              <label
+                class="flex items-center cursor-pointer p-3 rounded-lg transition-all select-none"
+                :class="selectedCategories.includes(category.id) ? 'bg-blue-100 border-2 border-blue-500' : 'bg-gray-50 border-2 border-gray-200 hover:bg-gray-100'"
+              >
+                <input
+                  type="checkbox"
+                  :value="category.id"
+                  x-model="selectedCategories"
+                  class="mr-3 w-5 h-5 text-blue-600 rounded focus:ring-2 focus:ring-blue-500"
+                />
+                <div class="flex-1">
+                  <div
+                    class="font-medium"
+                    :class="selectedCategories.includes(category.id) ? 'text-blue-900' : 'text-gray-900'"
+                    x-text="$root.lang === 'jp' ? category.name_jp : category.name_fr"
+                  ></div>
+                  <div class="text-xs text-gray-500" x-text="$root.lang === 'jp' ? category.description_jp : category.description_fr"></div>
+                </div>
+                <svg x-show="selectedCategories.includes(category.id)" class="w-5 h-5 text-blue-600 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                  <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
+                </svg>
+              </label>
+            </template>
+          </div>
+        </div>
+
+        <!-- Tags -->
+        <div>
+          <label class="block text-sm font-semibold mb-2">
+            {{ 'タグ' if lang == 'jp' else 'Tags' }}
+          </label>
+          <div class="flex flex-wrap gap-2">
+            <template x-for="tag in tags" :key="tag.id">
+              <button
+                type="button"
+                @click="toggleTag(tag.id)"
+                class="inline-flex items-center px-3 py-2 rounded-lg cursor-pointer transition-all select-none"
+                :class="selectedTags.includes(tag.id) ? 'ring-2 ring-offset-2 opacity-100 scale-105' : 'opacity-70 hover:opacity-90 hover:scale-105'"
+                :style="selectedTags.includes(tag.id) ?
+                  `background-color: ${tag.color}; color: white; border: 2px solid ${tag.color}; font-weight: 600` :
+                  `background-color: ${tag.color}20; color: ${tag.color}; border: 2px solid ${tag.color}60`"
+              >
+                <span class="text-sm" x-text="$root.lang === 'jp' ? tag.name_jp : tag.name_fr"></span>
+              </button>
+            </template>
           </div>
         </div>
       </div>
@@ -402,6 +577,7 @@
       editMode: false,
       saving: false,
       uploadingImage: false,
+      isDragging: false,
       recipeImage: '{{ rec["image_url"] or "" }}',
       editData: {
         ingredients: [],
@@ -414,12 +590,36 @@
       converting: false,
       showingConversion: false,
       convertedIngredients: [],
+      // Catégories et tags
+      categories: [],
+      tags: [],
+      selectedCategories: [],
+      selectedTags: [],
+      lang: '{{ lang }}',
 
       async init() {
         // Vérifier le statut de l'API au chargement
         await this.checkApiStatus();
+        // Charger les catégories et tags
+        await this.loadCategoriesAndTags();
         // Initialiser les données d'édition
         this.initEditData();
+        // Ajouter le listener pour le copier-coller d'images
+        this.setupPasteListener();
+      },
+
+      setupPasteListener() {
+        document.addEventListener('paste', (event) => {
+          const items = (event.clipboardData || event.originalEvent.clipboardData).items;
+          for (let item of items) {
+            if (item.type.indexOf('image') !== -1) {
+              const file = item.getAsFile();
+              this.uploadImageFile(file);
+              event.preventDefault();
+              break;
+            }
+          }
+        });
       },
 
       initEditData() {
@@ -440,6 +640,39 @@
         } catch (error) {
           console.error('Erreur lors de la vérification du statut API:', error);
           this.apiStatus = 'error';
+        }
+      },
+
+      async loadCategoriesAndTags() {
+        try {
+          // Charger toutes les catégories et tags disponibles
+          const [categoriesRes, tagsRes] = await Promise.all([
+            fetch('/api/categories'),
+            fetch('/api/tags')
+          ]);
+
+          this.categories = await categoriesRes.json();
+          this.tags = await tagsRes.json();
+
+          console.log('✅ Catégories chargées:', this.categories.length);
+          console.log('✅ Tags chargés:', this.tags.length);
+
+          // Si on affiche une recette existante, charger ses catégories et tags
+          const recipeId = {{ rec['id'] or 'null' }};
+          if (recipeId) {
+            const [recipeCatsRes, recipeTagsRes] = await Promise.all([
+              fetch(`/api/recipes/${recipeId}/categories`),
+              fetch(`/api/recipes/${recipeId}/tags`)
+            ]);
+
+            const recipeCats = await recipeCatsRes.json();
+            const recipeTags = await recipeTagsRes.json();
+
+            this.selectedCategories = recipeCats.map(c => c.id);
+            this.selectedTags = recipeTags.map(t => t.id);
+          }
+        } catch (error) {
+          console.error('Erreur lors du chargement des catégories/tags:', error);
         }
       },
 
@@ -496,6 +729,18 @@
         };
       },
 
+      toggleTag(tagId) {
+        const index = this.selectedTags.indexOf(tagId);
+        if (index > -1) {
+          // Tag déjà sélectionné, on le retire
+          this.selectedTags.splice(index, 1);
+        } else {
+          // Tag non sélectionné, on l'ajoute
+          this.selectedTags.push(tagId);
+        }
+        console.log('Tags sélectionnés:', this.selectedTags);
+      },
+
       async saveRecipe() {
         this.saving = true;
         this.message = '';
@@ -517,6 +762,23 @@
           const data = await response.json();
 
           if (data.success) {
+            // Sauvegarder les catégories et tags
+            const recipeId = {{ rec['id'] or 'null' }};
+            if (recipeId) {
+              await Promise.all([
+                fetch(`/api/recipes/${recipeId}/categories`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ category_ids: this.selectedCategories })
+                }),
+                fetch(`/api/recipes/${recipeId}/tags`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ tag_ids: this.selectedTags })
+                })
+              ]);
+            }
+
             this.message = data.message;
             this.messageType = 'success';
             this.editMode = false;
@@ -541,6 +803,21 @@
       async uploadImage(event) {
         const file = event.target.files[0];
         if (!file) return;
+        await this.uploadImageFile(file);
+        // Réinitialiser l'input file
+        event.target.value = '';
+      },
+
+      handleDrop(event) {
+        this.isDragging = false;
+        const files = event.dataTransfer.files;
+        if (files.length > 0) {
+          this.uploadImageFile(files[0]);
+        }
+      },
+
+      async uploadImageFile(file) {
+        if (!file) return;
 
         // Vérifier la taille (5MB max)
         if (file.size > 5 * 1024 * 1024) {
@@ -550,9 +827,9 @@
         }
 
         // Vérifier le type
-        const allowedTypes = ['image/jpeg', 'image/png', 'image/webp'];
+        const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
         if (!allowedTypes.includes(file.type)) {
-          this.message = '{{ "Format non supporté. Utilisez JPG, PNG ou WebP" if lang == "fr" else "非対応の形式です。JPG、PNG、WebPを使用してください" }}';
+          this.message = '{{ "Format non supporté. Utilisez JPG, PNG, WebP ou GIF" if lang == "fr" else "非対応の形式です。JPG、PNG、WebP、GIFを使用してください" }}';
           this.messageType = 'error';
           return;
         }
@@ -575,9 +852,6 @@
             this.recipeImage = data.image_url;
             this.message = data.message;
             this.messageType = 'success';
-
-            // Réinitialiser l'input file
-            event.target.value = '';
           } else {
             this.message = data.message;
             this.messageType = 'error';

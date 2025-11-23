@@ -13,6 +13,7 @@ from config import Config
 from app.services.translation_service import init_translation_service
 from app.services.conversion_service import init_conversion_service
 from app.middleware.auth import AuthMiddleware
+from app.middleware.access_logger import AccessLoggerMiddleware
 from app.template_config import templates
 
 # Configuration du logging
@@ -67,6 +68,10 @@ app.add_middleware(
     max_age=86400,  # 24 heures
 )
 
+# Ajouter le middleware de logging des accès
+app.add_middleware(AccessLoggerMiddleware)
+logger.info("📊 Logging des accès activé")
+
 # Initialiser le service de traduction si la clé API est configurée
 if Config.GROQ_API_KEY:
     init_translation_service(Config.GROQ_API_KEY)
@@ -88,15 +93,23 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 from app.routes.recipe_routes import router as recipe_router
 from app.routes.auth_routes import router as auth_router
 from app.routes.event_routes import router as event_router
+from app.routes.catalog_routes import router as catalog_router
 
 app.include_router(auth_router)
 app.include_router(recipe_router)
 app.include_router(event_router)
+app.include_router(catalog_router)
 
 # Page d'accueil : redirection vers la liste des recettes
 @app.get("/")
 async def root():
     return RedirectResponse(url="/recipes?lang=fr")
+
+# Robots.txt pour bloquer les bots
+@app.get("/robots.txt")
+async def robots_txt():
+    from fastapi.responses import FileResponse
+    return FileResponse("static/robots.txt", media_type="text/plain")
 
 # Health check endpoint pour monitoring
 @app.get("/health")

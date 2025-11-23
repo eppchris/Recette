@@ -1,0 +1,459 @@
+<!DOCTYPE html>
+<html lang="{{ lang }}">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ 'Budget -' if lang == 'fr' else '予算 -' }} {{ event.name }} - Recette</title>
+    <script src="/static/css/tailwind.min.js"></script>
+    <script defer src="/static/css/alpine.min.js"></script>
+    <style>
+        /* Enlever les flèches des inputs number */
+        input[type="number"]::-webkit-inner-spin-button,
+        input[type="number"]::-webkit-outer-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+        input[type="number"] {
+            -moz-appearance: textfield;
+        }
+    </style>
+</head>
+{% set currency = '€' if lang == 'fr' else '¥' %}
+<body class="bg-gray-50" x-data="ingredientBudget()" x-init="init()">
+    <script>
+        function ingredientBudget() {
+            return {
+                darkMode: false,
+                showAddExpense: false,
+                editingExpense: null,
+                showIngredients: false,
+                ingredients: {{ shopping_list|tojson|safe }},
+
+                init() {
+                    // Initialiser les prix avec le catalogue
+                    this.ingredients.forEach(ing => {
+                        if (!ing.planned_price) {
+                            ing.planned_price = ing.unit_price || 0;
+                        }
+                    });
+                },
+
+                calculateTotal() {
+                    return this.ingredients.reduce((sum, ing) => {
+                        const price = parseFloat(ing.planned_price) || 0;
+                        const qty = parseFloat(ing.needed_quantity || ing.purchase_quantity) || 0;
+                        return sum + (price * qty);
+                    }, 0);
+                }
+            }
+        }
+    </script>
+    <div :class="darkMode ? 'dark bg-gray-900' : 'bg-gray-50'" class="min-h-screen">
+        <!-- Header -->
+        <header class="bg-white dark:bg-gray-800 shadow-sm border-b border-gray-200 dark:border-gray-700">
+            <div class="max-w-7xl mx-auto px-4 py-4 flex justify-between items-center">
+                <div class="flex items-center gap-4">
+                    <a href="/events/{{ event.id }}?lang={{ lang }}" class="text-blue-600 dark:text-blue-400 hover:underline">
+                        ← {{ 'Retour' if lang == 'fr' else '戻る' }}
+                    </a>
+                    <h1 class="text-2xl font-bold text-gray-900 dark:text-white">
+                        💰 {{ 'Budget' if lang == 'fr' else '予算' }} - {{ event.name }}
+                    </h1>
+                </div>
+
+                <div class="flex items-center gap-4">
+                    <!-- Sélecteur de langue -->
+                    <div class="flex gap-2">
+                        <a href="?lang=fr"
+                           class="px-3 py-1.5 rounded-lg {{ 'bg-blue-500 text-white' if lang == 'fr' else 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600' }}">
+                            FR
+                        </a>
+                        <a href="?lang=jp"
+                           class="px-3 py-1.5 rounded-lg {{ 'bg-blue-500 text-white' if lang == 'jp' else 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600' }}">
+                            JP
+                        </a>
+                    </div>
+
+                    <!-- Toggle mode sombre -->
+                    <button @click="darkMode = !darkMode"
+                            class="p-2 rounded-lg bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600">
+                        <span x-show="!darkMode">🌙</span>
+                        <span x-show="darkMode">☀️</span>
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        <!-- Contenu principal -->
+        <main class="max-w-7xl mx-auto px-4 py-8">
+            <!-- Résumé budgétaire -->
+            <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6 mb-6">
+                <h2 class="text-xl font-bold text-gray-900 dark:text-white mb-4">
+                    {{ 'Résumé budgétaire' if lang == 'fr' else '予算概要' }}
+                </h2>
+
+                <!-- Graphique des dépenses -->
+                {% set total_actual = budget_summary.total_actual if budget_summary.total_actual else 0 %}
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div class="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+                        <div class="text-sm text-gray-600 dark:text-gray-400 mb-1">
+                            {{ 'Budget prévu' if lang == 'fr' else '予定予算' }}
+                        </div>
+                        <div class="text-2xl font-bold text-blue-600 dark:text-blue-400" x-text="calculateTotal().toFixed(2) + ' {{ currency }}'">
+                        </div>
+                    </div>
+                    <div class="p-4 bg-orange-50 dark:bg-orange-900/20 rounded-lg">
+                        <div class="text-sm text-gray-600 dark:text-gray-400 mb-1">
+                            {{ 'Dépensé' if lang == 'fr' else '支出済' }}
+                        </div>
+                        <div class="text-2xl font-bold text-orange-600 dark:text-orange-400">
+                            {{ '{:.2f}'.format(total_actual) }} {{ currency }}
+                        </div>
+                    </div>
+                    <div class="p-4 rounded-lg" :class="(calculateTotal() - {{ total_actual }}) >= 0 ? 'bg-green-50 dark:bg-green-900/20' : 'bg-red-50 dark:bg-red-900/20'">
+                        <div class="text-sm text-gray-600 dark:text-gray-400 mb-1">
+                            {{ 'Différence' if lang == 'fr' else '差額' }}
+                        </div>
+                        <div class="text-2xl font-bold" :class="(calculateTotal() - {{ total_actual }}) >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'"
+                             x-text="((calculateTotal() - {{ total_actual }}) >= 0 ? '+' : '') + (calculateTotal() - {{ total_actual }}).toFixed(2) + ' {{ currency }}'">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Section Ingrédients (Liste de courses) -->
+            {% if shopping_list %}
+            <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6 mb-6">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-xl font-bold text-gray-900 dark:text-white">
+                        🍅 {{ 'Ingrédients (Liste de courses)' if lang == 'fr' else '食材（買い物リスト）' }}
+                    </h2>
+                    <button @click="showIngredients = !showIngredients"
+                            class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                        <span x-show="!showIngredients">{{ 'Afficher' if lang == 'fr' else '表示' }}</span>
+                        <span x-show="showIngredients">{{ 'Masquer' if lang == 'fr' else '非表示' }}</span>
+                    </button>
+                </div>
+
+                <div x-show="showIngredients" x-transition>
+                    <form method="POST" action="/events/{{ event.id }}/expenses/ingredients/add">
+                        <input type="hidden" name="lang" value="{{ lang }}">
+
+                        <div class="mb-4">
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                {{ 'Description de la dépense' if lang == 'fr' else '支出の説明' }}
+                            </label>
+                            <input type="text" name="description" value="{{ 'Courses - Ingrédients' if lang == 'fr' else '食材の買い物' }}" required
+                                   class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-600 dark:text-white">
+                        </div>
+
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-sm">
+                                <thead class="bg-gray-50 dark:bg-gray-700">
+                                    <tr>
+                                        <th class="px-3 py-2 text-left text-xs font-medium text-gray-700 dark:text-gray-300">
+                                            {{ 'Ingrédient' if lang == 'fr' else '食材' }}
+                                        </th>
+                                        <th colspan="3" class="px-3 py-2 text-center text-xs font-medium text-gray-700 dark:text-gray-300 border-l border-gray-300 dark:border-gray-600">
+                                            {{ 'Catalogue (Achat)' if lang == 'fr' else 'カタログ（購入）' }}
+                                        </th>
+                                        <th colspan="2" class="px-3 py-2 text-center text-xs font-medium text-gray-700 dark:text-gray-300 border-l border-gray-300 dark:border-gray-600">
+                                            {{ 'Recette (Besoin)' if lang == 'fr' else 'レシピ（必要）' }}
+                                        </th>
+                                        <th colspan="2" class="px-3 py-2 text-center text-xs font-medium text-gray-700 dark:text-gray-300 border-l border-gray-300 dark:border-gray-600">
+                                            {{ 'Calcul' if lang == 'fr' else '計算' }}
+                                        </th>
+                                    </tr>
+                                    <tr class="bg-gray-100 dark:bg-gray-600">
+                                        <th class="px-3 py-2"></th>
+                                        <th class="px-2 py-2 text-right text-xs font-medium text-gray-700 dark:text-gray-300 border-l border-gray-300 dark:border-gray-600">
+                                            {{ 'Qté' if lang == 'fr' else '量' }}
+                                        </th>
+                                        <th class="px-2 py-2 text-left text-xs font-medium text-gray-700 dark:text-gray-300">
+                                            {{ 'Unité' if lang == 'fr' else '単位' }}
+                                        </th>
+                                        <th class="px-2 py-2 text-right text-xs font-medium text-gray-700 dark:text-gray-300">
+                                            {{ 'Prix' if lang == 'fr' else '価格' }}
+                                        </th>
+                                        <th class="px-2 py-2 text-right text-xs font-medium text-gray-700 dark:text-gray-300 border-l border-gray-300 dark:border-gray-600">
+                                            {{ 'Qté' if lang == 'fr' else '量' }}
+                                        </th>
+                                        <th class="px-2 py-2 text-left text-xs font-medium text-gray-700 dark:text-gray-300">
+                                            {{ 'Unité' if lang == 'fr' else '単位' }}
+                                        </th>
+                                        <th class="px-2 py-2 text-right text-xs font-medium text-gray-700 dark:text-gray-300 border-l border-gray-300 dark:border-gray-600">
+                                            {{ 'Prix unit.' if lang == 'fr' else '単価' }}
+                                        </th>
+                                        <th class="px-2 py-2 text-right text-xs font-medium text-gray-700 dark:text-gray-300">
+                                            {{ 'Total' if lang == 'fr' else '合計' }}
+                                        </th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-gray-200 dark:divide-gray-600">
+                                    <template x-for="(ing, index) in ingredients" :key="index">
+                                        <tr class="hover:bg-gray-50 dark:hover:bg-gray-700">
+                                            <td class="px-3 py-2 text-gray-900 dark:text-white font-medium" x-text="ing.ingredient_name"></td>
+                                            <!-- Catalogue -->
+                                            <td class="px-2 py-2 text-right text-gray-600 dark:text-gray-400 border-l border-gray-200 dark:border-gray-700" x-text="ing.catalog_qty || '-'"></td>
+                                            <td class="px-2 py-2 text-left text-gray-600 dark:text-gray-400" x-text="ing.catalog_unit || '-'"></td>
+                                            <td class="px-2 py-2 text-right text-gray-600 dark:text-gray-400" x-text="ing.catalog_price ? ing.catalog_price.toFixed(2) + ' {{ currency }}' : '-'"></td>
+                                            <!-- Recette -->
+                                            <td class="px-2 py-2 text-right text-gray-600 dark:text-gray-400 border-l border-gray-200 dark:border-gray-700" x-text="ing.needed_quantity || ing.purchase_quantity || '-'"></td>
+                                            <td class="px-2 py-2 text-left text-gray-600 dark:text-gray-400" x-text="ing.needed_unit || ing.purchase_unit || '-'"></td>
+                                            <!-- Calcul -->
+                                            <td class="px-2 py-2 text-right border-l border-gray-200 dark:border-gray-700">
+                                                <input type="number"
+                                                       :name="'ingredient_' + ing.id + '_price'"
+                                                       x-model="ing.planned_price"
+                                                       step="0.0001"
+                                                       min="0"
+                                                       class="w-24 px-2 py-1 text-right border border-gray-300 dark:border-gray-600 rounded dark:bg-gray-600 dark:text-white text-xs">
+                                            </td>
+                                            <td class="px-2 py-2 text-right font-medium text-gray-900 dark:text-white"
+                                                x-text="((ing.planned_price || 0) * (ing.needed_quantity || ing.purchase_quantity || 0)).toFixed(2) + ' {{ currency }}'">
+                                            </td>
+                                        </tr>
+                                    </template>
+                                </tbody>
+                                <tfoot class="bg-gray-50 dark:bg-gray-700">
+                                    <tr>
+                                        <td colspan="7" class="px-3 py-3 text-right font-bold text-gray-900 dark:text-white">
+                                            {{ 'Total prévu' if lang == 'fr' else '予定合計' }}:
+                                        </td>
+                                        <td class="px-2 py-3 text-right font-bold text-lg text-blue-600 dark:text-blue-400"
+                                            x-text="calculateTotal().toFixed(2) + ' {{ currency }}'">
+                                        </td>
+                                    </tr>
+                                </tfoot>
+                            </table>
+                        </div>
+
+                        <div class="mt-4 flex gap-2">
+                            <button type="submit" class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700">
+                                💾 {{ 'Créer la dépense' if lang == 'fr' else '支出を作成' }}
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Liste des dépenses -->
+            <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-xl font-bold text-gray-900 dark:text-white">
+                        {{ 'Dépenses' if lang == 'fr' else '支出項目' }}
+                    </h2>
+                    <button @click="showAddExpense = !showAddExpense"
+                            class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700">
+                        <span x-show="!showAddExpense">+ {{ 'Ajouter une dépense' if lang == 'fr' else '支出を追加' }}</span>
+                        <span x-show="showAddExpense">{{ 'Annuler' if lang == 'fr' else 'キャンセル' }}</span>
+                    </button>
+                </div>
+
+                <!-- Formulaire d'ajout de dépense -->
+                <div x-show="showAddExpense" class="mb-6 p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                    <form method="POST" action="/events/{{ event.id }}/expenses/add">
+                        <input type="hidden" name="lang" value="{{ lang }}">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                    {{ 'Catégorie' if lang == 'fr' else 'カテゴリ' }}
+                                </label>
+                                <select name="category_id" required
+                                        class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-600 dark:text-white">
+                                    <option value="">{{ 'Sélectionner...' if lang == 'fr' else '選択...' }}</option>
+                                    {% for category in categories %}
+                                    <option value="{{ category.id }}">{{ category.icon }} {{ category.name }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                    {{ 'Description' if lang == 'fr' else '説明' }}
+                                </label>
+                                <input type="text" name="description" required
+                                       class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-600 dark:text-white">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                    {{ 'Montant prévu (' + currency + ')' if lang == 'fr' else '予定金額 (' + currency + ')' }}
+                                </label>
+                                <input type="number" name="planned_amount" step="0.01" min="0" required
+                                       class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-600 dark:text-white">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                    {{ 'Montant réel (' + currency + ')' if lang == 'fr' else '実際金額 (' + currency + ')' }} <span class="text-gray-400">({{ 'optionnel' if lang == 'fr' else 'オプション' }})</span>
+                                </label>
+                                <input type="number" name="actual_amount" step="0.01" min="0"
+                                       class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-600 dark:text-white">
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-4 mb-4">
+                            <label class="flex items-center gap-2">
+                                <input type="checkbox" name="is_paid" value="1" class="rounded">
+                                <span class="text-sm text-gray-700 dark:text-gray-300">{{ 'Payé' if lang == 'fr' else '支払済' }}</span>
+                            </label>
+                            <div class="flex-1">
+                                <input type="date" name="paid_date" placeholder="{{ 'Date de paiement' if lang == 'fr' else '支払日' }}"
+                                       class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-600 dark:text-white">
+                            </div>
+                        </div>
+                        <div class="mb-4">
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                {{ 'Notes' if lang == 'fr' else 'メモ' }}
+                            </label>
+                            <textarea name="notes" rows="2"
+                                      class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-600 dark:text-white"></textarea>
+                        </div>
+                        <button type="submit" class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700">
+                            {{ 'Ajouter' if lang == 'fr' else '追加' }}
+                        </button>
+                    </form>
+                </div>
+
+                <!-- Liste des dépenses -->
+                {% if expenses %}
+                <div class="overflow-x-auto">
+                    <table class="w-full">
+                        <thead class="bg-gray-50 dark:bg-gray-700">
+                            <tr>
+                                <th class="px-4 py-3 text-left text-sm font-medium text-gray-700 dark:text-gray-300">{{ 'Catégorie' if lang == 'fr' else 'カテゴリ' }}</th>
+                                <th class="px-4 py-3 text-left text-sm font-medium text-gray-700 dark:text-gray-300">{{ 'Description' if lang == 'fr' else '説明' }}</th>
+                                <th class="px-4 py-3 text-right text-sm font-medium text-gray-700 dark:text-gray-300">{{ 'Prévu' if lang == 'fr' else '予定' }}</th>
+                                <th class="px-4 py-3 text-right text-sm font-medium text-gray-700 dark:text-gray-300">{{ 'Réel' if lang == 'fr' else '実際' }}</th>
+                                <th class="px-4 py-3 text-center text-sm font-medium text-gray-700 dark:text-gray-300">{{ 'Statut' if lang == 'fr' else 'ステータス' }}</th>
+                                <th class="px-4 py-3 text-center text-sm font-medium text-gray-700 dark:text-gray-300">{{ 'Actions' if lang == 'fr' else 'アクション' }}</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-gray-200 dark:divide-gray-600">
+                            {% for expense in expenses %}
+                            <tr class="hover:bg-gray-50 dark:hover:bg-gray-700">
+                                <td class="px-4 py-3 text-sm">
+                                    <span class="inline-flex items-center gap-2">
+                                        <span>{{ expense.category_icon }}</span>
+                                        <span class="text-gray-900 dark:text-white">{{ expense.category_name }}</span>
+                                    </span>
+                                </td>
+                                <td class="px-4 py-3 text-sm text-gray-900 dark:text-white">{{ expense.description }}</td>
+                                <td class="px-4 py-3 text-sm text-right text-gray-900 dark:text-white">{{ '{:.2f}'.format(expense.planned_amount) }} {{ currency }}</td>
+                                <td class="px-4 py-3 text-sm text-right">
+                                    {% if expense.actual_amount %}
+                                    <span class="text-gray-900 dark:text-white">{{ '{:.2f}'.format(expense.actual_amount) }} {{ currency }}</span>
+                                    {% else %}
+                                    <span class="text-gray-400">-</span>
+                                    {% endif %}
+                                </td>
+                                <td class="px-4 py-3 text-center">
+                                    {% if expense.is_paid %}
+                                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
+                                        ✓ {{ 'Payé' if lang == 'fr' else '支払済' }}
+                                    </span>
+                                    {% else %}
+                                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300">
+                                        {{ 'En attente' if lang == 'fr' else '未払' }}
+                                    </span>
+                                    {% endif %}
+                                </td>
+                                <td class="px-4 py-3 text-center">
+                                    <div class="flex items-center justify-center gap-2">
+                                        <button @click="editingExpense = {{ expense.id }}"
+                                                class="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 text-sm">
+                                            {{ 'Modifier' if lang == 'fr' else '編集' }}
+                                        </button>
+                                        <form method="POST" action="/events/{{ event.id }}/expenses/{{ expense.id }}/delete"
+                                              onsubmit="return confirm('{{ 'Supprimer cette dépense ?' if lang == 'fr' else 'この支出を削除しますか？' }}');"
+                                              class="inline">
+                                            <input type="hidden" name="lang" value="{{ lang }}">
+                                            <button type="submit" class="text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300 text-sm">
+                                                {{ 'Supprimer' if lang == 'fr' else '削除' }}
+                                            </button>
+                                        </form>
+                                    </div>
+                                </td>
+                            </tr>
+                            <!-- Formulaire de modification -->
+                            <tr x-show="editingExpense === {{ expense.id }}" class="bg-gray-50 dark:bg-gray-700">
+                                <td colspan="6" class="px-4 py-4">
+                                    <form method="POST" action="/events/{{ event.id }}/expenses/{{ expense.id }}/update">
+                                        <input type="hidden" name="lang" value="{{ lang }}">
+                                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                                            <div>
+                                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                                    {{ 'Catégorie' if lang == 'fr' else 'カテゴリ' }}
+                                                </label>
+                                                <select name="category_id" required
+                                                        class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-600 dark:text-white">
+                                                    {% for category in categories %}
+                                                    <option value="{{ category.id }}" {% if category.id == expense.category_id %}selected{% endif %}>
+                                                        {{ category.icon }} {{ category.name }}
+                                                    </option>
+                                                    {% endfor %}
+                                                </select>
+                                            </div>
+                                            <div>
+                                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                                    {{ 'Description' if lang == 'fr' else '説明' }}
+                                                </label>
+                                                <input type="text" name="description" value="{{ expense.description }}" required
+                                                       class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-600 dark:text-white">
+                                            </div>
+                                            <div>
+                                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                                    {{ 'Montant prévu (' + currency + ')' if lang == 'fr' else '予定金額 (' + currency + ')' }}
+                                                </label>
+                                                <input type="number" name="planned_amount" step="0.01" min="0" value="{{ expense.planned_amount }}" required
+                                                       class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-600 dark:text-white">
+                                            </div>
+                                            <div>
+                                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                                    {{ 'Montant réel (' + currency + ')' if lang == 'fr' else '実際金額 (' + currency + ')' }}
+                                                </label>
+                                                <input type="number" name="actual_amount" step="0.01" min="0" value="{{ expense.actual_amount if expense.actual_amount else '' }}"
+                                                       class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-600 dark:text-white">
+                                            </div>
+                                        </div>
+                                        <div class="flex items-center gap-4 mb-4">
+                                            <label class="flex items-center gap-2">
+                                                <input type="checkbox" name="is_paid" value="1" {% if expense.is_paid %}checked{% endif %} class="rounded">
+                                                <span class="text-sm text-gray-700 dark:text-gray-300">{{ 'Payé' if lang == 'fr' else '支払済' }}</span>
+                                            </label>
+                                            <div class="flex-1">
+                                                <input type="date" name="paid_date" value="{{ expense.paid_date if expense.paid_date else '' }}"
+                                                       class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-600 dark:text-white">
+                                            </div>
+                                        </div>
+                                        <div class="mb-4">
+                                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                                {{ 'Notes' if lang == 'fr' else 'メモ' }}
+                                            </label>
+                                            <textarea name="notes" rows="2"
+                                                      class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-600 dark:text-white">{{ expense.notes if expense.notes else '' }}</textarea>
+                                        </div>
+                                        <div class="flex gap-2">
+                                            <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                                                {{ 'Enregistrer' if lang == 'fr' else '保存' }}
+                                            </button>
+                                            <button type="button" @click="editingExpense = null"
+                                                    class="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600">
+                                                {{ 'Annuler' if lang == 'fr' else 'キャンセル' }}
+                                            </button>
+                                        </div>
+                                    </form>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <p class="text-gray-500 dark:text-gray-400 text-center py-8">
+                    {{ 'Aucune dépense enregistrée' if lang == 'fr' else '支出が記録されていません' }}
+                </p>
+                {% endif %}
+            </div>
+        </main>
+    </div>
+</body>
+</html>

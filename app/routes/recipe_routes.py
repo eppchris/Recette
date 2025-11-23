@@ -20,6 +20,12 @@ router = APIRouter()
 async def recipes_list(request: Request, lang: str = Query("fr")):
     """Affiche la liste de toutes les recettes dans la langue demandée"""
     rows = db.list_recipes(lang)
+
+    # Enrichir chaque recette avec ses catégories et tags
+    for recipe in rows:
+        recipe['categories'] = db.get_recipe_categories(recipe['id'])
+        recipe['tags'] = db.get_recipe_tags(recipe['id'])
+
     return templates.TemplateResponse(
         "recipes_list.html",
         {"request": request, "lang": lang, "rows": rows}
@@ -565,3 +571,198 @@ async def convert_recipe_servings(slug: str, request: Request, lang: str = Query
             {"success": False, "message": f"Erreur: {str(e)}"},
             status_code=500
         )
+
+
+# ============================================================================
+# API - CATÉGORIES ET TAGS
+# ============================================================================
+
+@router.get("/api/categories")
+async def api_get_categories():
+    """Récupère toutes les catégories disponibles"""
+    return db.get_all_categories()
+
+
+@router.get("/api/tags")
+async def api_get_tags():
+    """Récupère tous les tags disponibles"""
+    return db.get_all_tags()
+
+
+@router.get("/api/recipes/{recipe_id}/categories")
+async def api_get_recipe_categories(recipe_id: int):
+    """Récupère les catégories d'une recette spécifique"""
+    return db.get_recipe_categories(recipe_id)
+
+
+@router.get("/api/recipes/{recipe_id}/tags")
+async def api_get_recipe_tags(recipe_id: int):
+    """Récupère les tags d'une recette spécifique"""
+    return db.get_recipe_tags(recipe_id)
+
+
+@router.post("/api/recipes/{recipe_id}/categories")
+async def api_set_recipe_categories(recipe_id: int, request: Request):
+    """Définit les catégories d'une recette"""
+    data = await request.json()
+    category_ids = data.get('category_ids', [])
+    db.set_recipe_categories(recipe_id, category_ids)
+    return {"status": "ok", "message": "Categories updated"}
+
+
+@router.post("/api/recipes/{recipe_id}/tags")
+async def api_set_recipe_tags(recipe_id: int, request: Request):
+    """Définit les tags d'une recette"""
+    data = await request.json()
+    tag_ids = data.get('tag_ids', [])
+    db.set_recipe_tags(recipe_id, tag_ids)
+    return {"status": "ok", "message": "Tags updated"}
+
+
+@router.post("/api/categories")
+async def api_create_category(request: Request):
+    """Crée une nouvelle catégorie"""
+    data = await request.json()
+    category_id = db.create_category(
+        name_fr=data.get('name_fr'),
+        name_jp=data.get('name_jp'),
+        description_fr=data.get('description_fr'),
+        description_jp=data.get('description_jp')
+    )
+    return {"status": "ok", "category_id": category_id}
+
+
+@router.put("/api/categories/{category_id}")
+async def api_update_category(category_id: int, request: Request):
+    """Modifie une catégorie existante"""
+    try:
+        data = await request.json()
+        success = db.update_category(
+            category_id=category_id,
+            name_fr=data.get('name_fr'),
+            name_jp=data.get('name_jp'),
+            description_fr=data.get('description_fr'),
+            description_jp=data.get('description_jp')
+        )
+        if success:
+            return {"status": "ok", "message": "Category updated"}
+        else:
+            return JSONResponse(
+                {"status": "error", "message": "Category not found"},
+                status_code=400
+            )
+    except Exception as e:
+        return JSONResponse(
+            {"status": "error", "message": str(e)},
+            status_code=500
+        )
+
+
+@router.delete("/api/categories/{category_id}")
+async def api_delete_category(category_id: int):
+    """Supprime une catégorie (seulement si non utilisée)"""
+    try:
+        db.delete_category(category_id)
+        return {"status": "ok", "message": "Category deleted"}
+    except ValueError as e:
+        return JSONResponse(
+            {"status": "error", "message": str(e)},
+            status_code=400
+        )
+
+
+@router.post("/api/tags")
+async def api_create_tag(request: Request):
+    """Crée un nouveau tag personnalisé"""
+    data = await request.json()
+    tag_id = db.create_tag(
+        name_fr=data.get('name_fr'),
+        name_jp=data.get('name_jp'),
+        description_fr=data.get('description_fr'),
+        description_jp=data.get('description_jp'),
+        color=data.get('color', '#3B82F6')
+    )
+    return {"status": "ok", "tag_id": tag_id}
+
+
+@router.put("/api/tags/{tag_id}")
+async def api_update_tag(tag_id: int, request: Request):
+    """Modifie un tag existant (seulement si non-système)"""
+    try:
+        data = await request.json()
+        success = db.update_tag(
+            tag_id=tag_id,
+            name_fr=data.get('name_fr'),
+            name_jp=data.get('name_jp'),
+            description_fr=data.get('description_fr'),
+            description_jp=data.get('description_jp'),
+            color=data.get('color')
+        )
+        if success:
+            return {"status": "ok", "message": "Tag updated"}
+        else:
+            return JSONResponse(
+                {"status": "error", "message": "Cannot update system tag or tag not found"},
+                status_code=400
+            )
+    except Exception as e:
+        return JSONResponse(
+            {"status": "error", "message": str(e)},
+            status_code=500
+        )
+
+
+@router.delete("/api/tags/{tag_id}")
+async def api_delete_tag(tag_id: int):
+    """Supprime un tag (seulement si non-système)"""
+    try:
+        db.delete_tag(tag_id)
+        return {"status": "ok", "message": "Tag deleted"}
+    except ValueError as e:
+        return JSONResponse(
+            {"status": "error", "message": str(e)},
+            status_code=400
+        )
+
+
+@router.get("/admin/tags", response_class=HTMLResponse)
+async def tags_admin_page(request: Request, lang: str = Query("fr")):
+    """Page d'administration des tags et catégories"""
+    return templates.TemplateResponse(
+        "tags_admin.html",
+        {"request": request, "lang": lang}
+    )
+
+
+@router.get("/api/recipes/search")
+async def api_search_recipes(
+    search: str = Query(None),
+    categories: str = Query(None),  # IDs séparés par virgules
+    tags: str = Query(None),         # IDs séparés par virgules
+    lang: str = Query("fr")
+):
+    """
+    Recherche avancée de recettes avec filtres multiples
+
+    Paramètres:
+    - search: texte à rechercher dans titre/ingrédients
+    - categories: IDs de catégories séparés par virgules (ex: "1,2,3")
+    - tags: IDs de tags séparés par virgules (ex: "5,9")
+    - lang: langue (fr/jp)
+    """
+    category_ids = [int(x) for x in categories.split(',')] if categories else None
+    tag_ids = [int(x) for x in tags.split(',')] if tags else None
+
+    results = db.search_recipes_by_filters(
+        search_text=search,
+        category_ids=category_ids,
+        tag_ids=tag_ids,
+        lang=lang
+    )
+
+    # Enrichir avec les catégories et tags de chaque recette
+    for recipe in results:
+        recipe['categories'] = db.get_recipe_categories(recipe['id'])
+        recipe['tags'] = db.get_recipe_tags(recipe['id'])
+
+    return results

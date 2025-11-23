@@ -4,8 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{ event.name }} - Recette</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <script src="/static/css/tailwind.min.js"></script>
+    <script defer src="/static/css/alpine.min.js"></script>
 </head>
 <body class="bg-gray-50" x-data="{ darkMode: false, showAddRecipe: false, selectedRecipe: '' }">
     <div :class="darkMode ? 'dark bg-gray-900' : 'bg-gray-50'" class="min-h-screen">
@@ -166,12 +166,17 @@
                     {% endfor %}
                 </div>
 
-                <!-- Bouton liste de courses -->
-                <div class="mt-6">
+                <!-- Boutons d'action -->
+                <div class="mt-6 flex gap-3">
                     <a href="/events/{{ event.id }}/shopping-list?lang={{ lang }}"
                        class="inline-flex items-center gap-2 px-6 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 font-medium">
                         <span>📝</span>
                         <span>{% if has_shopping_list %}{{ 'Modifier la liste' if lang == 'fr' else 'リストを編集' }}{% else %}{{ S('generate_shopping_list') }}{% endif %}</span>
+                    </a>
+                    <a href="/events/{{ event.id }}/budget?lang={{ lang }}"
+                       class="inline-flex items-center gap-2 px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium">
+                        <span>💰</span>
+                        <span>{{ 'Gérer le budget' if lang == 'fr' else '予算管理' }}</span>
                     </a>
                 </div>
                 {% else %}
