@@ -7,3 +7,4 @@ python-multipart
 groq>=0.33.0
 itsdangerous==2.1.2
 starlette
+PyPDF2>=3.0.0

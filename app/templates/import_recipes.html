@@ -1,57 +1,415 @@
 {% extends "base.html" %}
+{% block breadcrumb %}{{ S('import') }}{% endblock %}
 {% block content %}
-<div class="mb-4">
-  <a href="/recipes?lang={{ lang }}" class="text-blue-700 hover:underline">← {{ S('back') }}</a>
-</div>
 
-<h1 class="text-2xl font-bold mb-4">{{ S('import') }}</h1>
+<div x-data="importManager()" x-init="init()">
+  <div class="flex justify-between items-center mb-6">
+    <h1 class="text-2xl font-bold">{{ S('import') }}</h1>
+    <a href="/recipes?lang={{ lang }}" class="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600">
+      {{ S('back') }}
+    </a>
+  </div>
 
-<div class="bg-white rounded-lg border p-6 max-w-xl">
-  <form action="/import?lang={{ lang }}" method="post" enctype="multipart/form-data" class="space-y-3">
-    <div class="relative">
-      <input
-        type="file"
-        name="file"
-        id="file-input"
-        accept=".csv"
-        required
-        class="block w-full text-sm file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
-      />
+  <!-- Choix du type d'import -->
+  <div x-show="!importType" class="grid md:grid-cols-2 gap-6">
+    <!-- Option CSV -->
+    <div @click="selectType('csv')"
+         class="bg-white p-8 rounded-lg shadow-lg border-2 border-gray-200 hover:border-blue-500 cursor-pointer transition group">
+      <div class="text-center">
+        <div class="text-6xl mb-4">📊</div>
+        <h3 class="text-xl font-bold mb-2">{{ 'Import CSV' if lang == 'fr' else 'CSVインポート' }}</h3>
+        <p class="text-gray-600 text-sm">
+          {{ 'Format structuré avec colonnes prédéfinies' if lang == 'fr' else '事前定義された列を持つ構造化形式' }}
+        </p>
+        <ul class="mt-4 text-sm text-left space-y-2">
+          <li>✓ {{ 'Rapide et fiable' if lang == 'fr' else '迅速で信頼性が高い' }}</li>
+          <li>✓ {{ 'Format exact' if lang == 'fr' else '正確なフォーマット' }}</li>
+          <li>✓ {{ 'Pas d\'IA requise' if lang == 'fr' else 'AI不要' }}</li>
+        </ul>
+      </div>
     </div>
-    <button class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">
-      {{ S('import') }}
-    </button>
-  </form>
 
-  {% if message %}
-    <p class="mt-4 text-sm {{ 'text-green-700' if '✅' in message else 'text-red-700' }}">
-      {{ message }}
-    </p>
-  {% endif %}
+    <!-- Option PDF -->
+    <div @click="selectType('pdf')"
+         class="bg-white p-8 rounded-lg shadow-lg border-2 border-gray-200 hover:border-purple-500 cursor-pointer transition group">
+      <div class="text-center">
+        <div class="text-6xl mb-4">📄</div>
+        <h3 class="text-xl font-bold mb-2">
+          {{ 'Import PDF (IA)' if lang == 'fr' else 'PDFインポート (AI)' }}
+          <span class="text-xs bg-purple-100 text-purple-600 px-2 py-1 rounded ml-2">NEW</span>
+        </h3>
+        <p class="text-gray-600 text-sm">
+          {{ 'Extraction automatique par intelligence artificielle' if lang == 'fr' else '人工知能による自動抽出' }}
+        </p>
+        <ul class="mt-4 text-sm text-left space-y-2">
+          <li>✓ {{ 'Détection auto de la langue' if lang == 'fr' else '言語の自動検出' }}</li>
+          <li>✓ {{ 'Extraction intelligente' if lang == 'fr' else 'インテリジェントな抽出' }}</li>
+          <li>✓ {{ 'Vérification avant sauvegarde' if lang == 'fr' else '保存前の確認' }}</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- Import CSV -->
+  <div x-show="importType === 'csv'" class="bg-white p-6 rounded-lg shadow">
+    <div class="flex items-center justify-between mb-4">
+      <h2 class="text-xl font-semibold">📊 {{ 'Import CSV' if lang == 'fr' else 'CSVインポート' }}</h2>
+      <button @click="importType = null" class="text-gray-500 hover:text-gray-700">
+        {{ '← Retour au choix' if lang == 'fr' else '← 選択に戻る' }}
+      </button>
+    </div>
+
+    <form action="/import?lang={{ lang }}" method="post" enctype="multipart/form-data" class="space-y-4">
+      <div class="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center">
+        <input
+          type="file"
+          name="file"
+          id="csv-input"
+          accept=".csv"
+          required
+          class="block w-full text-sm file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+        />
+      </div>
+
+      <button type="submit" class="w-full px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+        {{ S('import') }}
+      </button>
+    </form>
+
+    {% if message %}
+      <div class="mt-4 p-4 rounded {{ 'bg-green-100 text-green-700' if '✅' in message else 'bg-red-100 text-red-700' }}">
+        {{ message }}
+      </div>
+    {% endif %}
+  </div>
+
+  <!-- Import PDF (réutilise le template existant) -->
+  <div x-show="importType === 'pdf'">
+    <div class="flex items-center justify-between mb-4">
+      <h2 class="text-xl font-semibold">📄 {{ 'Import PDF (IA)' if lang == 'fr' else 'PDFインポート (AI)' }}</h2>
+      <button @click="importType = null; step = 1; selectedFile = null" class="text-gray-500 hover:text-gray-700">
+        {{ '← Retour au choix' if lang == 'fr' else '← 選択に戻る' }}
+      </button>
+    </div>
+
+    <!-- Étape 1 : Upload du PDF -->
+    <div x-show="step === 1" class="bg-white p-6 rounded-lg shadow">
+      <div class="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center">
+        <input
+          type="file"
+          @change="handleFileSelect($event)"
+          accept=".pdf"
+          id="pdfInput"
+          class="hidden">
+
+        <label for="pdfInput" class="cursor-pointer">
+          <div class="mb-4">
+            <svg class="mx-auto h-12 w-12 text-gray-400" stroke="currentColor" fill="none" viewBox="0 0 48 48">
+              <path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+            </svg>
+          </div>
+          <p class="text-lg mb-2">
+            {{ 'Cliquez pour sélectionner un fichier PDF' if lang == 'fr' else 'クリックしてPDFファイルを選択' }}
+          </p>
+          <p class="text-sm text-gray-500">
+            {{ 'ou glissez-déposez le fichier ici' if lang == 'fr' else 'またはファイルをここにドラッグ&ドロップ' }}
+          </p>
+        </label>
+
+        <div x-show="selectedFile" class="mt-4">
+          <p class="font-semibold" x-text="selectedFile?.name"></p>
+          <p class="text-sm text-gray-600" x-text="formatFileSize(selectedFile?.size)"></p>
+        </div>
+      </div>
+
+      <button
+        @click="analyzePDF()"
+        :disabled="!selectedFile || analyzing"
+        class="mt-6 w-full px-6 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:bg-gray-400 disabled:cursor-not-allowed">
+        <span x-show="!analyzing">
+          {{ '🔍 Analyser le PDF avec l\'IA' if lang == 'fr' else '🔍 AIでPDFを分析' }}
+        </span>
+        <span x-show="analyzing">
+          {{ '⏳ Analyse en cours...' if lang == 'fr' else '⏳ 分析中...' }}
+        </span>
+      </button>
+
+      <div class="mt-4 p-4 bg-purple-50 rounded-lg text-sm">
+        <p class="font-semibold mb-2">{{ 'ℹ️ Comment ça marche ?' if lang == 'fr' else 'ℹ️ 使い方' }}</p>
+        <ul class="list-disc list-inside space-y-1 text-gray-700">
+          <li>{{ 'L\'IA va extraire automatiquement le nom, les ingrédients et les étapes' if lang == 'fr' else 'AIが自動的に名前、材料、手順を抽出します' }}</li>
+          <li>{{ 'Vous pourrez vérifier et modifier les informations extraites' if lang == 'fr' else '抽出された情報を確認・修正できます' }}</li>
+          <li>{{ 'La langue de la recette sera détectée automatiquement' if lang == 'fr' else 'レシピの言語は自動検出されます' }}</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- Étape 2 : Vérification (importé depuis import_pdf.html) -->
+    <div x-show="step === 2" class="bg-white p-6 rounded-lg shadow">
+      <h3 class="text-xl font-semibold mb-4">
+        {{ 'Étape 2 : Vérifier et compléter' if lang == 'fr' else 'ステップ2：確認と補完' }}
+      </h3>
+
+      <form @submit.prevent="saveRecipe()">
+        <!-- Nom de la recette -->
+        <div class="mb-4">
+          <label class="block font-semibold mb-2">
+            {{ 'Nom de la recette' if lang == 'fr' else 'レシピ名' }} *
+          </label>
+          <input
+            type="text"
+            x-model="recipeData.name"
+            required
+            class="w-full px-4 py-2 border rounded-lg">
+        </div>
+
+        <!-- Nombre de personnes et Type -->
+        <div class="grid grid-cols-2 gap-4 mb-4">
+          <div>
+            <label class="block font-semibold mb-2">
+              {{ 'Nombre de personnes' if lang == 'fr' else '人数' }}
+            </label>
+            <input
+              type="number"
+              x-model.number="recipeData.servings"
+              min="1"
+              class="w-full px-4 py-2 border rounded-lg">
+          </div>
+          <div>
+            <label class="block font-semibold mb-2">
+              {{ 'Type de recette' if lang == 'fr' else 'レシピタイプ' }}
+            </label>
+            <select x-model="recipeData.recipe_type" class="w-full px-4 py-2 border rounded-lg">
+              <option value="PRO">PRO</option>
+              <option value="PERSO">PERSO</option>
+              <option value="MASTER">MASTER</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Ingrédients -->
+        <div class="mb-6">
+          <h4 class="font-semibold mb-3">{{ 'Ingrédients' if lang == 'fr' else '材料' }}</h4>
+          <template x-for="(ingredient, index) in recipeData.ingredients" :key="index">
+            <div class="grid grid-cols-12 gap-2 mb-2">
+              <input
+                type="text"
+                x-model="ingredient.name"
+                placeholder="{{ 'Nom' if lang == 'fr' else '名前' }}"
+                class="col-span-5 px-3 py-2 border rounded">
+              <input
+                type="number"
+                x-model.number="ingredient.quantity"
+                step="any"
+                placeholder="{{ 'Quantité' if lang == 'fr' else '量' }}"
+                class="col-span-2 px-3 py-2 border rounded">
+              <input
+                type="text"
+                x-model="ingredient.unit"
+                placeholder="{{ 'Unité' if lang == 'fr' else '単位' }}"
+                class="col-span-2 px-3 py-2 border rounded">
+              <input
+                type="text"
+                x-model="ingredient.notes"
+                placeholder="{{ 'Notes' if lang == 'fr' else '備考' }}"
+                class="col-span-2 px-3 py-2 border rounded">
+              <button
+                type="button"
+                @click="recipeData.ingredients.splice(index, 1)"
+                class="col-span-1 px-2 py-2 bg-red-500 text-white rounded hover:bg-red-600">
+                ✕
+              </button>
+            </div>
+          </template>
+          <button
+            type="button"
+            @click="recipeData.ingredients.push({name: '', quantity: null, unit: '', notes: ''})"
+            class="mt-2 px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700">
+            + {{ 'Ajouter un ingrédient' if lang == 'fr' else '材料を追加' }}
+          </button>
+        </div>
+
+        <!-- Étapes -->
+        <div class="mb-6">
+          <h4 class="font-semibold mb-3">{{ 'Étapes de préparation' if lang == 'fr' else '調理手順' }}</h4>
+          <template x-for="(step_text, index) in recipeData.steps" :key="index">
+            <div class="flex gap-2 mb-2">
+              <span class="px-3 py-2 bg-gray-100 rounded font-semibold" x-text="index + 1"></span>
+              <textarea
+                x-model="recipeData.steps[index]"
+                rows="2"
+                class="flex-1 px-3 py-2 border rounded"></textarea>
+              <button
+                type="button"
+                @click="recipeData.steps.splice(index, 1)"
+                class="px-3 py-2 bg-red-500 text-white rounded hover:bg-red-600">
+                ✕
+              </button>
+            </div>
+          </template>
+          <button
+            type="button"
+            @click="recipeData.steps.push('')"
+            class="mt-2 px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700">
+            + {{ 'Ajouter une étape' if lang == 'fr' else '手順を追加' }}
+          </button>
+        </div>
+
+        <!-- Boutons d'action -->
+        <div class="flex gap-4">
+          <button
+            type="button"
+            @click="step = 1; recipeData = null"
+            class="px-6 py-3 bg-gray-500 text-white rounded-lg hover:bg-gray-600">
+            {{ '← Retour' if lang == 'fr' else '← 戻る' }}
+          </button>
+          <button
+            type="submit"
+            :disabled="saving"
+            class="flex-1 px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-400">
+            <span x-show="!saving">
+              {{ '✓ Sauvegarder la recette' if lang == 'fr' else '✓ レシピを保存' }}
+            </span>
+            <span x-show="saving">
+              {{ 'Sauvegarde...' if lang == 'fr' else '保存中...' }}
+            </span>
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Messages -->
+  <div x-show="message"
+       :class="messageType === 'error' ? 'bg-red-100 border-red-400 text-red-700' : 'bg-green-100 border-green-400 text-green-700'"
+       class="border px-4 py-3 rounded mt-4">
+    <span x-text="message"></span>
+  </div>
 </div>
 
 <script>
-  // Traduire les textes du bouton "Choisir un fichier" selon la langue
-  const translations = {
-    fr: {
-      choose: "{{ S('choose_file') }}",
-      noFile: "{{ S('no_file_chosen') }}"
+function importManager() {
+  return {
+    importType: null,
+    step: 1,
+    selectedFile: null,
+    analyzing: false,
+    saving: false,
+    message: '',
+    messageType: 'info',
+    recipeData: null,
+    lang: '{{ lang }}',
+
+    init() {
+      // Setup drag and drop pour PDF
+      this.$watch('importType', (value) => {
+        if (value === 'pdf') {
+          this.$nextTick(() => {
+            const dropZone = document.getElementById('pdfInput')?.closest('.border-dashed');
+            if (dropZone) {
+              dropZone.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                dropZone.classList.add('border-purple-500', 'bg-purple-50');
+              });
+              dropZone.addEventListener('dragleave', (e) => {
+                e.preventDefault();
+                dropZone.classList.remove('border-purple-500', 'bg-purple-50');
+              });
+              dropZone.addEventListener('drop', (e) => {
+                e.preventDefault();
+                dropZone.classList.remove('border-purple-500', 'bg-purple-50');
+                const files = e.dataTransfer.files;
+                if (files.length > 0) {
+                  this.selectedFile = files[0];
+                }
+              });
+            }
+          });
+        }
+      });
     },
-    jp: {
-      choose: "{{ S('choose_file') }}",
-      noFile: "{{ S('no_file_chosen') }}"
+
+    selectType(type) {
+      this.importType = type;
+    },
+
+    handleFileSelect(event) {
+      this.selectedFile = event.target.files[0];
+    },
+
+    formatFileSize(bytes) {
+      if (!bytes) return '';
+      const mb = bytes / (1024 * 1024);
+      return `${mb.toFixed(2)} MB`;
+    },
+
+    async analyzePDF() {
+      if (!this.selectedFile) return;
+
+      this.analyzing = true;
+      this.message = '';
+
+      try {
+        const formData = new FormData();
+        formData.append('file', this.selectedFile);
+
+        const response = await fetch(`/api/import-pdf/analyze?lang=${this.lang}`, {
+          method: 'POST',
+          body: formData
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+          this.recipeData = data.recipe;
+          this.recipeData.servings = this.recipeData.servings || 4;
+          this.recipeData.recipe_type = this.recipeData.recipe_type || 'PERSO';
+          this.step = 2;
+        } else {
+          this.message = data.error || 'Erreur lors de l\'analyse du PDF';
+          this.messageType = 'error';
+        }
+      } catch (error) {
+        console.error('Erreur:', error);
+        this.message = 'Erreur lors de la communication avec le serveur';
+        this.messageType = 'error';
+      } finally {
+        this.analyzing = false;
+      }
+    },
+
+    async saveRecipe() {
+      this.saving = true;
+      this.message = '';
+
+      try {
+        const response = await fetch(`/api/import-pdf/save?lang=${this.lang}`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(this.recipeData)
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+          // Rediriger vers la recette créée
+          window.location.href = `/recipe/${data.slug}?lang=${this.lang}`;
+        } else {
+          this.message = data.error || 'Erreur lors de la sauvegarde';
+          this.messageType = 'error';
+        }
+      } catch (error) {
+        console.error('Erreur:', error);
+        this.message = 'Erreur lors de la sauvegarde';
+        this.messageType = 'error';
+      } finally {
+        this.saving = false;
+      }
     }
   };
-
-  const lang = "{{ lang }}";
-  const fileInput = document.getElementById('file-input');
-
-  // Note: Les navigateurs ne permettent pas de traduire le texte du bouton "Parcourir"/"Browse"
-  // Mais on peut afficher un message personnalisé quand aucun fichier n'est sélectionné
-  fileInput.addEventListener('change', function(e) {
-    if (this.files.length === 0) {
-      console.log(translations[lang].noFile);
-    }
-  });
+}
 </script>
+
 {% endblock %}

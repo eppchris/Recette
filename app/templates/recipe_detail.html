@@ -16,7 +16,7 @@
         </button>
 
         <!-- Bouton de traduction (affiché seulement si pas de traduction) -->
-        {% if not rec['name'] or rec['name'] == rec['slug'] %}
+        {% if not has_translation %}
         <button
           @click="translateRecipe()"
           :disabled="translating"
@@ -482,15 +482,24 @@
 
       <!-- Section Ingrédients -->
       <div class="mb-8">
-        <h3 class="text-xl font-bold mb-3">{{ S('ingredients') }}</h3>
+        <div class="flex justify-between items-center mb-3">
+          <h3 class="text-xl font-bold">{{ S('ingredients') }}</h3>
+          <button
+            @click="addIngredient()"
+            type="button"
+            class="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded font-semibold transition-colors"
+          >
+            + {{ 'Ajouter' if lang == 'fr' else '追加' }}
+          </button>
+        </div>
         <div class="space-y-2">
           <template x-for="(ing, index) in editData.ingredients" :key="index">
             <div class="grid grid-cols-12 gap-2 items-center p-2 border rounded">
-              <div class="col-span-5">
+              <div class="col-span-4">
                 <input
                   type="text"
                   x-model="ing.name"
-                  placeholder="Nom de l'ingrédient"
+                  placeholder="{{ 'Nom' if lang == 'fr' else '名前' }}"
                   class="w-full px-2 py-1 border rounded"
                 />
               </div>
@@ -499,7 +508,7 @@
                   type="number"
                   step="0.01"
                   x-model="ing.quantity"
-                  placeholder="Qté"
+                  placeholder="{{ 'Qté' if lang == 'fr' else '量' }}"
                   class="w-full px-2 py-1 border rounded"
                 />
               </div>
@@ -507,7 +516,7 @@
                 <input
                   type="text"
                   x-model="ing.unit"
-                  placeholder="Unité"
+                  placeholder="{{ 'Unité' if lang == 'fr' else '単位' }}"
                   class="w-full px-2 py-1 border rounded"
                 />
               </div>
@@ -515,9 +524,18 @@
                 <input
                   type="text"
                   x-model="ing.notes"
-                  placeholder="Notes"
+                  placeholder="{{ 'Notes' if lang == 'fr' else '備考' }}"
                   class="w-full px-2 py-1 border rounded"
                 />
+              </div>
+              <div class="col-span-1">
+                <button
+                  @click="removeIngredient(index)"
+                  type="button"
+                  class="w-full px-2 py-1 bg-red-500 hover:bg-red-600 text-white rounded font-semibold transition-colors"
+                >
+                  ✕
+                </button>
               </div>
             </div>
           </template>
@@ -526,17 +544,33 @@
 
       <!-- Section Étapes -->
       <div class="mb-8">
-        <h3 class="text-xl font-bold mb-3">{{ S('steps') }}</h3>
+        <div class="flex justify-between items-center mb-3">
+          <h3 class="text-xl font-bold">{{ S('steps') }}</h3>
+          <button
+            @click="addStep()"
+            type="button"
+            class="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded font-semibold transition-colors"
+          >
+            + {{ 'Ajouter' if lang == 'fr' else '追加' }}
+          </button>
+        </div>
         <div class="space-y-3">
           <template x-for="(step, index) in editData.steps" :key="index">
-            <div class="flex gap-3">
+            <div class="flex gap-3 items-start">
               <span class="flex-shrink-0 w-8 h-8 bg-blue-600 text-white rounded-full flex items-center justify-center font-semibold text-sm" x-text="index + 1"></span>
               <textarea
                 x-model="step.text"
                 rows="3"
                 class="flex-1 px-3 py-2 border rounded resize-y"
-                :placeholder="'Étape ' + (index + 1)"
+                :placeholder="'{{ 'Étape' if lang == 'fr' else 'ステップ' }} ' + (index + 1)"
               ></textarea>
+              <button
+                @click="removeStep(index)"
+                type="button"
+                class="flex-shrink-0 px-3 py-2 bg-red-500 hover:bg-red-600 text-white rounded font-semibold transition-colors"
+              >
+                ✕
+              </button>
             </div>
           </template>
         </div>
@@ -945,6 +979,37 @@
         this.convertedIngredients = [];
         this.targetServings = this.originalServings;
         this.message = '';
+      },
+
+      // Gestion des ingrédients
+      addIngredient() {
+        this.editData.ingredients.push({
+          id: null,
+          name: '',
+          quantity: null,
+          unit: '',
+          notes: ''
+        });
+      },
+
+      removeIngredient(index) {
+        if (confirm('{{ 'この材料を削除しますか？' if lang == 'jp' else 'Supprimer cet ingrédient ?' }}')) {
+          this.editData.ingredients.splice(index, 1);
+        }
+      },
+
+      // Gestion des étapes
+      addStep() {
+        this.editData.steps.push({
+          id: null,
+          text: ''
+        });
+      },
+
+      removeStep(index) {
+        if (confirm('{{ 'このステップを削除しますか？' if lang == 'jp' else 'Supprimer cette étape ?' }}')) {
+          this.editData.steps.splice(index, 1);
+        }
       }
     }
   }

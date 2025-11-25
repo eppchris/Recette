@@ -146,7 +146,7 @@
                     {% for recipe in recipes %}
                     <div class="flex items-center justify-between p-4 border border-gray-200 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700">
                         <div class="flex-1">
-                            <a href="/recipe/{{ recipe.id }}?lang={{ lang }}" class="font-medium text-blue-600 dark:text-blue-400 hover:underline">
+                            <a href="/recipe/{{ recipe.slug }}?lang={{ lang }}" class="font-medium text-blue-600 dark:text-blue-400 hover:underline">
                                 {{ recipe.name }}
                             </a>
                             <p class="text-sm text-gray-500 dark:text-gray-400">

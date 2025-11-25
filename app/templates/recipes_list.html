@@ -19,6 +19,7 @@
   tags: [],
   selectedCategories: [],
   selectedTags: [],
+  selectedType: '',
   showCategories: false,
   showTags: false,
   deleteModal: false,
@@ -46,6 +47,18 @@
       // Filtre de recherche textuelle
       const matchesSearch = this.search === '' || r.name.toLowerCase().includes(this.search.toLowerCase());
 
+      // Filtre par type (PRO, PERSO, MASTER) - fonctionne en FR et JP
+      let matchesType = this.selectedType === '';
+      if (!matchesType && r.type) {
+        // Mapping FR <-> JP
+        const typeMap = {
+          'PRO': 'プロ',
+          'PERSO': 'じぶん',
+          'MASTER': 'マイスター'
+        };
+        matchesType = r.type === this.selectedType || r.type === typeMap[this.selectedType];
+      }
+
       // Filtre par catégories (si des catégories sont sélectionnées)
       let matchesCategories = true;
       if (this.selectedCategories.length > 0) {
@@ -62,7 +75,7 @@
         );
       }
 
-      return matchesSearch && matchesCategories && matchesTags;
+      return matchesSearch && matchesType && matchesCategories && matchesTags;
     });
 
     return filtered.sort((a, b) => {
@@ -101,6 +114,7 @@
   clearFilters() {
     this.selectedCategories = [];
     this.selectedTags = [];
+    this.selectedType = '';
   },
 
   getCategoryName(catId) {
@@ -116,6 +130,15 @@
   getTagColor(tagId) {
     const tag = this.tags.find(t => t.id === tagId);
     return tag ? tag.color : '#3B82F6';
+  },
+
+  getTypeLabel(type) {
+    const typeLabels = {
+      'PRO': { fr: 'PRO', jp: 'プロ' },
+      'PERSO': { fr: 'PERSO', jp: 'じぶん' },
+      'MASTER': { fr: 'MASTER', jp: 'マイスター' }
+    };
+    return typeLabels[type] ? typeLabels[type][this.lang] : type;
   },
 
   sort(column) {
@@ -176,12 +199,45 @@
     >
   </div>
 
+  <!-- Filtres rapides par type -->
+  <div class="mb-4 flex gap-2 flex-wrap">
+    <button
+      @click="selectedType = ''"
+      :class="selectedType === '' ? 'bg-gray-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'"
+      class="px-4 py-2 rounded-lg font-medium transition-colors">
+      {{ 'Toutes' if lang == 'fr' else 'すべて' }}
+    </button>
+    <button
+      @click="selectedType = 'PRO'"
+      :class="selectedType === 'PRO' ? 'bg-blue-600 text-white' : 'bg-blue-100 text-blue-700 hover:bg-blue-200'"
+      class="px-4 py-2 rounded-lg font-medium transition-colors">
+      {{ 'PRO' if lang == 'fr' else 'プロ' }}
+    </button>
+    <button
+      @click="selectedType = 'PERSO'"
+      :class="selectedType === 'PERSO' ? 'bg-green-600 text-white' : 'bg-green-100 text-green-700 hover:bg-green-200'"
+      class="px-4 py-2 rounded-lg font-medium transition-colors">
+      {{ 'PERSO' if lang == 'fr' else 'じぶん' }}
+    </button>
+    <button
+      @click="selectedType = 'MASTER'"
+      :class="selectedType === 'MASTER' ? 'bg-purple-600 text-white' : 'bg-purple-100 text-purple-700 hover:bg-purple-200'"
+      class="px-4 py-2 rounded-lg font-medium transition-colors">
+      {{ 'MASTER' if lang == 'fr' else 'マイスター' }}
+    </button>
+  </div>
+
   <!-- Filtres avancés (accordéon) -->
   <div class="mb-4 bg-white border rounded-lg">
     <!-- Filtres actifs -->
-    <div x-show="selectedCategories.length > 0 || selectedTags.length > 0" class="p-3 border-b bg-blue-50">
+    <div x-show="selectedType !== '' || selectedCategories.length > 0 || selectedTags.length > 0" class="p-3 border-b bg-blue-50">
       <div class="flex items-center gap-2 flex-wrap">
         <span class="text-sm font-medium text-gray-700">{{ 'Filtres actifs :' if lang == 'fr' else 'アクティブなフィルター:' }}</span>
+        <!-- Type actif -->
+        <span x-show="selectedType !== ''" class="inline-flex items-center gap-1 px-2 py-1 bg-indigo-600 text-white text-xs rounded">
+          <span x-text="getTypeLabel(selectedType)"></span>
+          <button @click="selectedType = ''" class="hover:bg-indigo-700 rounded">✕</button>
+        </span>
         <!-- Catégories actives -->
         <template x-for="catId in selectedCategories" :key="catId">
           <span class="inline-flex items-center gap-1 px-2 py-1 bg-blue-600 text-white text-xs rounded">

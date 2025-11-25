@@ -52,6 +52,9 @@ async def recipe_detail(request: Request, slug: str, lang: str = Query("fr")):
     recipe_id = db.get_recipe_id_by_slug(slug)
     steps_with_ids = db.get_recipe_steps_with_ids(recipe_id, lang) if recipe_id else []
 
+    # Vérifier si une traduction existe dans la langue actuelle
+    has_translation = db.check_translation_exists(recipe_id, lang) if recipe_id else False
+
     return templates.TemplateResponse(
         "recipe_detail.html",
         {
@@ -59,7 +62,8 @@ async def recipe_detail(request: Request, slug: str, lang: str = Query("fr")):
             "lang": lang,
             "rec": rec,
             "ings": ings,
-            "steps": steps_with_ids  # Utiliser steps_with_ids au lieu de steps
+            "steps": steps_with_ids,  # Utiliser steps_with_ids au lieu de steps
+            "has_translation": has_translation
         }
     )
 
@@ -766,3 +770,202 @@ async def api_search_recipes(
         recipe['tags'] = db.get_recipe_tags(recipe['id'])
 
     return results
+
+# ============================================================================
+# Import de recettes depuis PDF
+# ============================================================================
+
+@router.get("/import-pdf", response_class=HTMLResponse)
+async def import_pdf_form(request: Request, lang: str = Query("fr")):
+    """Affiche le formulaire d'import PDF"""
+    return templates.TemplateResponse(
+        "import_pdf.html",
+        {"request": request, "lang": lang}
+    )
+
+
+@router.post("/api/import-pdf/analyze")
+async def analyze_pdf_recipe(
+    request: Request,
+    file: UploadFile = File(...),
+    lang: str = Query("fr")
+):
+    """
+    Analyse un PDF et extrait les informations de la recette avec l'IA
+    """
+    from app.services.pdf_recipe_extractor import get_pdf_extractor
+
+    # Vérifier que c'est un PDF
+    if not file.filename.lower().endswith('.pdf'):
+        return JSONResponse(
+            {"success": False, "error": "Le fichier doit être un PDF"},
+            status_code=400
+        )
+
+    # Sauvegarder temporairement le fichier
+    temp_path = None
+    try:
+        # Créer un fichier temporaire
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as tmp:
+            temp_path = tmp.name
+            # Copier le contenu uploadé
+            shutil.copyfileobj(file.file, tmp)
+
+        # Extraire et analyser la recette
+        extractor = get_pdf_extractor()
+        recipe_data = extractor.extract_recipe_from_pdf(temp_path, lang)
+
+        if not recipe_data:
+            return JSONResponse(
+                {"success": False, "error": "Impossible d'extraire la recette du PDF"},
+                status_code=500
+            )
+
+        return JSONResponse({
+            "success": True,
+            "recipe": recipe_data
+        })
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JSONResponse(
+            {"success": False, "error": str(e)},
+            status_code=500
+        )
+    finally:
+        # Nettoyer le fichier temporaire
+        if temp_path and os.path.exists(temp_path):
+            os.unlink(temp_path)
+
+
+@router.post("/api/import-pdf/save")
+async def save_pdf_recipe(request: Request, lang: str = Query("fr")):
+    """
+    Sauvegarde la recette extraite du PDF après validation par l'utilisateur
+    """
+    import sqlite3
+    from app.models.db import DB_PATH
+
+    data = await request.json()
+
+    try:
+        # Créer le slug depuis le nom
+        import re
+        import unicodedata
+
+        def create_slug(text: str) -> str:
+            # Normaliser et convertir en ASCII
+            text = unicodedata.normalize('NFKD', text)
+            text = text.encode('ascii', 'ignore').decode('ascii')
+            # Convertir en minuscules et remplacer espaces par tirets
+            text = text.lower()
+            text = re.sub(r'[^a-z0-9]+', '-', text)
+            text = text.strip('-')
+            return text[:50]  # Limiter à 50 caractères
+
+        # Déterminer la langue de la recette
+        recipe_lang = data.get('detected_language', lang)
+
+        # Créer le slug
+        recipe_name = data.get('name', 'recette-importee')
+        slug = create_slug(recipe_name)
+
+        if not slug or len(slug) < 2:
+            slug = 'recipe-import'
+
+        # Connexion à la base
+        con = sqlite3.connect(DB_PATH)
+        cur = con.cursor()
+
+        try:
+            # Vérifier que le slug n'existe pas déjà
+            cur.execute("SELECT id FROM recipe WHERE slug = ?", (slug,))
+            if cur.fetchone():
+                # Ajouter un suffixe numérique
+                counter = 1
+                while True:
+                    test_slug = f"{slug}-{counter}"
+                    cur.execute("SELECT id FROM recipe WHERE slug = ?", (test_slug,))
+                    if not cur.fetchone():
+                        slug = test_slug
+                        break
+                    counter += 1
+
+            # Créer la recette
+            servings = data.get('servings', 4)
+            country = data.get('country', '')
+            recipe_type = data.get('recipe_type', 'PERSO')
+
+            cur.execute(
+                "INSERT INTO recipe (slug, country, servings_default) VALUES (?, ?, ?)",
+                (slug, country, servings)
+            )
+            recipe_id = cur.lastrowid
+
+            # Ajouter la traduction de la recette dans la langue détectée UNIQUEMENT
+            # L'autre langue restera vide, permettant d'utiliser la traduction automatique
+            cur.execute(
+                "INSERT INTO recipe_translation (recipe_id, lang, name, recipe_type) VALUES (?, ?, ?, ?)",
+                (recipe_id, recipe_lang, recipe_name, recipe_type)
+            )
+
+            # Ajouter les ingrédients
+            for position, ing in enumerate(data.get('ingredients', []), 1):
+                quantity_float = ing.get('quantity')
+                if quantity_float is not None:
+                    try:
+                        quantity_float = float(quantity_float)
+                    except (ValueError, TypeError):
+                        quantity_float = None
+
+                # Insérer recipe_ingredient
+                cur.execute(
+                    "INSERT INTO recipe_ingredient (recipe_id, position, quantity) VALUES (?, ?, ?)",
+                    (recipe_id, position, quantity_float)
+                )
+                recipe_ingredient_id = cur.lastrowid
+
+                # Insérer la traduction de l'ingrédient
+                cur.execute(
+                    "INSERT INTO recipe_ingredient_translation (recipe_ingredient_id, lang, name, unit, notes) VALUES (?, ?, ?, ?, ?)",
+                    (recipe_ingredient_id, recipe_lang, ing.get('name', ''),
+                     ing.get('unit') or None, ing.get('notes') or None)
+                )
+
+            # Ajouter les étapes
+            for position, step_text in enumerate(data.get('steps', []), 1):
+                # Insérer step
+                cur.execute(
+                    "INSERT INTO step (recipe_id, position) VALUES (?, ?)",
+                    (recipe_id, position)
+                )
+                step_id = cur.lastrowid
+
+                # Insérer la traduction de l'étape
+                cur.execute(
+                    "INSERT INTO step_translation (step_id, lang, text) VALUES (?, ?, ?)",
+                    (step_id, recipe_lang, step_text)
+                )
+
+            con.commit()
+
+            return JSONResponse({
+                "success": True,
+                "recipe_id": recipe_id,
+                "slug": slug
+            })
+
+        except Exception as e:
+            con.rollback()
+            raise e
+        finally:
+            con.close()
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JSONResponse(
+            {"success": False, "error": str(e)},
+            status_code=500
+        )
