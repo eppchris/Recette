@@ -123,6 +123,7 @@ async def unit_conversions(
 
 @router.post("/unit-conversions/add")
 async def add_unit_conversion(
+    request: Request,
     lang: str = Form("fr"),
     from_unit: str = Form(...),
     to_unit: str = Form(...),
@@ -133,12 +134,35 @@ async def add_unit_conversion(
     """
     Ajoute une nouvelle conversion d'unité
     """
-    db.add_unit_conversion(from_unit, to_unit, factor, category, notes)
-    return RedirectResponse(f"/unit-conversions?lang={lang}", status_code=303)
+    try:
+        db.add_unit_conversion(from_unit, to_unit, factor, category, notes)
+        return RedirectResponse(f"/unit-conversions?lang={lang}", status_code=303)
+    except Exception as e:
+        # Si c'est une erreur de contrainte UNIQUE
+        if "UNIQUE constraint failed" in str(e):
+            error_msg = {
+                "fr": f"Erreur : Une conversion de {from_unit} vers {to_unit} existe déjà. Chaque paire d'unités doit être unique.",
+                "jp": f"エラー：{from_unit}から{to_unit}への変換は既に存在します。各単位ペアは一意である必要があります。"
+            }
+            # Récupérer toutes les conversions pour réafficher la page avec l'erreur
+            conversions = db.get_all_unit_conversions()
+            return templates.TemplateResponse(
+                "unit_conversions.html",
+                {
+                    "request": request,
+                    "lang": lang,
+                    "conversions": conversions,
+                    "error": error_msg.get(lang, error_msg["fr"])
+                }
+            )
+        else:
+            # Autre erreur, la relancer
+            raise
 
 
 @router.post("/unit-conversions/{conversion_id}/update")
 async def update_unit_conversion(
+    request: Request,
     conversion_id: int,
     lang: str = Form("fr"),
     from_unit: str = Form(...),
@@ -150,8 +174,30 @@ async def update_unit_conversion(
     """
     Met à jour une conversion existante
     """
-    db.update_unit_conversion(conversion_id, from_unit, to_unit, factor, category, notes)
-    return RedirectResponse(f"/unit-conversions?lang={lang}", status_code=303)
+    try:
+        db.update_unit_conversion(conversion_id, from_unit, to_unit, factor, category, notes)
+        return RedirectResponse(f"/unit-conversions?lang={lang}", status_code=303)
+    except Exception as e:
+        # Si c'est une erreur de contrainte UNIQUE
+        if "UNIQUE constraint failed" in str(e):
+            error_msg = {
+                "fr": f"Erreur : Une conversion de {from_unit} vers {to_unit} existe déjà. Chaque paire d'unités doit être unique.",
+                "jp": f"エラー：{from_unit}から{to_unit}への変換は既に存在します。各単位ペアは一意である必要があります。"
+            }
+            # Récupérer toutes les conversions pour réafficher la page avec l'erreur
+            conversions = db.get_all_unit_conversions()
+            return templates.TemplateResponse(
+                "unit_conversions.html",
+                {
+                    "request": request,
+                    "lang": lang,
+                    "conversions": conversions,
+                    "error": error_msg.get(lang, error_msg["fr"])
+                }
+            )
+        else:
+            # Autre erreur, la relancer
+            raise
 
 
 @router.post("/unit-conversions/{conversion_id}/delete")

@@ -271,6 +271,9 @@ async def event_remove_recipe(
     """
     db.remove_recipe_from_event(event_id, recipe_id)
 
+    # Supprimer la shopping list existante car les recettes ont changé
+    db.delete_all_shopping_list_items(event_id)
+
     return RedirectResponse(
         url=f"/events/{event_id}?lang={lang}",
         status_code=303
@@ -289,6 +292,9 @@ async def event_update_recipe_servings(
     Met à jour le multiplicateur de portions pour une recette
     """
     db.update_event_recipe_servings(event_id, recipe_id, servings_multiplier)
+
+    # Supprimer la shopping list existante car les quantités ont changé
+    db.delete_all_shopping_list_items(event_id)
 
     return RedirectResponse(
         url=f"/events/{event_id}?lang={lang}",
@@ -460,6 +466,23 @@ async def event_budget_view(request: Request, event_id: int, lang: str = "fr"):
 
     # Récupérer la liste de courses
     shopping_list = db.get_shopping_list_items(event_id)
+
+    # Vérifier si la liste doit être régénérée pour la bonne langue
+    if shopping_list:
+        # Vérifier si la liste contient des caractères japonais
+        first_item_name = shopping_list[0]['ingredient_name'] if shopping_list else ''
+        has_japanese = any(ord(char) > 0x3000 for char in first_item_name)
+        needs_regen = (lang == 'fr' and has_japanese) or (lang == 'jp' and not has_japanese)
+
+        if needs_regen:
+            # Régénérer la liste dans la bonne langue
+            recipes_data = db.get_event_recipes_with_ingredients(event_id, lang)
+            if recipes_data:
+                from app.services.ingredient_aggregator import get_ingredient_aggregator
+                aggregator = get_ingredient_aggregator()
+                aggregated_ingredients = aggregator.aggregate_ingredients(recipes_data, lang)
+                db.save_shopping_list_items(event_id, aggregated_ingredients)
+                shopping_list = db.get_shopping_list_items(event_id)
 
     # Enrichir chaque ingrédient avec son prix calculé pour la quantité demandée
     # Utiliser la langue de l'interface pour déterminer la devise à afficher
@@ -674,6 +697,58 @@ async def event_add_ingredients_expense(
     )
 
 
+@router.post("/events/{event_id}/budget/ingredients/save")
+async def save_ingredient_budget(
+    request: Request,
+    event_id: int,
+    lang: str = Form("fr")
+):
+    """
+    Sauvegarde les prix prévus des ingrédients et le montant total réel
+    """
+    # Récupérer l'événement
+    event = db.get_event_by_id(event_id)
+    if not event:
+        raise HTTPException(status_code=404, detail="Événement non trouvé")
+
+    # Récupérer tous les paramètres du formulaire
+    form_data = await request.form()
+
+    # Récupérer la liste de courses
+    shopping_list = db.get_shopping_list_items(event_id)
+
+    # Sauvegarder les prix unitaires prévus pour chaque ingrédient
+    for item in shopping_list:
+        planned_price_key = f"ingredient_{item['id']}_price"
+        planned_price_str = form_data.get(planned_price_key)
+
+        planned_price = None
+
+        if planned_price_str:
+            try:
+                planned_price = float(planned_price_str)
+            except (ValueError, TypeError):
+                pass
+
+        # Mettre à jour seulement le prix prévu
+        if planned_price is not None:
+            db.update_shopping_list_item_prices(item['id'], planned_price, None)
+
+    # Sauvegarder le montant total réel des ingrédients au niveau de l'événement
+    ingredients_actual_total_str = form_data.get('ingredients_actual_total')
+    if ingredients_actual_total_str:
+        try:
+            ingredients_actual_total = float(ingredients_actual_total_str)
+            db.update_event_ingredients_actual_total(event_id, ingredients_actual_total)
+        except (ValueError, TypeError):
+            pass
+
+    return RedirectResponse(
+        url=f"/events/{event_id}/budget?lang={lang}",
+        status_code=303
+    )
+
+
 @router.post("/events/{event_id}/expenses/{expense_id}/update")
 async def event_update_expense(
     request: Request,
@@ -812,3 +887,98 @@ async def api_update_shopping_list_item_prices(
         return JSONResponse(content={"success": True})
     else:
         raise HTTPException(status_code=400, detail="Erreur lors de la mise à jour")
+
+
+@router.get("/api/ingredient-catalog-info")
+async def api_get_ingredient_catalog_info(
+    ingredient_name: str,
+    lang: str = "fr"
+):
+    """
+    API: Récupère les informations du catalogue pour un ingrédient
+    Cherche par nom (français ou japonais selon la langue)
+    """
+    with db.get_db() as conn:
+        cursor = conn.cursor()
+
+        # Chercher l'ingrédient dans le catalogue (insensible à la casse)
+        cursor.execute("""
+            SELECT
+                id,
+                ingredient_name_fr,
+                ingredient_name_jp,
+                unit_fr,
+                unit_jp,
+                price_eur,
+                price_jpy,
+                qty,
+                last_updated
+            FROM ingredient_price_catalog
+            WHERE LOWER(ingredient_name_fr) = LOWER(?) OR LOWER(ingredient_name_jp) = LOWER(?)
+            LIMIT 1
+        """, (ingredient_name, ingredient_name))
+
+        result = cursor.fetchone()
+
+        if result:
+            return JSONResponse(content=dict(result))
+        else:
+            # Pas trouvé dans le catalogue, retourner un objet vide avec le nom
+            return JSONResponse(content={
+                "id": None,
+                "ingredient_name_fr": ingredient_name if lang == "fr" else "",
+                "ingredient_name_jp": ingredient_name if lang == "jp" else "",
+                "unit_fr": "",
+                "unit_jp": "",
+                "price_eur": None,
+                "price_jpy": None,
+                "qty": 1.0,
+                "last_updated": None
+            })
+
+
+@router.post("/api/ingredient-catalog-update")
+async def api_update_ingredient_catalog(
+    ingredient_id: Optional[int] = Form(None),
+    ingredient_name_fr: str = Form(...),
+    ingredient_name_jp: str = Form(""),
+    unit_fr: str = Form("g"),
+    unit_jp: str = Form("g"),
+    price_eur: Optional[float] = Form(None),
+    price_jpy: Optional[float] = Form(None),
+    qty: float = Form(1.0)
+):
+    """
+    API: Met à jour ou crée une entrée dans le catalogue de prix
+    """
+    with db.get_db() as conn:
+        cursor = conn.cursor()
+
+        if ingredient_id:
+            # Mise à jour d'un ingrédient existant
+            cursor.execute("""
+                UPDATE ingredient_price_catalog
+                SET ingredient_name_fr = ?,
+                    ingredient_name_jp = ?,
+                    unit_fr = ?,
+                    unit_jp = ?,
+                    price_eur = ?,
+                    price_jpy = ?,
+                    qty = ?,
+                    last_updated = CURRENT_TIMESTAMP
+                WHERE id = ?
+            """, (ingredient_name_fr, ingredient_name_jp, unit_fr, unit_jp,
+                  price_eur, price_jpy, qty, ingredient_id))
+
+            return JSONResponse(content={"success": True, "id": ingredient_id})
+        else:
+            # Création d'un nouvel ingrédient
+            cursor.execute("""
+                INSERT INTO ingredient_price_catalog
+                (ingredient_name_fr, ingredient_name_jp, unit_fr, unit_jp, price_eur, price_jpy, qty)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+            """, (ingredient_name_fr, ingredient_name_jp, unit_fr, unit_jp,
+                  price_eur, price_jpy, qty))
+
+            new_id = cursor.lastrowid
+            return JSONResponse(content={"success": True, "id": new_id})

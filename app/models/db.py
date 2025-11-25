@@ -656,6 +656,7 @@ def get_event_by_id(event_id: int):
                 e.updated_at,
                 e.currency,
                 e.budget_planned,
+                e.ingredients_actual_total,
                 et.id AS event_type_id,
                 et.name AS event_type_name
             FROM event e
@@ -913,7 +914,8 @@ def get_shopping_list_items(event_id: int):
                    needed_quantity, needed_unit,
                    purchase_quantity, purchase_unit,
                    is_checked, notes, source_recipes, position,
-                   created_at, updated_at
+                   created_at, updated_at,
+                   planned_unit_price, actual_total_price
             FROM shopping_list_item
             WHERE event_id = ?
             ORDER BY position, ingredient_name
@@ -1016,6 +1018,64 @@ def update_shopping_list_item(
         """, params)
         conn.commit()
 
+        return cursor.rowcount > 0
+
+
+def update_shopping_list_item_prices(item_id: int, planned_unit_price=None, actual_total_price=None):
+    """
+    Met à jour les prix prévus et réels d'un ingrédient dans la liste de courses
+
+    Args:
+        item_id: ID de l'item
+        planned_unit_price: Prix unitaire prévu
+        actual_total_price: Prix total réel payé
+    """
+    updates = []
+    params = []
+
+    if planned_unit_price is not None:
+        updates.append("planned_unit_price = ?")
+        params.append(planned_unit_price)
+
+    if actual_total_price is not None:
+        updates.append("actual_total_price = ?")
+        params.append(actual_total_price)
+
+    if not updates:
+        return False
+
+    updates.append("updated_at = CURRENT_TIMESTAMP")
+    params.append(item_id)
+
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute(f"""
+            UPDATE shopping_list_item
+            SET {', '.join(updates)}
+            WHERE id = ?
+        """, params)
+        conn.commit()
+
+        return cursor.rowcount > 0
+
+
+def update_event_ingredients_actual_total(event_id: int, actual_total: float):
+    """
+    Met à jour le montant total réel des ingrédients pour un événement
+
+    Args:
+        event_id: ID de l'événement
+        actual_total: Montant total réel payé pour les ingrédients
+    """
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            UPDATE event
+            SET ingredients_actual_total = ?,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+        """, (actual_total, event_id))
+        conn.commit()
         return cursor.rowcount > 0
 
 
@@ -1883,18 +1943,18 @@ def get_ingredient_price_for_currency(ingredient_name: str, currency: str):
     with get_db() as conn:
         cursor = conn.cursor()
 
-        # Chercher dans les deux langues (FR et JP)
+        # Chercher dans les deux langues (FR et JP) - insensible à la casse
         if currency == 'EUR':
             cursor.execute("""
                 SELECT price_eur, unit_fr, qty
                 FROM ingredient_price_catalog
-                WHERE ingredient_name_fr = ? OR ingredient_name_jp = ?
+                WHERE LOWER(ingredient_name_fr) = LOWER(?) OR LOWER(ingredient_name_jp) = LOWER(?)
             """, (ingredient_name, ingredient_name))
         else:  # JPY
             cursor.execute("""
                 SELECT price_jpy, unit_jp, qty
                 FROM ingredient_price_catalog
-                WHERE ingredient_name_fr = ? OR ingredient_name_jp = ?
+                WHERE LOWER(ingredient_name_fr) = LOWER(?) OR LOWER(ingredient_name_jp) = LOWER(?)
             """, (ingredient_name, ingredient_name))
 
         result = cursor.fetchone()

@@ -1,0 +1,34 @@
+id;from_unit;to_unit;factor;category;notes;created_at;from_unit_fr;to_unit_fr;from_unit_jp;to_unit_jp
+81;bloc;bloc;1.0;comptage;1 丁 (chō) = 1 bloc de tofu;2025-11-24 22:49:15;bloc;pièce;丁;丁
+75;gousse;tête;0.1;comptage;1 tête ≈ 10 gousses;2025-11-24 22:49:15;gousse;tête;gousse;tête
+76;grain;pièce;1.0;comptage;1 grain = 1 pièce;2025-11-24 22:49:15;grain;pièce;grain;pièce
+77;morceau;pièce;1.0;comptage;1 morceau = 1 pièce;2025-11-24 22:49:15;morceau;pièce;morceau;pièce
+78;pièce;pièce;1.0;comptage;1 p = 1 pièce (abréviation);2025-11-24 22:49:15;pièce;pièce;pièce;pièce
+82;tranche;pièce;1.0;comptage;1 切 (kire) = 1 tranche;2025-11-24 22:49:15;tranche;pièce;tranche;pièce
+83;卵;pièce;1.0;comptage;1 卵 (tamago) = 1 œuf;2025-11-24 22:49:15;œuf;pièce;卵;個
+84;本;pièce;1.0;comptage;1 本 (hon) = 1 pièce longue;2025-11-24 22:49:15;tige;pièce;本;個
+85;本位;pièce;1.0;comptage;1 本位 = 1 本;2025-11-24 22:49:15;tige;pièce;本位;個
+86;粒;pièce;1.0;comptage;1 粒 (tsubu) = 1 grain/granule;2025-11-24 22:49:15;grain;pièce;粒;個
+51;cs;g;15.0;poids;1 cs ≈ 15 g;2025-11-19 19:02:12;cs;g;大さじ;g
+52;cs;kg;0.015;poids;1 cs ≈ 15 g = 0.015 kg;2025-11-19 19:02:12;cs;kg;大さじ;kg
+49;g;kg;0.001;poids;1 g = 0.001 kg;2025-11-19 19:02:12;g;kg;g;kg
+50;kg;g;1000.0;poids;1 kg = 1000 g;2025-11-19 19:02:12;kg;g;kg;g
+55;tasse;g;180.0;poids;1 tasse ≈ 180 g;2025-11-19 19:02:12;tasse;g;カップ;g
+56;tasse;kg;0.18;poids;1 tasse ≈ 180 g = 0.180 kg;2025-11-19 19:02:12;tasse;kg;カップ;kg
+69;小;g;5.0;poids;1 小 ≈ 5 g;2025-11-19 21:19:47;cc;g;小;g
+70;小;kg;0.005;poids;1 小 ≈ 0.005 kg;2025-11-19 21:19:47;cc;kg;小;kg
+44;cc;l;0.005;volume;1 cc = 5 ml = 0.005 L;2025-11-19 19:02:12;cc;l;cc;l
+71;cl;l;0.01;volume;1 cl = 0.01 L;2025-11-22 14:45:41;cl;l;cl;l
+73;cl;ml;10.0;volume;1 cl = 10 ml;2025-11-22 14:45:41;cl;ml;cl;ml
+41;cs;ml;15.0;volume;1 cs = 15 ml;2025-11-19 19:02:12;cs;ml;大さじ;ml
+42;cs;l;0.015;volume;1 cs = 15 ml = 0.015 L;2025-11-19 19:02:12;cs;l;cs;l
+40;l;ml;1000.0;volume;1 L = 1000 ml;2025-11-19 19:02:12;l;ml;l;ml
+72;l;cl;100.0;volume;1 L = 100 cl;2025-11-22 14:45:41;l;cl;l;cl
+39;ml;l;0.001;volume;1 ml = 0.001 L;2025-11-19 19:02:12;ml;L;ml;L
+74;ml;cl;0.1;volume;1 ml = 0.1 cl;2025-11-22 14:45:41;ml;cl;ml;cl
+45;tasse;ml;250.0;volume;1 tasse = 250 ml;2025-11-19 19:02:12;tasse;ml;カップ;ml
+46;tasse;l;0.25;volume;1 tasse = 250 ml = 0.250 L;2025-11-19 19:02:12;tasse;L;カップ;L
+47;カップ;ml;200.0;volume;1 カップ(JP) = 200 ml;2025-11-19 19:02:12;カップ;ml;カップ;ml
+48;カップ;l;0.2;volume;1 カップ (JP) = 200 ml = 0.200 L;2025-11-19 19:02:12;カップ;l;カップ;l
+63;大;ml;15.0;volume;1 大 = 15 ml;2025-11-19 21:19:47;cs;ml;大;ml
+67;小;ml;5.0;volume;1 小 = 5 ml;2025-11-19 21:19:47;cc;ml;小;ml

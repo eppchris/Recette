@@ -129,6 +129,13 @@
 
         <!-- Contenu principal -->
         <main class="max-w-7xl mx-auto px-4 py-8">
+            <!-- Message d'erreur -->
+            {% if error %}
+            <div class="mb-6 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-800 dark:text-red-200 px-4 py-3 rounded-lg">
+                <p class="font-medium">{{ error }}</p>
+            </div>
+            {% endif %}
+
             <!-- Actions -->
             <div class="flex justify-between items-center mb-6">
                 <div class="text-gray-600 dark:text-gray-400">

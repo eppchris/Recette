@@ -173,7 +173,10 @@
                                 <div class="flex-1">
                                     <div class="font-medium text-lg text-gray-900 dark:text-white"
                                          :class="checked ? 'line-through' : ''">
-                                        {{ ingredient.ingredient_name }}
+                                        <button @click="catalogModal.open('{{ ingredient.ingredient_name }}')"
+                                                class="text-blue-600 dark:text-blue-400 hover:underline text-left">
+                                            {{ ingredient.ingredient_name }}
+                                        </button>
                                     </div>
                                     {% if ingredient.source_recipes %}
                                     <div class="text-xs text-gray-500 dark:text-gray-400 mt-1">
@@ -289,10 +292,195 @@
         </main>
     </div>
 
+    <!-- Modale de gestion du catalogue -->
+    <div x-show="catalogModal.isOpen"
+         x-cloak
+         class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50"
+         @click.self="catalogModal.close()">
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-2xl w-full mx-4 p-6">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-xl font-bold text-gray-900 dark:text-white">
+                    {{ 'Catalogue de prix' if lang == 'fr' else '価格カタログ' }}
+                </h3>
+                <button @click="catalogModal.close()"
+                        class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                    </svg>
+                </button>
+            </div>
+
+            <div x-show="catalogModal.loading" class="text-center py-8">
+                <p class="text-gray-600 dark:text-gray-400">{{ 'Chargement...' if lang == 'fr' else '読み込み中...' }}</p>
+            </div>
+
+            <div x-show="!catalogModal.loading" class="space-y-4">
+                <!-- Nom FR -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        {{ 'Nom (FR)' if lang == 'fr' else '名前 (FR)' }}
+                    </label>
+                    <input type="text"
+                           x-model="catalogModal.data.ingredient_name_fr"
+                           class="w-full px-3 py-2 border border-gray-300 rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                </div>
+
+                <!-- Nom JP -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        {{ 'Nom (JP)' if lang == 'fr' else '名前 (JP)' }}
+                    </label>
+                    <input type="text"
+                           x-model="catalogModal.data.ingredient_name_jp"
+                           class="w-full px-3 py-2 border border-gray-300 rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                </div>
+
+                <!-- Unités -->
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            {{ 'Unité (FR)' if lang == 'fr' else '単位 (FR)' }}
+                        </label>
+                        <input type="text"
+                               x-model="catalogModal.data.unit_fr"
+                               class="w-full px-3 py-2 border border-gray-300 rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            {{ 'Unité (JP)' if lang == 'fr' else '単位 (JP)' }}
+                        </label>
+                        <input type="text"
+                               x-model="catalogModal.data.unit_jp"
+                               class="w-full px-3 py-2 border border-gray-300 rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                    </div>
+                </div>
+
+                <!-- Prix et quantité -->
+                <div class="grid grid-cols-3 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            {{ 'Prix (EUR)' if lang == 'fr' else '価格 (EUR)' }}
+                        </label>
+                        <input type="number"
+                               step="0.01"
+                               x-model="catalogModal.data.price_eur"
+                               class="w-full px-3 py-2 border border-gray-300 rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            {{ 'Prix (JPY)' if lang == 'fr' else '価格 (JPY)' }}
+                        </label>
+                        <input type="number"
+                               step="1"
+                               x-model="catalogModal.data.price_jpy"
+                               class="w-full px-3 py-2 border border-gray-300 rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            {{ 'Quantité' if lang == 'fr' else '量' }}
+                        </label>
+                        <input type="number"
+                               step="0.01"
+                               x-model="catalogModal.data.qty"
+                               class="w-full px-3 py-2 border border-gray-300 rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                    </div>
+                </div>
+
+                <!-- Dernière mise à jour -->
+                <div x-show="catalogModal.data.last_updated" class="text-sm text-gray-500 dark:text-gray-400">
+                    {{ 'Dernière mise à jour:' if lang == 'fr' else '最終更新:' }}
+                    <span x-text="catalogModal.data.last_updated"></span>
+                </div>
+
+                <!-- Boutons -->
+                <div class="flex gap-3 pt-4">
+                    <button @click="catalogModal.save()"
+                            class="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                        {{ 'Enregistrer' if lang == 'fr' else '保存' }}
+                    </button>
+                    <button @click="catalogModal.close()"
+                            class="px-4 py-2 bg-gray-400 text-white rounded-lg hover:bg-gray-500">
+                        {{ 'Annuler' if lang == 'fr' else 'キャンセル' }}
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script>
         function shoppingListApp() {
             return {
                 darkMode: false,
+                catalogModal: {
+                    isOpen: false,
+                    loading: false,
+                    ingredientName: '',
+                    data: {
+                        id: null,
+                        ingredient_name_fr: '',
+                        ingredient_name_jp: '',
+                        unit_fr: 'g',
+                        unit_jp: 'g',
+                        price_eur: null,
+                        price_jpy: null,
+                        qty: 1.0,
+                        last_updated: null
+                    },
+
+                    async open(ingredientName) {
+                        this.isOpen = true;
+                        this.loading = true;
+                        this.ingredientName = ingredientName;
+
+                        try {
+                            const response = await fetch(`/api/ingredient-catalog-info?ingredient_name=${encodeURIComponent(ingredientName)}&lang={{ lang }}`);
+                            const data = await response.json();
+                            this.data = data;
+                        } catch (error) {
+                            console.error('Erreur:', error);
+                            alert('{{ 'Erreur lors du chargement' if lang == 'fr' else 'エラーが発生しました' }}');
+                        } finally {
+                            this.loading = false;
+                        }
+                    },
+
+                    async save() {
+                        this.loading = true;
+                        try {
+                            const formData = new FormData();
+                            if (this.data.id) formData.append('ingredient_id', this.data.id);
+                            formData.append('ingredient_name_fr', this.data.ingredient_name_fr || '');
+                            formData.append('ingredient_name_jp', this.data.ingredient_name_jp || '');
+                            formData.append('unit_fr', this.data.unit_fr || 'g');
+                            formData.append('unit_jp', this.data.unit_jp || 'g');
+                            formData.append('price_eur', this.data.price_eur || '');
+                            formData.append('price_jpy', this.data.price_jpy || '');
+                            formData.append('qty', this.data.qty || 1.0);
+
+                            const response = await fetch('/api/ingredient-catalog-update', {
+                                method: 'POST',
+                                body: formData
+                            });
+
+                            if (response.ok) {
+                                alert('{{ 'Prix enregistré avec succès!' if lang == 'fr' else '価格が保存されました！' }}');
+                                this.close();
+                                window.location.reload();
+                            } else {
+                                alert('{{ 'Erreur lors de l\'enregistrement' if lang == 'fr' else 'エラーが発生しました' }}');
+                            }
+                        } catch (error) {
+                            console.error('Erreur:', error);
+                            alert('{{ 'Erreur lors de l\'enregistrement' if lang == 'fr' else 'エラーが発生しました' }}');
+                        } finally {
+                            this.loading = false;
+                        }
+                    },
+
+                    close() {
+                        this.isOpen = false;
+                    }
+                },
 
                 async updateItem(itemId, data) {
                     try {
@@ -338,6 +526,8 @@
     </script>
 
     <style>
+        [x-cloak] { display: none !important; }
+
         @media print {
             /* Reset général */
             * {
