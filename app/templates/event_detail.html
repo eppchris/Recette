@@ -49,7 +49,7 @@
                 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
                     <div>
                         <span class="text-sm text-gray-500 dark:text-gray-400">{{ S('event_type') }}</span>
-                        <p class="font-medium text-gray-900 dark:text-white">{{ event.event_type_name }}</p>
+                        <p class="font-medium text-gray-900 dark:text-white">{{ event.event_type_name_jp if lang == 'jp' else event.event_type_name_fr }}</p>
                     </div>
                     <div>
                         <span class="text-sm text-gray-500 dark:text-gray-400">{{ S('event_date') }}</span>
@@ -93,10 +93,10 @@
                     <h2 class="text-xl font-bold text-gray-900 dark:text-white">{{ S('recipes') }}</h2>
                     <div class="flex gap-2">
                         <form method="POST" action="/events/{{ event.id }}/recipes/add-all-by-type"
-                              onsubmit="return confirm('{{ 'Ajouter toutes les recettes ' + event.event_type_name + ' ?' if lang == 'fr' else 'すべての' + event.event_type_name + 'レシピを追加しますか？' }}');">
+                              onsubmit="return confirm('{% if lang == 'fr' %}Ajouter toutes les recettes {{ event.event_type_name_fr }} ?{% else %}すべての{{ event.event_type_name_jp }}レシピを追加しますか？{% endif %}');">
                             <input type="hidden" name="lang" value="{{ lang }}">
                             <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 whitespace-nowrap">
-                                ++ {{ 'Ajouter tout ' + event.event_type_name if lang == 'fr' else 'すべて追加 ' + event.event_type_name }}
+                                ++ {% if lang == 'fr' %}Ajouter tout {{ event.event_type_name_fr }}{% else %}すべて追加 {{ event.event_type_name_jp }}{% endif %}
                             </button>
                         </form>
                         <button @click="showAddRecipe = !showAddRecipe"

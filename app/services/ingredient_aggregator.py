@@ -28,7 +28,7 @@ class IngredientAggregator:
         Charge les conversions d'unités depuis la base de données
 
         Returns:
-            Dictionnaire {from_unit: (to_unit, factor)}
+            Dictionnaire {from_unit: [(to_unit, factor, category), ...]}
         """
         from app.models import db
         import time
@@ -39,25 +39,26 @@ class IngredientAggregator:
             conversions = db.get_all_unit_conversions()
 
             # Construire un dictionnaire de conversions
-            # On crée une structure: {from_unit_lower: [(to_unit, factor), ...]}
+            # On crée une structure: {from_unit_lower: [(to_unit, factor, category), ...]}
             conv_dict = defaultdict(list)
 
             for conv in conversions:
                 from_unit = conv['from_unit'].lower().strip()
                 to_unit = conv['to_unit'].lower().strip()
                 factor = conv['factor']
+                category = conv.get('category', '')  # 'volume' ou 'poids'
 
                 # Ajouter aussi les variantes FR et JP
                 if conv.get('from_unit_fr'):
                     from_fr = conv['from_unit_fr'].lower().strip()
-                    conv_dict[from_fr].append((to_unit, factor))
+                    conv_dict[from_fr].append((to_unit, factor, category))
 
                 if conv.get('from_unit_jp'):
                     from_jp = conv['from_unit_jp'].lower().strip()
-                    conv_dict[from_jp].append((to_unit, factor))
+                    conv_dict[from_jp].append((to_unit, factor, category))
 
                 # Ajouter la conversion principale
-                conv_dict[from_unit].append((to_unit, factor))
+                conv_dict[from_unit].append((to_unit, factor, category))
 
             self._conversion_cache = dict(conv_dict)
             self._cache_timestamp = current_time
@@ -193,18 +194,18 @@ class IngredientAggregator:
     def convert_to_standard_unit(self, quantity: float, unit: str, ingredient_name: str = "") -> tuple:
         """
         Convertit une quantité vers l'unité standard (L pour liquides, kg pour solides)
-        en utilisant les conversions de la base de données
-
-        NOUVELLE RÈGLE: Si aucune conversion n'est trouvée, on garde l'unité telle quelle
+        en utilisant la catégorie de l'ingrédient depuis le catalogue
 
         Args:
             quantity: Quantité à convertir
             unit: Unité d'origine
-            ingredient_name: Nom de l'ingrédient (optionnel, pour déterminer si liquide/solide)
+            ingredient_name: Nom de l'ingrédient
 
         Returns:
             Tuple (quantité_convertie, unité_standard)
         """
+        from app.models import db
+
         if not unit:
             return (quantity, unit)
 
@@ -215,43 +216,53 @@ class IngredientAggregator:
         if unit_lower not in conversions:
             return (quantity, unit)
 
-        # Déterminer l'unité cible préférée en fonction de l'ingrédient
-        is_liquid = self._is_liquid_ingredient(ingredient_name)
-        preferred_target = 'l' if is_liquid else 'kg'
+        # 1. Récupérer conversion_category depuis le catalogue
+        catalog = db.get_ingredient_from_catalog(ingredient_name)
 
-        # Essayer de trouver une conversion vers L ou kg (unités finales)
-        # Stratégie: chercher d'abord conversion directe vers unité préférée
+        if catalog and catalog.get('conversion_category'):
+            category = catalog['conversion_category']  # 'volume' ou 'poids'
+        else:
+            # Fallback: utiliser l'ancienne méthode
+            is_liquid = self._is_liquid_ingredient(ingredient_name)
+            category = 'volume' if is_liquid else 'poids'
+
+        # 2. Déduire l'unité standard cible
+        standard_unit = 'l' if category == 'volume' else 'kg'
+
+        # 3. Filtrer les conversions par catégorie
         possible_conversions = conversions[unit_lower]
+        category_conversions = [
+            (to_unit, factor)
+            for to_unit, factor, conv_cat in possible_conversions
+            if conv_cat == category
+        ]
 
-        # Chercher d'abord une conversion directe vers l'unité préférée
-        for to_unit, factor in possible_conversions:
-            if to_unit == preferred_target:
+        # 4. Chercher conversion directe vers l'unité standard
+        for to_unit, factor in category_conversions:
+            if to_unit == standard_unit:
                 return (quantity * factor, to_unit)
 
-        # Sinon chercher n'importe quelle conversion vers L ou kg
-        for to_unit, factor in possible_conversions:
-            if to_unit in ['l', 'kg']:
-                return (quantity * factor, to_unit)
+        # 5. Conversion en chaîne (ex: cs → g → kg)
+        for to_unit, factor in category_conversions:
+            if to_unit in conversions:
+                # Récursion avec l'unité intermédiaire
+                converted_qty = quantity * factor
+                return self.convert_to_standard_unit(converted_qty, to_unit, ingredient_name)
 
-        # Sinon, prendre la première conversion et continuer récursivement
-        # (par exemple cs → ml → L)
-        to_unit, factor = possible_conversions[0]
-        converted_qty = quantity * factor
+        # 6. Chercher dans ingredient_specific_conversions
+        specific = db.get_specific_conversion(ingredient_name, unit_lower)
+        if specific:
+            converted_qty = quantity * specific['factor']
+            to_unit = specific['to_unit']
 
-        # Essayer de convertir encore une fois
-        if to_unit in conversions:
-            # Chercher d'abord vers l'unité préférée
-            for final_unit, final_factor in conversions[to_unit]:
-                if final_unit == preferred_target:
-                    return (converted_qty * final_factor, final_unit)
+            # Continuer la conversion si nécessaire
+            if to_unit != standard_unit and to_unit in conversions:
+                return self.convert_to_standard_unit(converted_qty, to_unit, ingredient_name)
+            else:
+                return (converted_qty, to_unit)
 
-            # Sinon n'importe quelle conversion finale
-            for final_unit, final_factor in conversions[to_unit]:
-                if final_unit in ['l', 'kg']:
-                    return (converted_qty * final_factor, final_unit)
-
-        # Si pas de conversion finale trouvée, retourner la conversion intermédiaire
-        return (converted_qty, to_unit)
+        # 7. Pas de conversion trouvée → garder tel quel
+        return (quantity, unit)
 
     def convert_to_purchase_unit(self, quantity: float, standard_unit: str) -> tuple:
         """

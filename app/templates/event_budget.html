@@ -44,7 +44,7 @@
                         price_eur: null,
                         price_jpy: null,
                         qty: 1.0,
-                        last_updated: null
+                        updated_at: null
                     },
 
                     async open(ingredientName) {
@@ -118,6 +118,42 @@
 
                     // Charger le montant total réel sauvegardé depuis l'événement
                     this.ingredientsActualTotal = {{ event.ingredients_actual_total if event.ingredients_actual_total else 0 }};
+                },
+
+                async syncCatalogPrices() {
+                    if (!confirm('{{ "Voulez-vous synchroniser tous les prix avec le catalogue actuel ?" if lang == "fr" else "現在のカタログと価格を同期しますか？" }}')) {
+                        return;
+                    }
+
+                    try {
+                        const formData = new FormData();
+                        formData.append('lang', '{{ lang }}');
+
+                        const response = await fetch('/events/{{ event.id }}/budget/ingredients/sync-catalog', {
+                            method: 'POST',
+                            body: formData
+                        });
+
+                        const result = await response.json();
+
+                        if (result.success) {
+                            // Mettre à jour les prix dans l'interface
+                            result.items.forEach(updatedItem => {
+                                const ing = this.ingredients.find(i => i.id === updatedItem.id);
+                                if (ing) {
+                                    ing.planned_price = updatedItem.unit_price;
+                                    ing.unit_price = updatedItem.unit_price;
+                                }
+                            });
+
+                            alert(result.message);
+                        } else {
+                            alert('{{ "Erreur lors de la synchronisation" if lang == "fr" else "同期エラー" }}');
+                        }
+                    } catch (error) {
+                        console.error('Error syncing prices:', error);
+                        alert('{{ "Erreur lors de la synchronisation" if lang == "fr" else "同期エラー" }}');
+                    }
                 },
 
                 calculateIngredientsPlanned() {
@@ -339,7 +375,12 @@
                         </div>
                     </div>
 
-                    <div class="mt-4 flex justify-end">
+                    <div class="mt-4 flex justify-between items-center">
+                        <button type="button"
+                                @click.prevent="syncCatalogPrices()"
+                                class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2">
+                            🔄 {{ 'Synchroniser avec le catalogue' if lang == 'fr' else 'カタログと同期' }}
+                        </button>
                         <button type="submit" class="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700">
                             💾 {{ 'Enregistrer' if lang == 'fr' else '保存' }}
                         </button>
@@ -661,9 +702,9 @@
                 </div>
 
                 <!-- Dernière mise à jour -->
-                <div x-show="catalogModal.data.last_updated" class="text-sm text-gray-500 dark:text-gray-400">
+                <div x-show="catalogModal.data.updated_at" class="text-sm text-gray-500 dark:text-gray-400">
                     {{ 'Dernière mise à jour:' if lang == 'fr' else '最終更新:' }}
-                    <span x-text="catalogModal.data.last_updated"></span>
+                    <span x-text="catalogModal.data.updated_at"></span>
                 </div>
 
                 <!-- Boutons -->

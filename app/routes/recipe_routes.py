@@ -21,10 +21,11 @@ async def recipes_list(request: Request, lang: str = Query("fr")):
     """Affiche la liste de toutes les recettes dans la langue demandée"""
     rows = db.list_recipes(lang)
 
-    # Enrichir chaque recette avec ses catégories et tags
+    # Enrichir chaque recette avec ses catégories, tags et types d'événements
     for recipe in rows:
         recipe['categories'] = db.get_recipe_categories(recipe['id'])
         recipe['tags'] = db.get_recipe_tags(recipe['id'])
+        recipe['event_types'] = db.get_recipe_event_types(recipe['id'])
 
     return templates.TemplateResponse(
         "recipes_list.html",
@@ -623,6 +624,21 @@ async def api_set_recipe_tags(recipe_id: int, request: Request):
     return {"status": "ok", "message": "Tags updated"}
 
 
+@router.get("/api/recipes/{recipe_id}/event-types")
+async def api_get_recipe_event_types(recipe_id: int):
+    """Récupère les types d'événements d'une recette spécifique"""
+    return db.get_recipe_event_types(recipe_id)
+
+
+@router.post("/api/recipes/{recipe_id}/event-types")
+async def api_set_recipe_event_types(recipe_id: int, request: Request):
+    """Définit les types d'événements d'une recette"""
+    data = await request.json()
+    event_type_ids = data.get('event_type_ids', [])
+    db.set_recipe_event_types(recipe_id, event_type_ids)
+    return {"status": "ok", "message": "Event types updated"}
+
+
 @router.post("/api/categories")
 async def api_create_category(request: Request):
     """Crée une nouvelle catégorie"""
@@ -722,6 +738,68 @@ async def api_delete_tag(tag_id: int):
     try:
         db.delete_tag(tag_id)
         return {"status": "ok", "message": "Tag deleted"}
+    except ValueError as e:
+        return JSONResponse(
+            {"status": "error", "message": str(e)},
+            status_code=400
+        )
+
+
+# ============================================================================
+# API - TYPES D'ÉVÉNEMENTS
+# ============================================================================
+
+@router.get("/api/event-types")
+async def api_get_event_types():
+    """Récupère tous les types d'événements disponibles"""
+    return db.get_all_event_types()
+
+
+@router.post("/api/event-types")
+async def api_create_event_type(request: Request):
+    """Crée un nouveau type d'événement"""
+    data = await request.json()
+    event_type_id = db.create_event_type(
+        name_fr=data.get('name_fr'),
+        name_jp=data.get('name_jp'),
+        description_fr=data.get('description_fr'),
+        description_jp=data.get('description_jp')
+    )
+    return {"status": "ok", "event_type_id": event_type_id}
+
+
+@router.put("/api/event-types/{event_type_id}")
+async def api_update_event_type(event_type_id: int, request: Request):
+    """Modifie un type d'événement existant"""
+    try:
+        data = await request.json()
+        success = db.update_event_type(
+            event_type_id=event_type_id,
+            name_fr=data.get('name_fr'),
+            name_jp=data.get('name_jp'),
+            description_fr=data.get('description_fr'),
+            description_jp=data.get('description_jp')
+        )
+        if success:
+            return {"status": "ok", "message": "Event type updated"}
+        else:
+            return JSONResponse(
+                {"status": "error", "message": "Event type not found"},
+                status_code=400
+            )
+    except Exception as e:
+        return JSONResponse(
+            {"status": "error", "message": str(e)},
+            status_code=500
+        )
+
+
+@router.delete("/api/event-types/{event_type_id}")
+async def api_delete_event_type(event_type_id: int):
+    """Supprime un type d'événement (seulement si non utilisé)"""
+    try:
+        db.delete_event_type(event_type_id)
+        return {"status": "ok", "message": "Event type deleted"}
     except ValueError as e:
         return JSONResponse(
             {"status": "error", "message": str(e)},

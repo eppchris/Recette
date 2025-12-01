@@ -387,9 +387,9 @@
                 </div>
 
                 <!-- Dernière mise à jour -->
-                <div x-show="catalogModal.data.last_updated" class="text-sm text-gray-500 dark:text-gray-400">
+                <div x-show="catalogModal.data.updated_at" class="text-sm text-gray-500 dark:text-gray-400">
                     {{ 'Dernière mise à jour:' if lang == 'fr' else '最終更新:' }}
-                    <span x-text="catalogModal.data.last_updated"></span>
+                    <span x-text="catalogModal.data.updated_at"></span>
                 </div>
 
                 <!-- Boutons -->
@@ -424,7 +424,7 @@
                         price_eur: null,
                         price_jpy: null,
                         qty: 1.0,
-                        last_updated: null
+                        updated_at: null
                     },
 
                     async open(ingredientName) {

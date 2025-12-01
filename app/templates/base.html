@@ -79,7 +79,7 @@
         <a
           href="/ingredient-catalog?lang={{ lang }}"
           class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition group"
-          :class="('{{ request.path }}'.includes('/ingredient-catalog') || '{{ request.path }}'.includes('/unit-conversions') || '{{ request.path }}'.includes('/access-logs') || '{{ request.path }}'.includes('/admin/tags')) && 'bg-blue-50 dark:bg-blue-900 text-blue-600 dark:text-blue-300'"
+          :class="('{{ request.path }}'.includes('/ingredient-catalog') || '{{ request.path }}'.includes('/unit-conversions') || '{{ request.path }}'.includes('/ingredient-specific-conversions') || '{{ request.path }}'.includes('/access-logs') || '{{ request.path }}'.includes('/admin/tags')) && 'bg-blue-50 dark:bg-blue-900 text-blue-600 dark:text-blue-300'"
         >
           <span class="text-xl">📊</span>
           <span x-show="sidebarOpen" x-transition class="font-medium">{{ S('menu_settings') }}</span>
@@ -90,6 +90,9 @@
           </a>
           <a href="/unit-conversions?lang={{ lang }}" class="block px-3 py-1.5 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 rounded">
             {{ 'Conversions d\'unités' if lang == 'fr' else '単位変換' }}
+          </a>
+          <a href="/ingredient-specific-conversions?lang={{ lang }}" class="block px-3 py-1.5 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 rounded">
+            {{ 'Conversions spécifiques' if lang == 'fr' else '食材別変換' }}
           </a>
           <a href="/admin/tags?lang={{ lang }}" class="block px-3 py-1.5 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 rounded">
             {{ 'Tags et catégories' if lang == 'fr' else 'タグとカテゴリー' }}

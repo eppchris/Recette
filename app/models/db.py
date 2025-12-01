@@ -3,7 +3,50 @@ import os
 import sqlite3
 import contextlib
 import time
+import unicodedata
+import re
 from functools import wraps
+
+
+# ============================================================================
+# NORMALISATION DES NOMS D'INGRÉDIENTS
+# ============================================================================
+
+def normalize_ingredient_name(name: str) -> str:
+    """
+    Normalise un nom d'ingrédient français :
+    - Minuscules
+    - Sans accents (é→e, è→e, à→a, ô→o, œ→oe, etc.)
+    - Au singulier (suppression du 's' final si présent)
+
+    Exemples:
+        "Œufs" → "oeuf"
+        "Saké" → "sake"
+        "Tomates" → "tomate"
+        "Ail" → "ail"
+    """
+    if not name:
+        return ""
+
+    # 1. Mettre en minuscules
+    name = name.lower().strip()
+
+    # 2. Remplacer œ par oe (avant la normalisation NFD)
+    name = name.replace('œ', 'oe')
+
+    # 3. Supprimer les accents via décomposition Unicode
+    # NFD = Canonical Decomposition (é → e + ´)
+    name = unicodedata.normalize('NFD', name)
+    # Garder seulement les caractères non-diacritiques
+    name = ''.join(char for char in name if unicodedata.category(char) != 'Mn')
+
+    # 4. Mettre au singulier (enlever le 's' final s'il y en a un)
+    # Mais pas si le mot se termine par 'ss' ou si c'est un mot court
+    if len(name) > 3 and name.endswith('s') and not name.endswith('ss'):
+        name = name[:-1]
+
+    return name
+
 
 # Déterminer le chemin de la base de données selon l'environnement
 # Même nom en dev et prod, juste un dossier différent
@@ -557,50 +600,19 @@ def get_recipe_image_urls(recipe_id: int) -> tuple:
 
 def list_event_types():
     """
-    Liste tous les types d'événements
+    Liste tous les types d'événements (version bilingual)
 
     Returns:
-        Liste des types d'événements
+        Liste des types d'événements avec noms FR et JP
     """
     with get_db() as con:
-        sql = "SELECT id, name, created_at FROM event_type ORDER BY name"
+        sql = """
+            SELECT id, name_fr, name_jp, description_fr, description_jp, created_at
+            FROM event_type
+            ORDER BY name_fr
+        """
         rows = con.execute(sql).fetchall()
         return [dict(row) for row in rows]
-
-
-def create_event_type(name: str):
-    """
-    Crée un nouveau type d'événement
-
-    Args:
-        name: Nom du type d'événement
-
-    Returns:
-        ID du nouveau type créé
-    """
-    with get_db() as con:
-        sql = "INSERT INTO event_type (name) VALUES (?)"
-        cursor = con.execute(sql, (name,))
-        return cursor.lastrowid
-
-
-def delete_event_type(event_type_id: int):
-    """
-    Supprime un type d'événement (si aucun événement ne l'utilise)
-
-    Args:
-        event_type_id: ID du type à supprimer
-
-    Returns:
-        True si suppression réussie, False sinon
-    """
-    with get_db() as con:
-        try:
-            sql = "DELETE FROM event_type WHERE id = ?"
-            con.execute(sql, (event_type_id,))
-            return True
-        except:
-            return False
 
 
 def list_events():
@@ -624,7 +636,8 @@ def list_events():
                 e.currency,
                 e.budget_planned,
                 et.id AS event_type_id,
-                et.name AS event_type_name
+                et.name_fr AS event_type_name_fr,
+                et.name_jp AS event_type_name_jp
             FROM event e
             JOIN event_type et ON et.id = e.event_type_id
             ORDER BY e.event_date DESC
@@ -658,7 +671,8 @@ def get_event_by_id(event_id: int):
                 e.budget_planned,
                 e.ingredients_actual_total,
                 et.id AS event_type_id,
-                et.name AS event_type_name
+                et.name_fr AS event_type_name_fr,
+                et.name_jp AS event_type_name_jp
             FROM event e
             JOIN event_type et ON et.id = e.event_type_id
             WHERE e.id = ?
@@ -783,6 +797,28 @@ def update_event_recipe_servings(event_id: int, recipe_id: int, servings_multipl
             WHERE event_id = ? AND recipe_id = ?
         """
         con.execute(sql, (servings_multiplier, event_id, recipe_id))
+        return True
+
+
+def update_event_recipes_multipliers(event_id: int, ratio: float):
+    """
+    Multiplie tous les servings_multiplier des recettes d'un événement par un ratio
+    Utilisé pour ajuster les quantités quand le nombre de participants change
+
+    Args:
+        event_id: ID de l'événement
+        ratio: Ratio de multiplication (nouveau_nb_participants / ancien_nb_participants)
+
+    Returns:
+        True si la mise à jour a réussi
+    """
+    with get_db() as con:
+        sql = """
+            UPDATE event_recipe
+            SET servings_multiplier = servings_multiplier * ?
+            WHERE event_id = ?
+        """
+        con.execute(sql, (ratio, event_id))
         return True
 
 
@@ -1633,7 +1669,7 @@ def list_ingredient_catalog(search: str = None, lang: str = 'fr'):
                 c.price_eur,
                 c.price_jpy,
                 c.qty,
-                c.last_updated,
+                c.updated_at,
                 c.created_at
             FROM ingredient_price_catalog c
         """
@@ -1703,7 +1739,7 @@ def update_ingredient_catalog_price(ingredient_id: int, price_eur: float = None,
             params.append(qty)
 
         if updates:
-            updates.append("last_updated = CURRENT_TIMESTAMP")
+            updates.append("updated_at = CURRENT_TIMESTAMP")
             params.append(ingredient_id)
 
             sql = f"UPDATE ingredient_price_catalog SET {', '.join(updates)} WHERE id = ?"
@@ -1739,15 +1775,18 @@ def sync_ingredients_from_recipes():
     IMPORTANT: Cette fonction N'INSÈRE QUE de nouvelles lignes.
     Elle ne fait AUCUN UPDATE, ne touche JAMAIS aux prix existants.
 
+    NOUVEAU : Utilise la normalisation des noms (minuscules, sans accents, singulier)
+    pour éviter les doublons du type "Oeuf" vs "œuf" vs "Œufs"
+
     Returns:
         Nombre d'ingrédients ajoutés
     """
     with get_db() as conn:
         cursor = conn.cursor()
 
-        # Récupérer tous les noms d'ingrédients existants (en minuscules pour comparaison)
-        cursor.execute("SELECT LOWER(TRIM(ingredient_name_fr)) as lower_name FROM ingredient_price_catalog")
-        existing_lower = {row['lower_name'] for row in cursor.fetchall()}
+        # Récupérer tous les noms d'ingrédients existants NORMALISÉS
+        cursor.execute("SELECT ingredient_name_fr FROM ingredient_price_catalog")
+        existing_normalized = {normalize_ingredient_name(row['ingredient_name_fr']) for row in cursor.fetchall()}
 
         # Récupérer tous les ingrédients uniques des recettes
         cursor.execute("""
@@ -1769,22 +1808,23 @@ def sync_ingredients_from_recipes():
         # Insérer UNIQUEMENT les nouveaux (en Python, pas en SQL)
         added_count = 0
         for ing in recipe_ingredients:
-            name_fr = ing['ingredient_name_fr'].strip()
+            name_fr_original = ing['ingredient_name_fr'].strip()
+            name_fr_normalized = normalize_ingredient_name(name_fr_original)
             name_jp = ing['ingredient_name_jp']
             unit_fr = ing['unit_fr']
             unit_jp = ing['unit_jp']
 
-            # Vérifier si existe déjà (insensible à la casse)
-            if name_fr.lower() not in existing_lower:
+            # Vérifier si existe déjà (avec nom normalisé)
+            if name_fr_normalized not in existing_normalized:
                 try:
-                    # INSERTION SEULE - Pas d'UPDATE possible ici
+                    # INSERTION SEULE avec le nom NORMALISÉ
                     cursor.execute("""
                         INSERT INTO ingredient_price_catalog
                         (ingredient_name_fr, ingredient_name_jp, unit_fr, unit_jp)
                         VALUES (?, ?, ?, ?)
-                    """, (name_fr, name_jp, unit_fr, unit_jp))
+                    """, (name_fr_normalized, name_jp, unit_fr, unit_jp))
                     added_count += 1
-                    existing_lower.add(name_fr.lower())
+                    existing_normalized.add(name_fr_normalized)
                 except Exception:
                     # Ignorer les doublons (contrainte UNIQUE)
                     pass
@@ -2735,3 +2775,340 @@ def delete_category(category_id: int):
         # Supprimer la catégorie
         cursor.execute("DELETE FROM category WHERE id = ?", (category_id,))
         conn.commit()
+
+
+def get_ingredient_from_catalog(ingredient_name: str):
+    """
+    Récupère les informations d'un ingrédient du catalogue par son nom
+
+    Args:
+        ingredient_name: Nom de l'ingrédient (FR ou JP)
+
+    Returns:
+        Dict avec les infos de l'ingrédient ou None
+    """
+    with get_db() as conn:
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+
+        cursor.execute("""
+            SELECT *
+            FROM ingredient_price_catalog
+            WHERE LOWER(ingredient_name_fr) = LOWER(?)
+               OR LOWER(ingredient_name_jp) = LOWER(?)
+        """, (ingredient_name, ingredient_name))
+
+        row = cursor.fetchone()
+        return dict(row) if row else None
+
+
+def get_all_ingredients_from_catalog():
+    """
+    Récupère tous les ingrédients du catalogue pour les formulaires
+
+    Returns:
+        Liste de tous les ingrédients ordonnés par nom FR
+    """
+    with get_db() as conn:
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+
+        cursor.execute("""
+            SELECT id, ingredient_name_fr, ingredient_name_jp, unit_fr, unit_jp
+            FROM ingredient_price_catalog
+            ORDER BY ingredient_name_fr
+        """)
+
+        rows = cursor.fetchall()
+        return [dict(row) for row in rows]
+
+
+def get_specific_conversion(ingredient_name: str, from_unit: str):
+    """
+    Récupère une conversion spécifique pour un ingrédient
+
+    Args:
+        ingredient_name: Nom de l'ingrédient
+        from_unit: Unité source
+
+    Returns:
+        Dict avec la conversion ou None
+    """
+    with get_db() as conn:
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+
+        cursor.execute("""
+            SELECT *
+            FROM ingredient_specific_conversions
+            WHERE LOWER(ingredient_name_fr) = LOWER(?)
+              AND LOWER(from_unit) = LOWER(?)
+        """, (ingredient_name, from_unit))
+
+        row = cursor.fetchone()
+        return dict(row) if row else None
+
+
+def get_all_specific_conversions():
+    """
+    Récupère toutes les conversions spécifiques
+
+    Returns:
+        Liste de dicts avec les conversions
+    """
+    with get_db() as conn:
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+
+        cursor.execute("""
+            SELECT *
+            FROM ingredient_specific_conversions
+            ORDER BY ingredient_name_fr, from_unit
+        """)
+
+        return [dict(row) for row in cursor.fetchall()]
+
+
+def add_specific_conversion(ingredient_name_fr: str, from_unit: str, to_unit: str, factor: float, notes: str = None):
+    """
+    Ajoute une conversion spécifique
+
+    Args:
+        ingredient_name_fr: Nom de l'ingrédient
+        from_unit: Unité source
+        to_unit: Unité cible
+        factor: Facteur de conversion
+        notes: Notes optionnelles
+    """
+    with get_db() as conn:
+        cursor = conn.cursor()
+
+        cursor.execute("""
+            INSERT INTO ingredient_specific_conversions
+                (ingredient_name_fr, from_unit, to_unit, factor, notes)
+            VALUES (?, ?, ?, ?, ?)
+        """, (ingredient_name_fr, from_unit, to_unit, factor, notes))
+
+        conn.commit()
+
+
+def update_specific_conversion(conversion_id: int, from_unit: str, to_unit: str, factor: float, notes: str = None):
+    """
+    Met à jour une conversion spécifique
+
+    Args:
+        conversion_id: ID de la conversion
+        from_unit: Unité source
+        to_unit: Unité cible
+        factor: Facteur de conversion
+        notes: Notes optionnelles
+    """
+    with get_db() as conn:
+        cursor = conn.cursor()
+
+        cursor.execute("""
+            UPDATE ingredient_specific_conversions
+            SET from_unit = ?, to_unit = ?, factor = ?, notes = ?, updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+        """, (from_unit, to_unit, factor, notes, conversion_id))
+
+        conn.commit()
+
+
+def delete_specific_conversion(conversion_id: int):
+    """
+    Supprime une conversion spécifique
+
+    Args:
+        conversion_id: ID de la conversion
+    """
+    with get_db() as conn:
+        cursor = conn.cursor()
+
+        cursor.execute("""
+            DELETE FROM ingredient_specific_conversions
+            WHERE id = ?
+        """, (conversion_id,))
+
+        conn.commit()
+
+
+# ============================================================================
+# GESTION DES TYPES D'ÉVÉNEMENTS
+# ============================================================================
+
+def get_all_event_types():
+    """Récupère tous les types d'événements triés par nom avec le nombre d'événements"""
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT
+                et.id,
+                et.name_fr,
+                et.name_jp,
+                et.description_fr,
+                et.description_jp,
+                COUNT(e.id) as event_count
+            FROM event_type et
+            LEFT JOIN event e ON et.id = e.event_type_id
+            GROUP BY et.id, et.name_fr, et.name_jp, et.description_fr, et.description_jp
+            ORDER BY et.name_fr
+        """)
+        return [dict(row) for row in cursor.fetchall()]
+
+
+def create_event_type(name_fr: str, name_jp: str, description_fr: str = None,
+                      description_jp: str = None):
+    """Crée un nouveau type d'événement"""
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT INTO event_type (name_fr, name_jp, description_fr, description_jp)
+            VALUES (?, ?, ?, ?)
+        """, (name_fr, name_jp, description_fr, description_jp))
+        conn.commit()
+        return cursor.lastrowid
+
+
+def update_event_type(event_type_id: int, name_fr: str = None, name_jp: str = None,
+                      description_fr: str = None, description_jp: str = None) -> bool:
+    """Modifier un type d'événement existant"""
+    with get_db() as conn:
+        cursor = conn.cursor()
+
+        # Vérifier que le type d'événement existe
+        cursor.execute("SELECT id FROM event_type WHERE id = ?", (event_type_id,))
+        row = cursor.fetchone()
+        if not row:
+            return False
+
+        # Construire la requête UPDATE dynamiquement
+        updates = []
+        params = []
+
+        if name_fr is not None:
+            updates.append("name_fr = ?")
+            params.append(name_fr)
+        if name_jp is not None:
+            updates.append("name_jp = ?")
+            params.append(name_jp)
+        if description_fr is not None:
+            updates.append("description_fr = ?")
+            params.append(description_fr)
+        if description_jp is not None:
+            updates.append("description_jp = ?")
+            params.append(description_jp)
+
+        if not updates:
+            return False
+
+        params.append(event_type_id)
+        query = f"UPDATE event_type SET {', '.join(updates)} WHERE id = ?"
+
+        cursor.execute(query, params)
+        conn.commit()
+        return True
+
+
+def delete_event_type(event_type_id: int):
+    """
+    Supprime un type d'événement
+    Impossible s'il est utilisé par au moins un événement
+    """
+    with get_db() as conn:
+        cursor = conn.cursor()
+
+        # Vérifier si le type d'événement est utilisé
+        cursor.execute("""
+            SELECT COUNT(*) as count FROM event WHERE event_type_id = ?
+        """, (event_type_id,))
+        row = cursor.fetchone()
+
+        if row['count'] > 0:
+            raise ValueError(f"Cannot delete event type: used by {row['count']} event(s)")
+
+        # Supprimer le type d'événement
+        cursor.execute("DELETE FROM event_type WHERE id = ?", (event_type_id,))
+        conn.commit()
+
+
+# ============================================================================
+# GESTION DES RELATIONS RECETTE <-> TYPE D'ÉVÉNEMENT (many-to-many)
+# ============================================================================
+
+def get_recipe_event_types(recipe_id: int):
+    """
+    Récupère les types d'événements associés à une recette
+
+    Args:
+        recipe_id: ID de la recette
+
+    Returns:
+        Liste des types d'événements
+    """
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT et.id, et.name_fr, et.name_jp, et.description_fr, et.description_jp
+            FROM event_type et
+            JOIN recipe_event_type ret ON et.id = ret.event_type_id
+            WHERE ret.recipe_id = ?
+            ORDER BY et.name_fr
+        """, (recipe_id,))
+        return [dict(row) for row in cursor.fetchall()]
+
+
+def set_recipe_event_types(recipe_id: int, event_type_ids: list):
+    """
+    Définit les types d'événements d'une recette (remplace les anciens)
+
+    Args:
+        recipe_id: ID de la recette
+        event_type_ids: Liste des IDs de types d'événements
+    """
+    with get_db() as conn:
+        cursor = conn.cursor()
+        # Supprimer les anciennes associations
+        cursor.execute("DELETE FROM recipe_event_type WHERE recipe_id = ?", (recipe_id,))
+        # Ajouter les nouvelles
+        for event_type_id in event_type_ids:
+            cursor.execute(
+                "INSERT INTO recipe_event_type (recipe_id, event_type_id) VALUES (?, ?)",
+                (recipe_id, event_type_id)
+            )
+        conn.commit()
+
+
+def list_recipes_by_event_types(event_type_ids: list, lang: str):
+    """
+    Liste toutes les recettes ayant au moins un des types d'événements spécifiés
+
+    Args:
+        event_type_ids: Liste des IDs de types d'événements
+        lang: Code de langue ('fr' ou 'jp')
+
+    Returns:
+        Liste des recettes avec leurs informations de base
+    """
+    if not event_type_ids:
+        return []
+
+    with get_db() as conn:
+        placeholders = ','.join('?' * len(event_type_ids))
+        sql = f"""
+            SELECT DISTINCT
+                r.id,
+                r.slug,
+                r.servings_default AS servings,
+                r.country,
+                r.image_url,
+                r.thumbnail_url,
+                COALESCE(rt.name, r.slug) AS name
+            FROM recipe r
+            LEFT JOIN recipe_translation rt ON rt.recipe_id = r.id AND rt.lang = ?
+            JOIN recipe_event_type ret ON ret.recipe_id = r.id
+            WHERE ret.event_type_id IN ({placeholders})
+            ORDER BY name COLLATE NOCASE
+        """
+        rows = conn.execute(sql, [lang] + event_type_ids).fetchall()
+        return [dict(row) for row in rows]

@@ -31,10 +31,6 @@
     </div>
     <div class="flex flex-wrap gap-4 text-sm text-gray-700">
       <div>
-        <span class="font-semibold">{{ S('type') }}:</span>
-        <span class="bg-blue-100 text-blue-800 px-2 py-1 rounded">{{ rec['type_label'] or rec['type'] or '-' }}</span>
-      </div>
-      <div>
         <span class="font-semibold">{{ S('servings') }}:</span>
         <span class="bg-green-100 text-green-800 px-2 py-1 rounded">{{ rec['servings'] or '-' }}</span>
       </div>
@@ -46,7 +42,7 @@
       {% endif %}
     </div>
 
-    <!-- Catégories et Tags affichés -->
+    <!-- Catégories, Tags et Types d'événements affichés -->
     <div class="mt-4 space-y-2">
       <!-- Catégories -->
       <div x-show="selectedCategories.length > 0" class="flex flex-wrap gap-2 items-center">
@@ -59,6 +55,20 @@
             x-show="cat"
             class="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm font-medium"
             x-text="cat ? (lang === 'jp' ? cat.name_jp : cat.name_fr) : ''"></span>
+        </template>
+      </div>
+
+      <!-- Types d'événements -->
+      <div x-show="selectedEventTypes.length > 0" class="flex flex-wrap gap-2 items-center">
+        <span class="text-sm font-semibold text-gray-700">
+          {{ 'イベント:' if lang == 'jp' else 'Événements:' }}
+        </span>
+        <template x-for="eventTypeId in selectedEventTypes" :key="eventTypeId">
+          <span
+            x-data="{et: eventTypes.find(e => e.id === eventTypeId)}"
+            x-show="et"
+            class="px-3 py-1 bg-purple-100 text-purple-800 rounded-full text-sm font-medium"
+            x-text="et ? (lang === 'jp' ? et.name_jp : et.name_fr) : ''"></span>
         </template>
       </div>
 
@@ -445,11 +455,44 @@
                   <div
                     class="font-medium"
                     :class="selectedCategories.includes(category.id) ? 'text-blue-900' : 'text-gray-900'"
-                    x-text="$root.lang === 'jp' ? category.name_jp : category.name_fr"
+                    x-text="lang === 'jp' ? category.name_jp : category.name_fr"
                   ></div>
-                  <div class="text-xs text-gray-500" x-text="$root.lang === 'jp' ? category.description_jp : category.description_fr"></div>
+                  <div class="text-xs text-gray-500" x-text="lang === 'jp' ? category.description_jp : category.description_fr"></div>
                 </div>
                 <svg x-show="selectedCategories.includes(category.id)" class="w-5 h-5 text-blue-600 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                  <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
+                </svg>
+              </label>
+            </template>
+          </div>
+        </div>
+
+        <!-- Types d'événements -->
+        <div class="mb-6">
+          <label class="block text-sm font-semibold mb-2">
+            {{ 'イベントタイプ' if lang == 'jp' else 'Types d\'événements' }}
+          </label>
+          <div class="space-y-2">
+            <template x-for="eventType in eventTypes" :key="eventType.id">
+              <label
+                class="flex items-center cursor-pointer p-3 rounded-lg transition-all select-none"
+                :class="selectedEventTypes.includes(eventType.id) ? 'bg-purple-100 border-2 border-purple-500' : 'bg-gray-50 border-2 border-gray-200 hover:bg-gray-100'"
+              >
+                <input
+                  type="checkbox"
+                  :value="eventType.id"
+                  x-model="selectedEventTypes"
+                  class="mr-3 w-5 h-5 text-purple-600 rounded focus:ring-2 focus:ring-purple-500"
+                />
+                <div class="flex-1">
+                  <div
+                    class="font-medium"
+                    :class="selectedEventTypes.includes(eventType.id) ? 'text-purple-900' : 'text-gray-900'"
+                    x-text="lang === 'jp' ? eventType.name_jp : eventType.name_fr"
+                  ></div>
+                  <div class="text-xs text-gray-500" x-text="lang === 'jp' ? eventType.description_jp : eventType.description_fr"></div>
+                </div>
+                <svg x-show="selectedEventTypes.includes(eventType.id)" class="w-5 h-5 text-purple-600 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
                   <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
                 </svg>
               </label>
@@ -473,7 +516,7 @@
                   `background-color: ${tag.color}; color: white; border: 2px solid ${tag.color}; font-weight: 600` :
                   `background-color: ${tag.color}20; color: ${tag.color}; border: 2px solid ${tag.color}60`"
               >
-                <span class="text-sm" x-text="$root.lang === 'jp' ? tag.name_jp : tag.name_fr"></span>
+                <span class="text-sm" x-text="lang === 'jp' ? tag.name_jp : tag.name_fr"></span>
               </button>
             </template>
           </div>
@@ -627,8 +670,10 @@
       // Catégories et tags
       categories: [],
       tags: [],
+      eventTypes: [],
       selectedCategories: [],
       selectedTags: [],
+      selectedEventTypes: [],
       lang: '{{ lang }}',
 
       async init() {
@@ -679,34 +724,40 @@
 
       async loadCategoriesAndTags() {
         try {
-          // Charger toutes les catégories et tags disponibles
-          const [categoriesRes, tagsRes] = await Promise.all([
+          // Charger toutes les catégories, tags et types d'événements disponibles
+          const [categoriesRes, tagsRes, eventTypesRes] = await Promise.all([
             fetch('/api/categories'),
-            fetch('/api/tags')
+            fetch('/api/tags'),
+            fetch('/api/event-types')
           ]);
 
           this.categories = await categoriesRes.json();
           this.tags = await tagsRes.json();
+          this.eventTypes = await eventTypesRes.json();
 
           console.log('✅ Catégories chargées:', this.categories.length);
           console.log('✅ Tags chargés:', this.tags.length);
+          console.log('✅ Types d\'événements chargés:', this.eventTypes.length);
 
-          // Si on affiche une recette existante, charger ses catégories et tags
+          // Si on affiche une recette existante, charger ses catégories, tags et types d'événements
           const recipeId = {{ rec['id'] or 'null' }};
           if (recipeId) {
-            const [recipeCatsRes, recipeTagsRes] = await Promise.all([
+            const [recipeCatsRes, recipeTagsRes, recipeEventTypesRes] = await Promise.all([
               fetch(`/api/recipes/${recipeId}/categories`),
-              fetch(`/api/recipes/${recipeId}/tags`)
+              fetch(`/api/recipes/${recipeId}/tags`),
+              fetch(`/api/recipes/${recipeId}/event-types`)
             ]);
 
             const recipeCats = await recipeCatsRes.json();
             const recipeTags = await recipeTagsRes.json();
+            const recipeEventTypes = await recipeEventTypesRes.json();
 
             this.selectedCategories = recipeCats.map(c => c.id);
             this.selectedTags = recipeTags.map(t => t.id);
+            this.selectedEventTypes = recipeEventTypes.map(et => et.id);
           }
         } catch (error) {
-          console.error('Erreur lors du chargement des catégories/tags:', error);
+          console.error('Erreur lors du chargement des catégories/tags/event types:', error);
         }
       },
 
@@ -796,7 +847,7 @@
           const data = await response.json();
 
           if (data.success) {
-            // Sauvegarder les catégories et tags
+            // Sauvegarder les catégories, tags et types d'événements
             const recipeId = {{ rec['id'] or 'null' }};
             if (recipeId) {
               await Promise.all([
@@ -809,6 +860,11 @@
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify({ tag_ids: this.selectedTags })
+                }),
+                fetch(`/api/recipes/${recipeId}/event-types`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ event_type_ids: this.selectedEventTypes })
                 })
               ]);
             }

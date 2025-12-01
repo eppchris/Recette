@@ -247,6 +247,119 @@ Format attendu: ["traduction étape 1", "traduction étape 2", ...]
             print(f"Erreur lors de la traduction des étapes: {e}")
             return None
 
+    def determine_ingredient_is_liquid(self, ingredient_name_fr: str, ingredient_name_jp: str = None) -> Optional[bool]:
+        """Détermine si un ingrédient est liquide ou solide via l'IA
+
+        Args:
+            ingredient_name_fr: Nom de l'ingrédient en français
+            ingredient_name_jp: Nom de l'ingrédient en japonais (optionnel)
+
+        Returns:
+            True si liquide, False si solide, None en cas d'erreur
+        """
+        try:
+            # Construire le contexte avec les deux langues si disponible
+            ingredient_info = ingredient_name_fr
+            if ingredient_name_jp:
+                ingredient_info += f" ({ingredient_name_jp})"
+
+            prompt = f"""Détermine si cet ingrédient est un LIQUIDE ou un SOLIDE en cuisine.
+
+Ingrédient: {ingredient_info}
+
+Règles:
+- LIQUIDE: eau, huile, lait, sauce, vinaigre, jus, bouillon, crème liquide, mirin, saké, etc.
+- SOLIDE: sucre, sel, farine, riz, viande, légumes, fromage, beurre, crème épaisse, etc.
+- Pour les cas ambigus (beurre, crème), considère l'état à température ambiante
+
+Réponds UNIQUEMENT avec un mot: "LIQUIDE" ou "SOLIDE"."""
+
+            response = self.client.chat.completions.create(
+                messages=[{"role": "user", "content": prompt}],
+                model=self.model,
+                temperature=0.1,  # Très faible pour cohérence
+                max_tokens=10
+            )
+
+            result = response.choices[0].message.content.strip().upper()
+
+            if "LIQUIDE" in result:
+                return True
+            elif "SOLIDE" in result:
+                return False
+            else:
+                print(f"Réponse inattendue de l'IA pour {ingredient_name_fr}: {result}")
+                return None
+
+        except Exception as e:
+            print(f"Erreur lors de la détermination liquide/solide pour {ingredient_name_fr}: {e}")
+            return None
+
+    def determine_ingredient_category(self, ingredient_name_fr: str, ingredient_name_jp: str = None, unit_fr: str = None) -> Optional[str]:
+        """Détermine la catégorie de conversion d'un ingrédient via l'IA
+
+        Args:
+            ingredient_name_fr: Nom de l'ingrédient en français
+            ingredient_name_jp: Nom de l'ingrédient en japonais (optionnel)
+            unit_fr: Unité de mesure en français (optionnel, aide à la décision)
+
+        Returns:
+            'volume', 'poids' ou 'unite', None en cas d'erreur
+        """
+        try:
+            # Construire le contexte avec les deux langues si disponible
+            ingredient_info = ingredient_name_fr
+            if ingredient_name_jp:
+                ingredient_info += f" ({ingredient_name_jp})"
+            if unit_fr:
+                ingredient_info += f" [unité: {unit_fr}]"
+
+            prompt = f"""Détermine la catégorie de conversion pour cet ingrédient culinaire.
+
+Ingrédient: {ingredient_info}
+
+Catégories possibles:
+1. VOLUME - Liquides et ingrédients mesurés au volume
+   Exemples: eau, huile, lait, sauce, vinaigre, jus, bouillon, crème liquide, mirin, saké, sirop
+
+2. POIDS - Solides mesurés au poids
+   Exemples: sucre, sel, farine, riz, viande, légumes, fromage, beurre, pâte, poudre
+
+3. UNITE - Ingrédients vendus/comptés à l'unité
+   Exemples: oeuf/œuf, sachet, feuille, gousse, cube, bouillon cube, paquet, tranche, boîte
+
+Règles de décision:
+- Si l'unité contient "sachet", "feuille", "gousse", "cube", "paquet" → UNITE
+- Si c'est "oeuf" ou "œuf" → UNITE
+- Si c'est un liquide qui coule → VOLUME
+- Si c'est un solide mesuré au poids (même en poudre) → POIDS
+- En cas de doute entre POIDS et VOLUME pour un solide → POIDS
+
+Réponds UNIQUEMENT avec un mot: "VOLUME", "POIDS" ou "UNITE"."""
+
+            response = self.client.chat.completions.create(
+                messages=[{"role": "user", "content": prompt}],
+                model=self.model,
+                temperature=0.1,  # Très faible pour cohérence
+                max_tokens=10
+            )
+
+            result = response.choices[0].message.content.strip().upper()
+
+            if "VOLUME" in result:
+                return 'volume'
+            elif "POIDS" in result:
+                return 'poids'
+            elif "UNITE" in result or "UNITÉ" in result:
+                return 'unite'
+            else:
+                print(f"Réponse inattendue de l'IA pour {ingredient_name_fr}: {result}")
+                return None
+
+        except Exception as e:
+            print(f"Erreur lors de la détermination de catégorie pour {ingredient_name_fr}: {e}")
+            return None
+
 
 # Instance globale (sera initialisée dans main.py)
 translation_service: Optional[TranslationService] = None

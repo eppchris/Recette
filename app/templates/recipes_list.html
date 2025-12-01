@@ -17,28 +17,31 @@
   recipes: window.recipesData || [],
   categories: [],
   tags: [],
+  eventTypes: [],
   selectedCategories: [],
   selectedTags: [],
-  selectedType: '',
+  selectedEventTypeId: null,
   showCategories: false,
   showTags: false,
   deleteModal: false,
   recipeToDelete: null,
 
   async init() {
-    await this.loadCategoriesAndTags();
+    await this.loadCategoriesTagsAndEventTypes();
   },
 
-  async loadCategoriesAndTags() {
+  async loadCategoriesTagsAndEventTypes() {
     try {
-      const [categoriesRes, tagsRes] = await Promise.all([
+      const [categoriesRes, tagsRes, eventTypesRes] = await Promise.all([
         fetch('/api/categories'),
-        fetch('/api/tags')
+        fetch('/api/tags'),
+        fetch('/api/event-types')
       ]);
       this.categories = await categoriesRes.json();
       this.tags = await tagsRes.json();
+      this.eventTypes = await eventTypesRes.json();
     } catch (error) {
-      console.error('Erreur chargement catégories/tags:', error);
+      console.error('Erreur chargement catégories/tags/event types:', error);
     }
   },
 
@@ -47,16 +50,10 @@
       // Filtre de recherche textuelle
       const matchesSearch = this.search === '' || r.name.toLowerCase().includes(this.search.toLowerCase());
 
-      // Filtre par type (PRO, PERSO, MASTER) - fonctionne en FR et JP
-      let matchesType = this.selectedType === '';
-      if (!matchesType && r.type) {
-        // Mapping FR <-> JP
-        const typeMap = {
-          'PRO': 'プロ',
-          'PERSO': 'じぶん',
-          'MASTER': 'マイスター'
-        };
-        matchesType = r.type === this.selectedType || r.type === typeMap[this.selectedType];
+      // Filtre par type d'événement
+      let matchesEventType = this.selectedEventTypeId === null;
+      if (!matchesEventType && r.event_types) {
+        matchesEventType = r.event_types.some(et => et.id === this.selectedEventTypeId);
       }
 
       // Filtre par catégories (si des catégories sont sélectionnées)
@@ -75,7 +72,7 @@
         );
       }
 
-      return matchesSearch && matchesType && matchesCategories && matchesTags;
+      return matchesSearch && matchesEventType && matchesCategories && matchesTags;
     });
 
     return filtered.sort((a, b) => {
@@ -114,7 +111,7 @@
   clearFilters() {
     this.selectedCategories = [];
     this.selectedTags = [];
-    this.selectedType = '';
+    this.selectedEventTypeId = null;
   },
 
   getCategoryName(catId) {
@@ -132,13 +129,9 @@
     return tag ? tag.color : '#3B82F6';
   },
 
-  getTypeLabel(type) {
-    const typeLabels = {
-      'PRO': { fr: 'PRO', jp: 'プロ' },
-      'PERSO': { fr: 'PERSO', jp: 'じぶん' },
-      'MASTER': { fr: 'MASTER', jp: 'マイスター' }
-    };
-    return typeLabels[type] ? typeLabels[type][this.lang] : type;
+  getEventTypeName(eventTypeId) {
+    const et = this.eventTypes.find(e => e.id === eventTypeId);
+    return et ? (this.lang === 'jp' ? et.name_jp : et.name_fr) : '';
   },
 
   sort(column) {
@@ -199,44 +192,34 @@
     >
   </div>
 
-  <!-- Filtres rapides par type -->
+  <!-- Filtres rapides par type d'événement -->
   <div class="mb-4 flex gap-2 flex-wrap">
     <button
-      @click="selectedType = ''"
-      :class="selectedType === '' ? 'bg-gray-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'"
+      @click="selectedEventTypeId = null"
+      :class="selectedEventTypeId === null ? 'bg-gray-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'"
       class="px-4 py-2 rounded-lg font-medium transition-colors">
       {{ 'Toutes' if lang == 'fr' else 'すべて' }}
     </button>
-    <button
-      @click="selectedType = 'PRO'"
-      :class="selectedType === 'PRO' ? 'bg-blue-600 text-white' : 'bg-blue-100 text-blue-700 hover:bg-blue-200'"
-      class="px-4 py-2 rounded-lg font-medium transition-colors">
-      {{ 'PRO' if lang == 'fr' else 'プロ' }}
-    </button>
-    <button
-      @click="selectedType = 'PERSO'"
-      :class="selectedType === 'PERSO' ? 'bg-green-600 text-white' : 'bg-green-100 text-green-700 hover:bg-green-200'"
-      class="px-4 py-2 rounded-lg font-medium transition-colors">
-      {{ 'PERSO' if lang == 'fr' else 'じぶん' }}
-    </button>
-    <button
-      @click="selectedType = 'MASTER'"
-      :class="selectedType === 'MASTER' ? 'bg-purple-600 text-white' : 'bg-purple-100 text-purple-700 hover:bg-purple-200'"
-      class="px-4 py-2 rounded-lg font-medium transition-colors">
-      {{ 'MASTER' if lang == 'fr' else 'マイスター' }}
-    </button>
+    <template x-for="eventType in eventTypes" :key="eventType.id">
+      <button
+        @click="selectedEventTypeId = eventType.id"
+        :class="selectedEventTypeId === eventType.id ? 'bg-purple-600 text-white' : 'bg-purple-100 text-purple-700 hover:bg-purple-200'"
+        class="px-4 py-2 rounded-lg font-medium transition-colors"
+        x-text="lang === 'jp' ? eventType.name_jp : eventType.name_fr">
+      </button>
+    </template>
   </div>
 
   <!-- Filtres avancés (accordéon) -->
   <div class="mb-4 bg-white border rounded-lg">
     <!-- Filtres actifs -->
-    <div x-show="selectedType !== '' || selectedCategories.length > 0 || selectedTags.length > 0" class="p-3 border-b bg-blue-50">
+    <div x-show="selectedEventTypeId !== null || selectedCategories.length > 0 || selectedTags.length > 0" class="p-3 border-b bg-blue-50">
       <div class="flex items-center gap-2 flex-wrap">
         <span class="text-sm font-medium text-gray-700">{{ 'Filtres actifs :' if lang == 'fr' else 'アクティブなフィルター:' }}</span>
-        <!-- Type actif -->
-        <span x-show="selectedType !== ''" class="inline-flex items-center gap-1 px-2 py-1 bg-indigo-600 text-white text-xs rounded">
-          <span x-text="getTypeLabel(selectedType)"></span>
-          <button @click="selectedType = ''" class="hover:bg-indigo-700 rounded">✕</button>
+        <!-- Type d'événement actif -->
+        <span x-show="selectedEventTypeId !== null" class="inline-flex items-center gap-1 px-2 py-1 bg-purple-600 text-white text-xs rounded">
+          <span x-text="getEventTypeName(selectedEventTypeId)"></span>
+          <button @click="selectedEventTypeId = null" class="hover:bg-purple-700 rounded">✕</button>
         </span>
         <!-- Catégories actives -->
         <template x-for="catId in selectedCategories" :key="catId">
@@ -346,9 +329,16 @@
             <h3 class="font-semibold text-lg mb-2 hover:text-blue-600 transition" x-text="r.name"></h3>
           </a>
 
-          <div class="flex items-center justify-between text-sm text-gray-600 mb-3">
-            <span x-text="r.type || '-'"></span>
+          <div class="flex items-center justify-end text-sm text-gray-600 mb-3">
             <span x-show="r.servings">👥 <span x-text="r.servings"></span></span>
+          </div>
+
+          <!-- Event type badges -->
+          <div x-show="r.event_types && r.event_types.length > 0" class="flex flex-wrap gap-1 mb-3">
+            <template x-for="eventType in r.event_types" :key="eventType.id">
+              <span class="inline-block px-2 py-0.5 bg-purple-100 text-purple-700 text-xs rounded-full"
+                    x-text="lang === 'jp' ? eventType.name_jp : eventType.name_fr"></span>
+            </template>
           </div>
 
           <!-- Actions -->

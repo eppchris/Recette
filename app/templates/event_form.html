@@ -71,7 +71,7 @@
                                 class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white">
                             {% for et in event_types %}
                             <option value="{{ et.id }}" {{ 'selected' if event and event.event_type_id == et.id else '' }}>
-                                {{ et.name }}
+                                {{ et.name_jp if lang == 'jp' else et.name_fr }}
                             </option>
                             {% endfor %}
                         </select>

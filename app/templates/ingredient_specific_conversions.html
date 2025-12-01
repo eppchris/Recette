@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="{{ lang }}">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ 'Conversions spécifiques par ingrédient' if lang == 'fr' else '食材別変換' }} - Recette</title>
+    <script src="/static/css/tailwind.min.js"></script>
+    <script defer src="/static/css/alpine.min.js"></script>
+</head>
+<body class="bg-gray-50" data-conversions='{{ conversions|tojson|safe }}' data-ingredients='{{ ingredients|tojson|safe }}' x-data="conversionData()" x-init="init()">
+    <script>
+        function conversionData() {
+            const lang = '{{ lang }}';
+            return {
+                darkMode: false,
+                sortedConversions: [],
+                ingredients: [],
+                showAddForm: false,
+
+                // Formulaire d'ajout
+                newConversion: {
+                    ingredient_name_fr: '',
+                    from_unit: '',
+                    to_unit: '',
+                    factor: '',
+                    notes: ''
+                },
+
+                // Suggestion IA
+                aiSuggesting: false,
+                aiError: '',
+
+                init() {
+                    this.sortedConversions = JSON.parse(document.body.dataset.conversions);
+                    this.ingredients = JSON.parse(document.body.dataset.ingredients);
+                },
+
+                async suggestWithAI() {
+                    if (!this.newConversion.ingredient_name_fr || !this.newConversion.from_unit || !this.newConversion.to_unit) {
+                        alert(lang === 'fr'
+                            ? 'Veuillez remplir l\'ingrédient, l\'unité source et l\'unité cible'
+                            : '食材、元の単位、変換後の単位を入力してください');
+                        return;
+                    }
+
+                    this.aiSuggesting = true;
+                    this.aiError = '';
+
+                    try {
+                        const formData = new FormData();
+                        formData.append('ingredient_name_fr', this.newConversion.ingredient_name_fr);
+                        formData.append('from_unit', this.newConversion.from_unit);
+                        formData.append('to_unit', this.newConversion.to_unit);
+
+                        const response = await fetch('/ingredient-specific-conversions/suggest-with-ai', {
+                            method: 'POST',
+                            body: formData
+                        });
+
+                        const data = await response.json();
+
+                        if (data.success) {
+                            this.newConversion.factor = data.factor;
+                            this.newConversion.notes = data.explanation;
+                            alert(lang === 'fr'
+                                ? '✅ Suggestion IA: ' + data.explanation
+                                : '✅ AI提案: ' + data.explanation);
+                        } else {
+                            this.aiError = data.error;
+                            alert((lang === 'fr' ? '❌ Erreur: ' : '❌ エラー: ') + data.error);
+                        }
+                    } catch (error) {
+                        this.aiError = error.message;
+                        alert((lang === 'fr' ? '❌ Erreur réseau: ' : '❌ ネットワークエラー: ') + error.message);
+                    } finally {
+                        this.aiSuggesting = false;
+                    }
+                }
+            }
+        }
+    </script>
+    <div :class="darkMode ? 'dark bg-gray-900' : 'bg-gray-50'" class="min-h-screen">
+        <!-- Header -->
+        <header class="bg-white dark:bg-gray-800 shadow-sm border-b border-gray-200 dark:border-gray-700">
+            <div class="max-w-7xl mx-auto px-4 py-4">
+                <div class="flex justify-between items-center">
+                    <div class="flex items-center gap-4">
+                        <a href="/recipes?lang={{ lang }}" class="text-blue-600 dark:text-blue-400 hover:underline">
+                            ← {{ 'Retour' if lang == 'fr' else '戻る' }}
+                        </a>
+                        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">
+                            🧪 {{ 'Conversions spécifiques par ingrédient' if lang == 'fr' else '食材別変換' }}
+                        </h1>
+                    </div>
+
+                    <div class="flex items-center gap-4">
+                        <!-- Toggle dark mode -->
+                        <button @click="darkMode = !darkMode"
+                                class="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700">
+                            <span x-text="darkMode ? '☀️' : '🌙'" class="text-xl"></span>
+                        </button>
+
+                        <!-- Sélecteur de langue -->
+                        <div class="flex gap-2">
+                            <a href="?lang=fr"
+                               class="px-3 py-1.5 text-sm rounded {{ 'font-bold bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-300' if lang=='fr' else 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700' }}">
+                                FR
+                            </a>
+                            <a href="?lang=jp"
+                               class="px-3 py-1.5 text-sm rounded {{ 'font-bold bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-300' if lang=='jp' else 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700' }}">
+                                JP
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Contenu principal -->
+        <main class="max-w-7xl mx-auto px-4 py-8">
+            <!-- Description -->
+            <div class="mb-6 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+                <h2 class="text-lg font-semibold text-blue-900 dark:text-blue-200 mb-2">
+                    💡 {{ 'À quoi servent les conversions spécifiques ?' if lang == 'fr' else '食材別変換とは？' }}
+                </h2>
+                <p class="text-sm text-blue-800 dark:text-blue-300">
+                    {% if lang == 'fr' %}
+                    Les conversions spécifiques permettent de gérer les cas particuliers où un ingrédient ne suit pas les règles standard.
+                    Par exemple: le sucre en ml → g (densité différente de l'eau), ou le dashi en sachet → ml.
+                    {% else %}
+                    食材別変換は、標準的な変換規則に従わない特殊なケースを管理します。
+                    例：砂糖 ml → g（水とは密度が異なる）、出汁の素 袋 → ml。
+                    {% endif %}
+                </p>
+            </div>
+
+            <!-- Actions -->
+            <div class="flex justify-between items-center mb-6">
+                <div class="text-gray-600 dark:text-gray-400">
+                    {{ conversions|length }} {{ 'conversions spécifiques' if lang == 'fr' else '食材別変換' }}
+                </div>
+
+                <button @click="showAddForm = !showAddForm"
+                        class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700">
+                    <span x-show="!showAddForm">➕ {{ 'Ajouter' if lang == 'fr' else '追加' }}</span>
+                    <span x-show="showAddForm">✕ {{ 'Annuler' if lang == 'fr' else 'キャンセル' }}</span>
+                </button>
+            </div>
+
+            <!-- Formulaire d'ajout -->
+            <div x-show="showAddForm" x-transition class="mb-6 bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+                <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+                    {{ 'Nouvelle conversion spécifique' if lang == 'fr' else '新しい食材別変換' }}
+                </h2>
+                <form method="POST" action="/ingredient-specific-conversions/add" class="space-y-4">
+                    <input type="hidden" name="lang" value="{{ lang }}">
+
+                    <!-- Sélecteur d'ingrédient -->
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            {{ 'Ingrédient' if lang == 'fr' else '食材' }} *
+                        </label>
+                        <select name="ingredient_name_fr"
+                                x-model="newConversion.ingredient_name_fr"
+                                required
+                                class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white">
+                            <option value="">{{ 'Sélectionnez un ingrédient' if lang == 'fr' else '食材を選択' }}</option>
+                            <template x-for="ing in ingredients" :key="ing.id">
+                                <option :value="ing.ingredient_name_fr" x-text="ing.ingredient_name_fr + (ing.ingredient_name_jp ? ' (' + ing.ingredient_name_jp + ')' : '')"></option>
+                            </template>
+                        </select>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                {{ 'Unité source' if lang == 'fr' else '元の単位' }} *
+                            </label>
+                            <input type="text"
+                                   name="from_unit"
+                                   x-model="newConversion.from_unit"
+                                   required
+                                   placeholder="{{ 'Ex: ml' if lang == 'fr' else '例: ml' }}"
+                                   class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white">
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                {{ 'Unité cible' if lang == 'fr' else '変換後の単位' }} *
+                            </label>
+                            <input type="text"
+                                   name="to_unit"
+                                   x-model="newConversion.to_unit"
+                                   required
+                                   placeholder="{{ 'Ex: g' if lang == 'fr' else '例: g' }}"
+                                   class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white">
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                {{ 'Facteur' if lang == 'fr' else '係数' }} *
+                            </label>
+                            <input type="number"
+                                   name="factor"
+                                   x-model="newConversion.factor"
+                                   step="0.0001"
+                                   required
+                                   placeholder="{{ 'Ex: 1.6' if lang == 'fr' else '例: 1.6' }}"
+                                   class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white">
+                        </div>
+                    </div>
+
+                    <!-- Bouton suggestion IA -->
+                    <div class="flex items-center gap-3">
+                        <button type="button"
+                                @click="suggestWithAI()"
+                                :disabled="aiSuggesting"
+                                class="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:bg-gray-400 disabled:cursor-not-allowed">
+                            <span x-show="!aiSuggesting">🤖 {{ 'Suggérer avec l\'IA' if lang == 'fr' else 'AIで提案' }}</span>
+                            <span x-show="aiSuggesting">⏳ {{ 'Calcul en cours...' if lang == 'fr' else '計算中...' }}</span>
+                        </button>
+                        <span class="text-sm text-gray-600 dark:text-gray-400">
+                            {{ 'L\'IA peut suggérer un facteur de conversion approximatif' if lang == 'fr' else 'AIがおおよその変換係数を提案します' }}
+                        </span>
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            {{ 'Notes' if lang == 'fr' else 'メモ' }}
+                        </label>
+                        <input type="text"
+                               name="notes"
+                               x-model="newConversion.notes"
+                               placeholder="{{ 'Ex: Densité du sucre ≈ 1.6 g/ml' if lang == 'fr' else '例: 砂糖の密度 ≈ 1.6 g/ml' }}"
+                               class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white">
+                    </div>
+
+                    <div class="flex justify-end">
+                        <button type="submit"
+                                class="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700">
+                            💾 {{ 'Enregistrer' if lang == 'fr' else '保存' }}
+                        </button>
+                    </div>
+                </form>
+            </div>
+
+            <!-- Tableau des conversions -->
+            <div class="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
+                <table class="w-full">
+                    <thead class="bg-gray-50 dark:bg-gray-700">
+                        <tr>
+                            <th class="px-4 py-3 text-left text-sm font-medium text-gray-700 dark:text-gray-300">
+                                {{ 'Ingrédient' if lang == 'fr' else '食材' }}
+                            </th>
+                            <th class="px-4 py-3 text-left text-sm font-medium text-gray-700 dark:text-gray-300">
+                                {{ 'De' if lang == 'fr' else '元' }}
+                            </th>
+                            <th class="px-4 py-3 text-left text-sm font-medium text-gray-700 dark:text-gray-300">
+                                {{ 'Vers' if lang == 'fr' else '先' }}
+                            </th>
+                            <th class="px-4 py-3 text-left text-sm font-medium text-gray-700 dark:text-gray-300">
+                                {{ 'Facteur' if lang == 'fr' else '係数' }}
+                            </th>
+                            <th class="px-4 py-3 text-left text-sm font-medium text-gray-700 dark:text-gray-300">
+                                {{ 'Notes' if lang == 'fr' else 'メモ' }}
+                            </th>
+                            <th class="px-4 py-3 text-center text-sm font-medium text-gray-700 dark:text-gray-300">
+                                {{ 'Actions' if lang == 'fr' else 'アクション' }}
+                            </th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-200 dark:divide-gray-600">
+                        <template x-for="conv in sortedConversions" :key="conv.id">
+                            <tr x-data="{ editing: false }" class="hover:bg-gray-50 dark:hover:bg-gray-700">
+                                <!-- Mode affichage -->
+                                <template x-if="!editing">
+                                    <td class="px-4 py-3 text-sm font-semibold text-gray-900 dark:text-white" x-text="conv.ingredient_name_fr"></td>
+                                </template>
+                                <template x-if="!editing">
+                                    <td class="px-4 py-3 text-sm text-gray-600 dark:text-gray-400" x-text="conv.from_unit"></td>
+                                </template>
+                                <template x-if="!editing">
+                                    <td class="px-4 py-3 text-sm text-gray-600 dark:text-gray-400" x-text="conv.to_unit"></td>
+                                </template>
+                                <template x-if="!editing">
+                                    <td class="px-4 py-3 text-sm text-gray-600 dark:text-gray-400" x-text="conv.factor"></td>
+                                </template>
+                                <template x-if="!editing">
+                                    <td class="px-4 py-3 text-sm text-gray-600 dark:text-gray-400" x-text="conv.notes || '-'"></td>
+                                </template>
+                                <template x-if="!editing">
+                                    <td class="px-4 py-3 text-center space-x-2">
+                                        <button @click="editing = true"
+                                                class="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 text-sm">
+                                            ✏️
+                                        </button>
+                                        <form method="POST" :action="`/ingredient-specific-conversions/${conv.id}/delete`"
+                                              style="display: inline;"
+                                              onsubmit="return confirm('{{ 'Supprimer cette conversion ?' if lang == 'fr' else 'この変換を削除しますか？' }}');">
+                                            <input type="hidden" name="lang" value="{{ lang }}">
+                                            <button type="submit"
+                                                    class="text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300 text-sm">
+                                                🗑️
+                                            </button>
+                                        </form>
+                                    </td>
+                                </template>
+
+                                <!-- Mode édition -->
+                                <template x-if="editing">
+                                    <td colspan="6" class="px-4 py-4 bg-gray-50 dark:bg-gray-700">
+                                        <form method="POST" :action="`/ingredient-specific-conversions/${conv.id}/update`" class="space-y-3">
+                                            <input type="hidden" name="lang" value="{{ lang }}">
+
+                                            <div class="text-sm font-semibold text-gray-900 dark:text-white mb-2">
+                                                {{ 'Ingrédient:' if lang == 'fr' else '食材:' }} <span x-text="conv.ingredient_name_fr"></span>
+                                            </div>
+
+                                            <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                                                <div>
+                                                    <label class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                                        {{ 'Unité source' if lang == 'fr' else '元の単位' }}
+                                                    </label>
+                                                    <input type="text" name="from_unit" :value="conv.from_unit" required
+                                                           class="w-full px-2 py-1 border border-gray-300 dark:border-gray-600 rounded dark:bg-gray-600 dark:text-white text-sm">
+                                                </div>
+
+                                                <div>
+                                                    <label class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                                        {{ 'Unité cible' if lang == 'fr' else '変換後の単位' }}
+                                                    </label>
+                                                    <input type="text" name="to_unit" :value="conv.to_unit" required
+                                                           class="w-full px-2 py-1 border border-gray-300 dark:border-gray-600 rounded dark:bg-gray-600 dark:text-white text-sm">
+                                                </div>
+
+                                                <div>
+                                                    <label class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                                        {{ 'Facteur' if lang == 'fr' else '係数' }}
+                                                    </label>
+                                                    <input type="number" name="factor" :value="conv.factor" step="0.0001" required
+                                                           class="w-full px-2 py-1 border border-gray-300 dark:border-gray-600 rounded dark:bg-gray-600 dark:text-white text-sm">
+                                                </div>
+                                            </div>
+
+                                            <div>
+                                                <label class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                                    {{ 'Notes' if lang == 'fr' else 'メモ' }}
+                                                </label>
+                                                <input type="text" name="notes" :value="conv.notes || ''"
+                                                       class="w-full px-2 py-1 border border-gray-300 dark:border-gray-600 rounded dark:bg-gray-600 dark:text-white text-sm">
+                                            </div>
+
+                                            <div class="flex gap-2 justify-end">
+                                                <button type="submit"
+                                                        class="px-3 py-1 bg-green-600 text-white rounded text-sm hover:bg-green-700">
+                                                    💾 {{ 'Enregistrer' if lang == 'fr' else '保存' }}
+                                                </button>
+                                                <button type="button"
+                                                        @click="editing = false"
+                                                        class="px-3 py-1 bg-gray-500 text-white rounded text-sm hover:bg-gray-600">
+                                                    {{ 'Annuler' if lang == 'fr' else 'キャンセル' }}
+                                                </button>
+                                            </div>
+                                        </form>
+                                    </td>
+                                </template>
+                            </tr>
+                        </template>
+                    </tbody>
+                </table>
+
+                {% if not conversions %}
+                <div class="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
+                    {{ 'Aucune conversion spécifique configurée' if lang == 'fr' else '食材別変換が設定されていません' }}
+                </div>
+                {% endif %}
+            </div>
+
+            <!-- Exemples -->
+            <div class="mt-6 bg-gray-50 dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
+                <h3 class="text-sm font-semibold text-gray-900 dark:text-white mb-2">
+                    📚 {{ 'Exemples de conversions spécifiques' if lang == 'fr' else '食材別変換の例' }}
+                </h3>
+                <ul class="text-sm text-gray-600 dark:text-gray-400 space-y-1">
+                    <li>• {{ 'Sucre: 1 ml → 1.6 g (densité du sucre)' if lang == 'fr' else '砂糖: 1 ml → 1.6 g（砂糖の密度）' }}</li>
+                    <li>• {{ 'Dashi en poudre: 1 sachet → 250 ml' if lang == 'fr' else '出汁の素: 1袋 → 250 ml' }}</li>
+                    <li>• {{ 'Farine: 1 ml → 0.6 g (moins dense que l\'eau)' if lang == 'fr' else '小麦粉: 1 ml → 0.6 g（水より密度が低い）' }}</li>
+                </ul>
+            </div>
+        </main>
+    </div>
+</body>
+</html>

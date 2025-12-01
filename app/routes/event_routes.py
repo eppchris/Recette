@@ -146,7 +146,14 @@ async def event_update(
 ):
     """
     Met à jour un événement existant
+    Si le nombre de participants change et qu'une liste de courses existe,
+    la liste est automatiquement régénérée pour refléter le nouveau nombre.
     """
+    # Récupérer l'ancien événement pour comparer le nombre de participants
+    old_event = db.get_event_by_id(event_id)
+    old_attendees = old_event['attendees'] if old_event else None
+
+    # Mettre à jour l'événement
     db.update_event(
         event_id=event_id,
         event_type_id=event_type_id,
@@ -156,6 +163,29 @@ async def event_update(
         attendees=attendees,
         notes=notes
     )
+
+    # Si le nombre de participants a changé, ajuster les multiplicateurs de portions
+    # et régénérer la liste de courses si elle existe
+    if old_attendees is not None and old_attendees != attendees and old_attendees > 0:
+        # Calculer le ratio de changement du nombre de participants
+        ratio = attendees / old_attendees
+
+        # Mettre à jour tous les servings_multiplier des recettes de l'événement
+        db.update_event_recipes_multipliers(event_id, ratio)
+
+        # Si une liste de courses existe, la régénérer avec les nouvelles quantités
+        shopping_list_items = db.get_shopping_list_items(event_id)
+
+        if len(shopping_list_items) > 0:
+            # Récupérer les recettes de l'événement avec les ingrédients (avec les nouveaux multiplicateurs)
+            recipes_data = db.get_event_recipes_with_ingredients(event_id, lang)
+
+            if recipes_data:
+                # Régénérer la liste de courses avec les nouvelles quantités
+                from app.services.ingredient_aggregator import get_ingredient_aggregator
+                aggregator = get_ingredient_aggregator()
+                aggregated_ingredients = aggregator.aggregate_ingredients(recipes_data, lang)
+                db.save_shopping_list_items(event_id, aggregated_ingredients)
 
     return RedirectResponse(
         url=f"/events/{event_id}?lang={lang}",
@@ -226,22 +256,9 @@ async def event_add_all_recipes_by_type(
     if not event:
         raise HTTPException(status_code=404, detail="Événement non trouvé")
 
-    # Mapper le type d'événement au type de recette
-    event_type_name = event['event_type_name']
-
-    # Si le type d'événement est INVITATION, on utilise PERSO
-    if event_type_name == "INVITATION":
-        recipe_type = "PERSO" if lang == "fr" else "じぶん"
-    else:
-        # Pour PRO et MASTER, on utilise directement le nom du type
-        recipe_type_map = {
-            "PRO": {"fr": "PRO", "jp": "プロ"},
-            "MASTER": {"fr": "MASTER", "jp": "マイスター"}
-        }
-        recipe_type = recipe_type_map.get(event_type_name, {}).get(lang, event_type_name)
-
-    # Récupérer toutes les recettes de ce type
-    recipes = db.list_recipes_by_type(recipe_type, lang)
+    # Récupérer toutes les recettes liées à ce type d'événement via many-to-many
+    event_type_id = event['event_type_id']
+    recipes = db.list_recipes_by_event_types([event_type_id], lang)
 
     # Ajouter chaque recette à l'événement (avec multiplicateur 1.0)
     for recipe in recipes:
@@ -749,6 +766,72 @@ async def save_ingredient_budget(
     )
 
 
+@router.post("/events/{event_id}/budget/ingredients/sync-catalog")
+async def sync_ingredient_prices_from_catalog(
+    event_id: int,
+    lang: str = Form("fr")
+):
+    """
+    Synchronise les prix des ingrédients du budget avec les prix actuels du catalogue
+    """
+    # Récupérer l'événement
+    event = db.get_event_by_id(event_id)
+    if not event:
+        return JSONResponse(
+            content={"success": False, "error": "Événement non trouvé"},
+            status_code=404
+        )
+
+    # Récupérer la liste de courses
+    shopping_list = db.get_shopping_list_items(event_id)
+
+    # Déterminer la devise selon la langue
+    currency = 'EUR' if lang == 'fr' else 'JPY'
+
+    updated_count = 0
+    updated_items = []
+
+    # Pour chaque ingrédient, récupérer le prix actuel du catalogue
+    for item in shopping_list:
+        ingredient_name = item['ingredient_name']
+        quantity = item.get('needed_quantity') or item.get('purchase_quantity') or 0
+        unit = item.get('needed_unit') or item.get('purchase_unit', '')
+
+        # Sauter si pas de quantité
+        if not quantity:
+            continue
+
+        # Calculer le prix depuis le catalogue
+        price_result = db.calculate_ingredient_price(
+            ingredient_name,
+            quantity,
+            unit,
+            currency
+        )
+
+        if price_result and price_result.get('unit_price') is not None:
+            unit_price = price_result['unit_price']
+
+            # Mettre à jour le prix prévu avec le prix du catalogue
+            db.update_shopping_list_item_prices(item['id'], unit_price, None)
+
+            updated_count += 1
+            updated_items.append({
+                'id': item['id'],
+                'name': ingredient_name,
+                'unit_price': unit_price,
+                'total_price': price_result.get('total_price', 0)
+            })
+
+    return JSONResponse(content={
+        "success": True,
+        "updated_count": updated_count,
+        "items": updated_items,
+        "message": f"{updated_count} prix mis à jour depuis le catalogue" if lang == 'fr'
+                   else f"{updated_count}個の価格がカタログから更新されました"
+    })
+
+
 @router.post("/events/{event_id}/expenses/{expense_id}/update")
 async def event_update_expense(
     request: Request,
@@ -912,7 +995,7 @@ async def api_get_ingredient_catalog_info(
                 price_eur,
                 price_jpy,
                 qty,
-                last_updated
+                updated_at
             FROM ingredient_price_catalog
             WHERE LOWER(ingredient_name_fr) = LOWER(?) OR LOWER(ingredient_name_jp) = LOWER(?)
             LIMIT 1
@@ -933,7 +1016,7 @@ async def api_get_ingredient_catalog_info(
                 "price_eur": None,
                 "price_jpy": None,
                 "qty": 1.0,
-                "last_updated": None
+                "updated_at": None
             })
 
 
@@ -965,7 +1048,7 @@ async def api_update_ingredient_catalog(
                     price_eur = ?,
                     price_jpy = ?,
                     qty = ?,
-                    last_updated = CURRENT_TIMESTAMP
+                    updated_at = CURRENT_TIMESTAMP
                 WHERE id = ?
             """, (ingredient_name_fr, ingredient_name_jp, unit_fr, unit_jp,
                   price_eur, price_jpy, qty, ingredient_id))
