@@ -325,3 +325,76 @@ async def admin_new_user_create(
             "admin_user_new.html",
             {"request": request, "lang": lang, "error": error}
         )
+
+
+@router.post("/admin/users/{user_id}/delete")
+async def delete_user_endpoint(request: Request, user_id: int, lang: str = Query("fr")):
+    """Supprime un utilisateur (admins uniquement)"""
+    admin_user_id = request.session.get("user_id")
+    is_admin = request.session.get("is_admin")
+
+    # Vérifier que l'utilisateur est connecté et admin
+    if not admin_user_id or not is_admin:
+        return RedirectResponse(url=f"/recipes?lang={lang}", status_code=303)
+
+    # Empêcher de se supprimer soi-même
+    if user_id == admin_user_id:
+        error = "Vous ne pouvez pas vous supprimer vous-même" if lang == "fr" else "自分自身を削除できません"
+        return RedirectResponse(url=f"/admin/users?lang={lang}&error={error}", status_code=303)
+
+    # Récupérer l'utilisateur
+    user = get_user_by_id(user_id)
+    if not user:
+        return RedirectResponse(url=f"/admin/users?lang={lang}", status_code=303)
+
+    username = user['username']
+
+    # Supprimer l'utilisateur (vraie suppression)
+    from app.models.db_core import get_db
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM user WHERE id = ?", (user_id,))
+        conn.commit()
+
+    success = f"Utilisateur {username} supprimé" if lang == "fr" else f"ユーザー {username} を削除しました"
+    return RedirectResponse(url=f"/admin/users?lang={lang}&success={success}", status_code=303)
+
+
+@router.post("/admin/users/{user_id}/reset-password")
+async def reset_user_password(
+    request: Request,
+    user_id: int,
+    new_password: str = Form(...),
+    new_password_confirm: str = Form(...),
+    lang: str = Query("fr")
+):
+    """Réinitialise le mot de passe d'un utilisateur (admins uniquement, sans ancien mot de passe)"""
+    admin_user_id = request.session.get("user_id")
+    is_admin = request.session.get("is_admin")
+
+    # Vérifier que l'utilisateur est connecté et admin
+    if not admin_user_id or not is_admin:
+        return RedirectResponse(url=f"/recipes?lang={lang}", status_code=303)
+
+    # Vérifier que les mots de passe correspondent
+    if new_password != new_password_confirm:
+        error = "Les mots de passe ne correspondent pas" if lang == "fr" else "パスワードが一致しません"
+        return RedirectResponse(url=f"/admin/users?lang={lang}&error={error}", status_code=303)
+
+    # Vérifier la longueur du mot de passe
+    if len(new_password) < 6:
+        error = "Le mot de passe doit contenir au moins 6 caractères" if lang == "fr" else "パスワードは6文字以上である必要があります"
+        return RedirectResponse(url=f"/admin/users?lang={lang}&error={error}", status_code=303)
+
+    # Récupérer l'utilisateur
+    user = get_user_by_id(user_id)
+    if not user:
+        return RedirectResponse(url=f"/admin/users?lang={lang}", status_code=303)
+
+    username = user['username']
+
+    # Changer le mot de passe
+    update_user_password(user_id, new_password)
+
+    success = f"Mot de passe de {username} modifié" if lang == "fr" else f"{username} のパスワードを変更しました"
+    return RedirectResponse(url=f"/admin/users?lang={lang}&success={success}", status_code=303)

@@ -153,25 +153,107 @@
             {{ user.last_login.split(' ')[0] if user.last_login else '-' }}
           </td>
           <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-            <form method="POST" action="/admin/users/{{ user.id }}/toggle-active?lang={{ lang }}" class="inline">
-              {% if user.id != request.session.get('user_id') %}
+            {% if user.id != request.session.get('user_id') %}
+            <div class="flex gap-2 justify-end" x-data="{ showPasswordModal: false }">
+              <!-- Bouton Activer/Désactiver -->
+              <form method="POST" action="/admin/users/{{ user.id }}/toggle-active?lang={{ lang }}" class="inline">
+                <button
+                  type="submit"
+                  class="{% if user.is_active %}text-orange-600 hover:text-orange-900 dark:text-orange-400{% else %}text-green-600 hover:text-green-900 dark:text-green-400{% endif %}"
+                  onclick="return confirm('{% if lang == 'fr' %}Êtes-vous sûr ?{% else %}本当によろしいですか？{% endif %}')"
+                  title="{% if user.is_active %}{% if lang == 'fr' %}Désactiver{% else %}無効化{% endif %}{% else %}{% if lang == 'fr' %}Activer{% else %}有効化{% endif %}{% endif %}"
+                >
+                  {% if user.is_active %}
+                    {% if lang == 'fr' %}Désactiver{% else %}無効化{% endif %}
+                  {% else %}
+                    {% if lang == 'fr' %}Activer{% else %}有効化{% endif %}
+                  {% endif %}
+                </button>
+              </form>
+
+              <!-- Bouton Changer mot de passe -->
               <button
-                type="submit"
-                class="{% if user.is_active %}text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300{% else %}text-green-600 hover:text-green-900 dark:text-green-400 dark:hover:text-green-300{% endif %} font-medium"
-                onclick="return confirm('{% if lang == 'fr' %}Êtes-vous sûr ?{% else %}本当によろしいですか？{% endif %}')"
+                @click="showPasswordModal = true"
+                class="text-blue-600 hover:text-blue-900 dark:text-blue-400"
+                title="{% if lang == 'fr' %}Changer le mot de passe{% else %}パスワード変更{% endif %}"
               >
-                {% if user.is_active %}
-                  {% if lang == 'fr' %}Désactiver{% else %}無効化{% endif %}
-                {% else %}
-                  {% if lang == 'fr' %}Activer{% else %}有効化{% endif %}
-                {% endif %}
+                {% if lang == 'fr' %}Mot de passe{% else %}パスワード{% endif %}
               </button>
-              {% else %}
-              <span class="text-gray-400 dark:text-gray-600">
-                {% if lang == 'fr' %}Vous{% else %}あなた{% endif %}
-              </span>
-              {% endif %}
-            </form>
+
+              <!-- Bouton Supprimer -->
+              <form method="POST" action="/admin/users/{{ user.id }}/delete?lang={{ lang }}" class="inline">
+                <button
+                  type="submit"
+                  class="text-red-600 hover:text-red-900 dark:text-red-400"
+                  onclick="return confirm('{% if lang == 'fr' %}Voulez-vous vraiment supprimer {{ user.username }} ? Cette action est irréversible.{% else %}{{ user.username }} を削除しますか？この操作は元に戻せません。{% endif %}')"
+                  title="{% if lang == 'fr' %}Supprimer{% else %}削除{% endif %}"
+                >
+                  {% if lang == 'fr' %}Supprimer{% else %}削除{% endif %}
+                </button>
+              </form>
+
+              <!-- Modal Changement de mot de passe -->
+              <div
+                x-show="showPasswordModal"
+                x-cloak
+                class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+                @click.self="showPasswordModal = false"
+              >
+                <div class="bg-white dark:bg-gray-800 rounded-lg shadow-xl p-6 max-w-md w-full mx-4">
+                  <h3 class="text-lg font-bold mb-4">
+                    {% if lang == 'fr' %}Changer le mot de passe de {{ user.username }}{% else %}{{ user.username }} のパスワード変更{% endif %}
+                  </h3>
+                  <form method="POST" action="/admin/users/{{ user.id }}/reset-password?lang={{ lang }}">
+                    <div class="space-y-4">
+                      <div>
+                        <label class="block text-sm font-medium mb-2">
+                          {% if lang == 'fr' %}Nouveau mot de passe{% else %}新しいパスワード{% endif %}
+                        </label>
+                        <input
+                          type="password"
+                          name="new_password"
+                          required
+                          minlength="6"
+                          class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 focus:ring-2 focus:ring-blue-500"
+                        >
+                      </div>
+                      <div>
+                        <label class="block text-sm font-medium mb-2">
+                          {% if lang == 'fr' %}Confirmer le mot de passe{% else %}パスワード確認{% endif %}
+                        </label>
+                        <input
+                          type="password"
+                          name="new_password_confirm"
+                          required
+                          minlength="6"
+                          class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 focus:ring-2 focus:ring-blue-500"
+                        >
+                      </div>
+                      <div class="flex gap-2 justify-end">
+                        <button
+                          type="button"
+                          @click="showPasswordModal = false"
+                          class="px-4 py-2 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg"
+                        >
+                          {% if lang == 'fr' %}Annuler{% else %}キャンセル{% endif %}
+                        </button>
+                        <button
+                          type="submit"
+                          class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg"
+                        >
+                          {% if lang == 'fr' %}Enregistrer{% else %}保存{% endif %}
+                        </button>
+                      </div>
+                    </div>
+                  </form>
+                </div>
+              </div>
+            </div>
+            {% else %}
+            <span class="text-gray-400 dark:text-gray-600">
+              {% if lang == 'fr' %}Vous{% else %}あなた{% endif %}
+            </span>
+            {% endif %}
           </td>
         </tr>
         {% endfor %}
