@@ -41,14 +41,14 @@ ALTER TABLE ingredient_price_catalog ADD COLUMN created_by INTEGER REFERENCES us
 -- Données de test : Créer un utilisateur admin par défaut
 -- ============================================================================
 -- Mot de passe : "admin123" (à changer après première connexion)
--- Hash bcrypt : $2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewY5eDzNq3tJZ7Wy
+-- Hash PBKDF2-SHA256 : $pbkdf2-sha256$29000$2TtHKAVA6N3735vT.l.r1Q$ZU0fCFkHJLOiNMtMkU2PceL/2oumGnW3H4Xq.DE9OEw
 
 INSERT OR IGNORE INTO user (id, username, email, password_hash, display_name, is_admin)
 VALUES (
     1,
     'admin',
     'admin@recette.local',
-    '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewY5eDzNq3tJZ7Wy',
+    '$pbkdf2-sha256$29000$2TtHKAVA6N3735vT.l.r1Q$ZU0fCFkHJLOiNMtMkU2PceL/2oumGnW3H4Xq.DE9OEw',
     'Administrateur',
     1
 );

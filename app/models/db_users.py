@@ -1,41 +1,50 @@
 """
 Module de gestion des utilisateurs et authentification
 """
-import bcrypt
+from passlib.hash import pbkdf2_sha256
 from datetime import datetime
 from .db_core import get_db
 
 
 def hash_password(password: str) -> str:
     """
-    Hash un mot de passe avec bcrypt
+    Hash un mot de passe avec PBKDF2-SHA256
 
     Args:
         password: Mot de passe en clair
 
     Returns:
-        Hash bcrypt du mot de passe
+        Hash du mot de passe
     """
-    password_bytes = password.encode('utf-8')
-    salt = bcrypt.gensalt()
-    hashed = bcrypt.hashpw(password_bytes, salt)
-    return hashed.decode('utf-8')
+    return pbkdf2_sha256.hash(password)
 
 
 def verify_password(password: str, password_hash: str) -> bool:
     """
     Vérifie un mot de passe contre son hash
+    Compatible avec les anciens hash bcrypt ET les nouveaux hash PBKDF2
 
     Args:
         password: Mot de passe en clair
-        password_hash: Hash bcrypt stocké
+        password_hash: Hash stocké (bcrypt ou pbkdf2)
 
     Returns:
         True si le mot de passe correspond
     """
-    password_bytes = password.encode('utf-8')
-    hash_bytes = password_hash.encode('utf-8')
-    return bcrypt.checkpw(password_bytes, hash_bytes)
+    # Vérifier si c'est un hash bcrypt (commence par $2b$)
+    if password_hash.startswith('$2b$') or password_hash.startswith('$2a$'):
+        try:
+            import bcrypt
+            password_bytes = password.encode('utf-8')
+            hash_bytes = password_hash.encode('utf-8')
+            return bcrypt.checkpw(password_bytes, hash_bytes)
+        except ImportError:
+            # Si bcrypt n'est pas disponible, impossible de vérifier les anciens hash
+            # L'utilisateur devra réinitialiser son mot de passe
+            return False
+
+    # Sinon, utiliser pbkdf2_sha256
+    return pbkdf2_sha256.verify(password, password_hash)
 
 
 def create_user(username: str, email: str, password: str, display_name: str = None, is_admin: bool = False) -> int:
