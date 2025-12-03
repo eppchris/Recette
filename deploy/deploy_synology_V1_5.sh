@@ -148,7 +148,7 @@ ENDSSH
 # 6. Installation des dépendances
 echo ""
 echo "📚 Étape 6/8 : Installation des dépendances..."
-echo "   (Cela peut prendre quelques minutes pour bcrypt...)"
+echo "   (Installation de passlib - pure Python, pas de compilation)"
 ssh $SYNOLOGY_SSH << 'ENDSSH'
 cd recette
 source venv/bin/activate
@@ -157,9 +157,9 @@ echo "  🔄 Mise à jour de pip..."
 pip install --upgrade pip -q
 
 echo "  📦 Installation des dépendances..."
-echo "     • bcrypt (hash des mots de passe)"
+echo "     • passlib (hash des mots de passe - pure Python)"
 echo "     • pytest (tests unitaires)"
-echo "     • starlette[full] (sessions)"
+echo "     • Autres dépendances..."
 pip install -r requirements.txt
 
 echo "✅ Toutes les dépendances sont installées"
