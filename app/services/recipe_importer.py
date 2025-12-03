@@ -3,7 +3,7 @@ import sqlite3
 import re
 import unicodedata
 
-from app.models.db import DB_PATH
+from app.models.db_core import DB_PATH
 
 
 def slugify(text: str) -> str:

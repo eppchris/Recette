@@ -4,7 +4,7 @@ Middleware pour logger tous les accès à l'application
 import time
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
-from app.models import db
+from app.models import log_access
 
 
 class AccessLoggerMiddleware(BaseHTTPMiddleware):
@@ -34,7 +34,7 @@ class AccessLoggerMiddleware(BaseHTTPMiddleware):
 
         # Logger l'accès (de manière asynchrone pour ne pas ralentir la réponse)
         try:
-            db.log_access(
+            log_access(
                 ip_address=client_ip,
                 user_agent=user_agent,
                 path=path,

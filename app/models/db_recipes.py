@@ -4,12 +4,13 @@ Module de gestion des recettes
 from .db_core import get_db
 
 
-def list_recipes(lang: str):
+def list_recipes(lang: str, user_id: int = None):
     """
     Liste toutes les recettes dans la langue demandée
 
     Args:
         lang: Code de langue ('fr' ou 'jp')
+        user_id: ID utilisateur optionnel pour filtrer par créateur
 
     Returns:
         Liste des recettes avec leurs informations de base
@@ -24,12 +25,24 @@ def list_recipes(lang: str):
                 r.image_url,
                 r.thumbnail_url,
                 COALESCE(rt.name, r.slug) AS name,
-                rt.recipe_type AS type
+                rt.recipe_type AS type,
+                r.user_id,
+                COALESCE(u.display_name, u.username) AS creator_name
             FROM recipe r
             LEFT JOIN recipe_translation rt ON rt.recipe_id = r.id AND rt.lang = ?
-            ORDER BY name COLLATE NOCASE
+            LEFT JOIN user u ON u.id = r.user_id
         """
-        rows = con.execute(sql, (lang,)).fetchall()
+
+        params = [lang]
+
+        # Ajouter le filtre par créateur si spécifié
+        if user_id is not None:
+            sql += " WHERE r.user_id = ?"
+            params.append(user_id)
+
+        sql += " ORDER BY name COLLATE NOCASE"
+
+        rows = con.execute(sql, params).fetchall()
         # Convertir les Row en dictionnaires pour le JSON
         return [dict(row) for row in rows]
 
@@ -62,6 +75,45 @@ def list_recipes_by_type(recipe_type: str, lang: str):
             ORDER BY name COLLATE NOCASE
         """
         rows = con.execute(sql, (lang, recipe_type)).fetchall()
+        return [dict(row) for row in rows]
+
+
+def list_recipes_by_event_types(event_type_ids: list, lang: str):
+    """
+    Liste toutes les recettes associées à un ou plusieurs types d'événements
+
+    Args:
+        event_type_ids: Liste des IDs de types d'événements
+        lang: Code de langue ('fr' ou 'jp')
+
+    Returns:
+        Liste des recettes avec leurs informations de base
+    """
+    if not event_type_ids:
+        return []
+
+    with get_db() as con:
+        # Créer les placeholders pour la clause IN
+        placeholders = ','.join('?' * len(event_type_ids))
+
+        sql = f"""
+            SELECT DISTINCT
+                r.id,
+                r.slug,
+                r.servings_default AS servings,
+                r.country,
+                r.image_url,
+                r.thumbnail_url,
+                COALESCE(rt.name, r.slug) AS name,
+                rt.recipe_type AS type
+            FROM recipe r
+            LEFT JOIN recipe_translation rt ON rt.recipe_id = r.id AND rt.lang = ?
+            INNER JOIN recipe_event_type ret ON ret.recipe_id = r.id
+            WHERE ret.event_type_id IN ({placeholders})
+            ORDER BY name COLLATE NOCASE
+        """
+        params = [lang] + event_type_ids
+        rows = con.execute(sql, params).fetchall()
         return [dict(row) for row in rows]
 
 

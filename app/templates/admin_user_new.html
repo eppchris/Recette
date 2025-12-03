@@ -1,0 +1,232 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="max-w-2xl mx-auto">
+  <!-- Header -->
+  <div class="mb-8">
+    <div class="flex items-center gap-4 mb-4">
+      <a
+        href="/admin/users?lang={{ lang }}"
+        class="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100"
+      >
+        ← {% if lang == 'fr' %}Retour{% else %}戻る{% endif %}
+      </a>
+    </div>
+    <h1 class="text-3xl font-bold mb-2">
+      {% if lang == 'fr' %}
+        Nouvel utilisateur
+      {% else %}
+        新規ユーザー
+      {% endif %}
+    </h1>
+    <p class="text-gray-600 dark:text-gray-400">
+      {% if lang == 'fr' %}
+        Créer un nouveau compte utilisateur
+      {% else %}
+        新しいユーザーアカウントを作成
+      {% endif %}
+    </p>
+  </div>
+
+  <!-- Card de formulaire -->
+  <div class="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-8">
+
+    <!-- Message d'erreur -->
+    {% if error %}
+    <div class="mb-6 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-red-600 dark:text-red-400 text-sm">
+      {{ error }}
+    </div>
+    {% endif %}
+
+    <!-- Formulaire -->
+    <form method="POST" action="/admin/users/new?lang={{ lang }}" class="space-y-6" onsubmit="return validateForm(event)">
+
+      <!-- Nom d'utilisateur -->
+      <div>
+        <label for="username" class="block text-sm font-medium mb-2">
+          {% if lang == 'fr' %}
+            Nom d'utilisateur <span class="text-red-500">*</span>
+          {% else %}
+            ユーザー名 <span class="text-red-500">*</span>
+          {% endif %}
+        </label>
+        <input
+          type="text"
+          id="username"
+          name="username"
+          required
+          autofocus
+          minlength="3"
+          maxlength="50"
+          pattern="[a-zA-Z0-9_-]+"
+          class="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 transition"
+          placeholder="{% if lang == 'fr' %}john_doe{% else %}user123{% endif %}"
+        >
+        <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+          {% if lang == 'fr' %}
+            3 caractères minimum, lettres, chiffres, - et _ uniquement
+          {% else %}
+            3文字以上、英数字とハイフン、アンダースコアのみ
+          {% endif %}
+        </p>
+      </div>
+
+      <!-- Email -->
+      <div>
+        <label for="email" class="block text-sm font-medium mb-2">
+          {% if lang == 'fr' %}
+            Adresse email <span class="text-red-500">*</span>
+          {% else %}
+            メールアドレス <span class="text-red-500">*</span>
+          {% endif %}
+        </label>
+        <input
+          type="email"
+          id="email"
+          name="email"
+          required
+          class="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 transition"
+          placeholder="{% if lang == 'fr' %}john@example.com{% else %}user@example.com{% endif %}"
+        >
+      </div>
+
+      <!-- Nom d'affichage -->
+      <div>
+        <label for="display_name" class="block text-sm font-medium mb-2">
+          {% if lang == 'fr' %}
+            Nom d'affichage
+          {% else %}
+            表示名
+          {% endif %}
+        </label>
+        <input
+          type="text"
+          id="display_name"
+          name="display_name"
+          maxlength="100"
+          class="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 transition"
+          placeholder="{% if lang == 'fr' %}John Doe{% else %}太郎{% endif %}"
+        >
+        <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+          {% if lang == 'fr' %}
+            Optionnel - Si vide, le nom d'utilisateur sera utilisé
+          {% else %}
+            任意 - 空の場合はユーザー名が使用されます
+          {% endif %}
+        </p>
+      </div>
+
+      <!-- Mot de passe -->
+      <div>
+        <label for="password" class="block text-sm font-medium mb-2">
+          {% if lang == 'fr' %}
+            Mot de passe <span class="text-red-500">*</span>
+          {% else %}
+            パスワード <span class="text-red-500">*</span>
+          {% endif %}
+        </label>
+        <input
+          type="password"
+          id="password"
+          name="password"
+          required
+          minlength="6"
+          class="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 transition"
+          placeholder="{% if lang == 'fr' %}6 caractères minimum{% else %}6文字以上{% endif %}"
+        >
+      </div>
+
+      <!-- Confirmation mot de passe -->
+      <div>
+        <label for="password_confirm" class="block text-sm font-medium mb-2">
+          {% if lang == 'fr' %}
+            Confirmer le mot de passe <span class="text-red-500">*</span>
+          {% else %}
+            パスワード確認 <span class="text-red-500">*</span>
+          {% endif %}
+        </label>
+        <input
+          type="password"
+          id="password_confirm"
+          name="password_confirm"
+          required
+          minlength="6"
+          class="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 transition"
+          placeholder="{% if lang == 'fr' %}Même mot de passe{% else %}同じパスワード{% endif %}"
+        >
+      </div>
+
+      <!-- Checkbox Admin -->
+      <div class="border-t border-gray-200 dark:border-gray-700 pt-6">
+        <div class="flex items-start">
+          <div class="flex items-center h-5">
+            <input
+              id="is_admin"
+              name="is_admin"
+              type="checkbox"
+              value="true"
+              class="w-4 h-4 text-purple-600 bg-gray-100 border-gray-300 rounded focus:ring-purple-500 dark:focus:ring-purple-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
+            >
+          </div>
+          <div class="ml-3">
+            <label for="is_admin" class="font-medium">
+              {% if lang == 'fr' %}
+                Administrateur
+              {% else %}
+                管理者
+              {% endif %}
+            </label>
+            <p class="text-sm text-gray-500 dark:text-gray-400">
+              {% if lang == 'fr' %}
+                Les administrateurs ont accès à la gestion des utilisateurs et aux paramètres
+              {% else %}
+                管理者はユーザー管理と設定にアクセスできます
+              {% endif %}
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Boutons d'action -->
+      <div class="flex gap-4 pt-4">
+        <a
+          href="/admin/users?lang={{ lang }}"
+          class="flex-1 text-center bg-gray-600 hover:bg-gray-700 dark:bg-gray-700 dark:hover:bg-gray-600 text-white font-medium py-3 rounded-lg transition"
+        >
+          {% if lang == 'fr' %}
+            Annuler
+          {% else %}
+            キャンセル
+          {% endif %}
+        </a>
+        <button
+          type="submit"
+          class="flex-1 bg-blue-600 hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600 text-white font-medium py-3 rounded-lg transition"
+        >
+          {% if lang == 'fr' %}
+            Créer l'utilisateur
+          {% else %}
+            ユーザーを作成
+          {% endif %}
+        </button>
+      </div>
+
+    </form>
+
+  </div>
+</div>
+
+<script>
+  function validateForm(event) {
+    const password = document.getElementById('password').value;
+    const passwordConfirm = document.getElementById('password_confirm').value;
+
+    if (password !== passwordConfirm) {
+      event.preventDefault();
+      alert("{% if lang == 'fr' %}Les mots de passe ne correspondent pas{% else %}パスワードが一致しません{% endif %}");
+      return false;
+    }
+    return true;
+  }
+</script>
+{% endblock %}

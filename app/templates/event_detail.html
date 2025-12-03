@@ -146,7 +146,7 @@
                     {% for recipe in recipes %}
                     <div class="flex items-center justify-between p-4 border border-gray-200 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700">
                         <div class="flex-1">
-                            <a href="/recipe/{{ recipe.slug }}?lang={{ lang }}" class="font-medium text-blue-600 dark:text-blue-400 hover:underline">
+                            <a href="/recipe/{{ recipe.slug }}?lang={{ lang }}&event_id={{ event.id }}" class="font-medium text-blue-600 dark:text-blue-400 hover:underline">
                                 {{ recipe.name }}
                             </a>
                             <p class="text-sm text-gray-500 dark:text-gray-400">
@@ -171,7 +171,7 @@
                     <a href="/events/{{ event.id }}/shopping-list?lang={{ lang }}"
                        class="inline-flex items-center gap-2 px-6 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 font-medium">
                         <span>📝</span>
-                        <span>{% if has_shopping_list %}{{ 'Modifier la liste' if lang == 'fr' else 'リストを編集' }}{% else %}{{ S('generate_shopping_list') }}{% endif %}</span>
+                        <span>{{ 'Liste d\'ingrédients' if lang == 'fr' else '材料リスト' }}</span>
                     </a>
                     <a href="/events/{{ event.id }}/budget?lang={{ lang }}"
                        class="inline-flex items-center gap-2 px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium">

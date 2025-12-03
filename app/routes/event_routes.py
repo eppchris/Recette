@@ -66,13 +66,16 @@ async def event_create(
     """
     Crée un nouvel événement
     """
+    user_id = request.session.get('user_id')  # Récupérer l'utilisateur connecté
+
     event_id = db.create_event(
         event_type_id=event_type_id,
         name=name,
         event_date=event_date,
         location=location,
         attendees=attendees,
-        notes=notes
+        notes=notes,
+        user_id=user_id
     )
 
     return RedirectResponse(
@@ -734,12 +737,16 @@ async def save_ingredient_budget(
     # Récupérer la liste de courses
     shopping_list = db.get_shopping_list_items(event_id)
 
-    # Sauvegarder les prix unitaires prévus pour chaque ingrédient
+    # Sauvegarder les prix unitaires prévus et montants dépensés pour chaque ingrédient
     for item in shopping_list:
         planned_price_key = f"ingredient_{item['id']}_price"
+        actual_total_key = f"ingredient_{item['id']}_actual"
+
         planned_price_str = form_data.get(planned_price_key)
+        actual_total_str = form_data.get(actual_total_key)
 
         planned_price = None
+        actual_total = None
 
         if planned_price_str:
             try:
@@ -747,9 +754,15 @@ async def save_ingredient_budget(
             except (ValueError, TypeError):
                 pass
 
-        # Mettre à jour seulement le prix prévu
-        if planned_price is not None:
-            db.update_shopping_list_item_prices(item['id'], planned_price, None)
+        if actual_total_str:
+            try:
+                actual_total = float(actual_total_str)
+            except (ValueError, TypeError):
+                pass
+
+        # Mettre à jour les prix prévus et montants dépensés
+        if planned_price is not None or actual_total is not None:
+            db.update_shopping_list_item_prices(item['id'], planned_price, actual_total)
 
     # Sauvegarder le montant total réel des ingrédients au niveau de l'événement
     ingredients_actual_total_str = form_data.get('ingredients_actual_total')

@@ -160,7 +160,7 @@ def get_event_by_id(event_id: int):
         return dict(result) if result else None
 
 
-def create_event(event_type_id: int, name: str, event_date: str, location: str, attendees: int, notes: str = ''):
+def create_event(event_type_id: int, name: str, event_date: str, location: str, attendees: int, notes: str = '', user_id: int = None):
     """
     Crée un nouvel événement
 
@@ -171,16 +171,17 @@ def create_event(event_type_id: int, name: str, event_date: str, location: str, 
         location: Lieu de l'événement
         attendees: Nombre de convives
         notes: Notes optionnelles
+        user_id: ID de l'utilisateur créateur (optionnel)
 
     Returns:
         ID du nouvel événement créé
     """
     with get_db() as con:
         sql = """
-            INSERT INTO event (event_type_id, name, event_date, location, attendees, notes)
-            VALUES (?, ?, ?, ?, ?, ?)
+            INSERT INTO event (event_type_id, name, event_date, location, attendees, notes, user_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
         """
-        cursor = con.execute(sql, (event_type_id, name, event_date, location, attendees, notes))
+        cursor = con.execute(sql, (event_type_id, name, event_date, location, attendees, notes, user_id))
         return cursor.lastrowid
 
 
@@ -406,3 +407,49 @@ def get_event_recipes_with_ingredients(event_id: int, lang: str):
             })
 
         return result
+
+
+def get_recipe_event_types(recipe_id: int):
+    """
+    Récupère les types d'événements associés à une recette
+
+    Args:
+        recipe_id: ID de la recette
+
+    Returns:
+        Liste des types d'événements (id, name_fr, name_jp)
+    """
+    with get_db() as con:
+        sql = """
+            SELECT
+                et.id,
+                et.name_fr,
+                et.name_jp
+            FROM event_type et
+            JOIN recipe_event_type ret ON ret.event_type_id = et.id
+            WHERE ret.recipe_id = ?
+            ORDER BY et.name_fr
+        """
+        rows = con.execute(sql, (recipe_id,)).fetchall()
+        return [dict(row) for row in rows]
+
+
+def set_recipe_event_types(recipe_id: int, event_type_ids: list):
+    """
+    Définit les types d'événements d'une recette (remplace les anciens)
+
+    Args:
+        recipe_id: ID de la recette
+        event_type_ids: Liste des IDs de types d'événements
+    """
+    with get_db() as con:
+        cursor = con.cursor()
+        # Supprimer les anciennes associations
+        cursor.execute("DELETE FROM recipe_event_type WHERE recipe_id = ?", (recipe_id,))
+        # Ajouter les nouvelles
+        for event_type_id in event_type_ids:
+            cursor.execute(
+                "INSERT INTO recipe_event_type (recipe_id, event_type_id) VALUES (?, ?)",
+                (recipe_id, event_type_id)
+            )
+        con.commit()

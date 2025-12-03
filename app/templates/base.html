@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="{{ 'jp' if lang=='jp' else 'fr' }}" x-data="{ darkMode: false, sidebarOpen: true }" :class="{ 'dark': darkMode }">
+<html lang="{{ 'jp' if lang=='jp' else 'fr' }}" x-data="{ darkMode: false, sidebarOpen: true, recipesOpen: true, gestionOpen: false, parametrageOpen: false }" :class="{ 'dark': darkMode }">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -41,18 +41,21 @@
     </div>
 
     <!-- Navigation -->
-    <nav class="p-4 space-y-2">
+    <nav class="p-4 space-y-2 pb-96">
       <!-- Section Recettes -->
       <div>
-        <a 
-          href="/recipes?lang={{ lang }}" 
-          class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition group"
+        <button
+          @click="recipesOpen = !recipesOpen"
+          class="w-full flex items-center justify-between gap-3 px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition group"
           :class="'{{ request.path }}'.includes('/recipe') && 'bg-blue-50 dark:bg-blue-900 text-blue-600 dark:text-blue-300'"
         >
-          <span class="text-xl">📖</span>
-          <span x-show="sidebarOpen" x-transition class="font-medium">{{ S('menu_recipes') }}</span>
-        </a>
-        <div x-show="sidebarOpen" x-transition class="ml-11 mt-1 space-y-1">
+          <div class="flex items-center gap-3">
+            <span class="text-xl">📖</span>
+            <span x-show="sidebarOpen" x-transition class="font-medium">{{ S('menu_recipes') }}</span>
+          </div>
+          <span x-show="sidebarOpen" x-transition class="text-gray-400" x-text="recipesOpen ? '▼' : '▶'"></span>
+        </button>
+        <div x-show="sidebarOpen && recipesOpen" x-transition class="ml-11 mt-1 space-y-1">
           <a href="/recipes?lang={{ lang }}" class="block px-3 py-1.5 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 rounded">
             {{ S('all_recipes') }}
           </a>
@@ -76,15 +79,18 @@
 
       <!-- Section Gestion -->
       <div>
-        <a
-          href="/ingredient-catalog?lang={{ lang }}"
-          class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition group"
-          :class="('{{ request.path }}'.includes('/ingredient-catalog') || '{{ request.path }}'.includes('/unit-conversions') || '{{ request.path }}'.includes('/ingredient-specific-conversions') || '{{ request.path }}'.includes('/access-logs') || '{{ request.path }}'.includes('/admin/tags')) && 'bg-blue-50 dark:bg-blue-900 text-blue-600 dark:text-blue-300'"
+        <button
+          @click="gestionOpen = !gestionOpen"
+          class="w-full flex items-center justify-between gap-3 px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition group"
+          :class="('{{ request.path }}'.includes('/ingredient-catalog') || '{{ request.path }}'.includes('/unit-conversions') || '{{ request.path }}'.includes('/ingredient-specific-conversions')) && 'bg-blue-50 dark:bg-blue-900 text-blue-600 dark:text-blue-300'"
         >
-          <span class="text-xl">📊</span>
-          <span x-show="sidebarOpen" x-transition class="font-medium">{{ S('menu_settings') }}</span>
-        </a>
-        <div x-show="sidebarOpen" x-transition class="ml-11 mt-1 space-y-1">
+          <div class="flex items-center gap-3">
+            <span class="text-xl">📊</span>
+            <span x-show="sidebarOpen" x-transition class="font-medium">{{ S('menu_settings') }}</span>
+          </div>
+          <span x-show="sidebarOpen" x-transition class="text-gray-400" x-text="gestionOpen ? '▼' : '▶'"></span>
+        </button>
+        <div x-show="sidebarOpen && gestionOpen" x-transition class="ml-11 mt-1 space-y-1">
           <a href="/ingredient-catalog?lang={{ lang }}" class="block px-3 py-1.5 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 rounded">
             {{ 'Catalogue des prix' if lang == 'fr' else '価格カタログ' }}
           </a>
@@ -94,11 +100,31 @@
           <a href="/ingredient-specific-conversions?lang={{ lang }}" class="block px-3 py-1.5 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 rounded">
             {{ 'Conversions spécifiques' if lang == 'fr' else '食材別変換' }}
           </a>
+        </div>
+      </div>
+
+      <!-- Section Paramétrage -->
+      <div>
+        <button
+          @click="parametrageOpen = !parametrageOpen"
+          class="w-full flex items-center justify-between gap-3 px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition group"
+          :class="('{{ request.path }}'.includes('/admin/tags') || '{{ request.path }}'.includes('/access-logs') || '{{ request.path }}'.includes('/admin/users')) && 'bg-blue-50 dark:bg-blue-900 text-blue-600 dark:text-blue-300'"
+        >
+          <div class="flex items-center gap-3">
+            <span class="text-xl">⚙️</span>
+            <span x-show="sidebarOpen" x-transition class="font-medium">{{ 'Paramétrage' if lang == 'fr' else '設定' }}</span>
+          </div>
+          <span x-show="sidebarOpen" x-transition class="text-gray-400" x-text="parametrageOpen ? '▼' : '▶'"></span>
+        </button>
+        <div x-show="sidebarOpen && parametrageOpen" x-transition class="ml-11 mt-1 space-y-1">
           <a href="/admin/tags?lang={{ lang }}" class="block px-3 py-1.5 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 rounded">
             {{ 'Tags et catégories' if lang == 'fr' else 'タグとカテゴリー' }}
           </a>
           <a href="/access-logs?lang={{ lang }}" class="block px-3 py-1.5 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 rounded">
             {{ 'Logs d\'accès' if lang == 'fr' else 'アクセスログ' }}
+          </a>
+          <a href="/admin/users?lang={{ lang }}" class="block px-3 py-1.5 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 rounded">
+            {{ 'Gestion des utilisateurs' if lang == 'fr' else 'ユーザー管理' }}
           </a>
         </div>
       </div>
@@ -106,8 +132,37 @@
 
     <!-- Footer Sidebar -->
     <div class="absolute bottom-0 left-0 right-0 p-4 border-t border-gray-200 dark:border-gray-700 space-y-2">
+      <!-- User info -->
+      {% if request.session.get('authenticated') %}
+      <a
+        href="/profile?lang={{ lang }}"
+        class="w-full flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition"
+      >
+        <span class="text-xl">👤</span>
+        <div x-show="sidebarOpen" x-transition class="flex-1 min-w-0">
+          <div class="text-sm font-medium truncate">{{ request.session.get('username', 'User') }}</div>
+          {% if request.session.get('is_admin') %}
+          <div class="text-xs text-purple-600 dark:text-purple-400">⭐ Admin</div>
+          {% endif %}
+        </div>
+      </a>
+
+      <!-- Logout button -->
+      <a
+        href="/logout?lang={{ lang }}"
+        class="w-full flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/30 text-red-600 dark:text-red-400 transition"
+      >
+        <span class="text-xl">🚪</span>
+        <span x-show="sidebarOpen" x-transition class="text-sm font-medium">
+          {{ 'Déconnexion' if lang == 'fr' else 'ログアウト' }}
+        </span>
+      </a>
+
+      <div x-show="sidebarOpen" x-transition class="border-t border-gray-200 dark:border-gray-700 my-2"></div>
+      {% endif %}
+
       <!-- Toggle mode sombre -->
-      <button 
+      <button
         @click="darkMode = !darkMode"
         class="w-full flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition"
       >
@@ -117,14 +172,14 @@
 
       <!-- Sélecteur de langue -->
       <div x-show="sidebarOpen" x-transition class="flex gap-2 px-3">
-        <a 
-          href="?lang=fr" 
+        <a
+          href="?lang=fr"
           class="flex-1 text-center py-1.5 text-sm rounded {{ 'font-bold bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-300' if lang=='fr' else 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700' }}"
         >
           FR
         </a>
-        <a 
-          href="?lang=jp" 
+        <a
+          href="?lang=jp"
           class="flex-1 text-center py-1.5 text-sm rounded {{ 'font-bold bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-300' if lang=='jp' else 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700' }}"
         >
           JP

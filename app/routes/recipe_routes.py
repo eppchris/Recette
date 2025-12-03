@@ -1,6 +1,7 @@
 # app/routes/recipe_routes.py
 from fastapi import APIRouter, Request, Query, UploadFile, File
 from fastapi.responses import HTMLResponse, JSONResponse
+from typing import Optional
 import tempfile
 import shutil
 import os
@@ -17,9 +18,11 @@ router = APIRouter()
 # Liste des recettes
 # --------------------------------------------------------------------
 @router.get("/recipes", response_class=HTMLResponse)
-async def recipes_list(request: Request, lang: str = Query("fr")):
+async def recipes_list(request: Request, lang: str = Query("fr"), creator_id: Optional[str] = Query(None)):
     """Affiche la liste de toutes les recettes dans la langue demandée"""
-    rows = db.list_recipes(lang)
+    # Convertir creator_id en int si ce n'est pas une chaîne vide
+    user_id_filter = int(creator_id) if creator_id and creator_id.strip() else None
+    rows = db.list_recipes(lang, user_id=user_id_filter)
 
     # Enrichir chaque recette avec ses catégories, tags et types d'événements
     for recipe in rows:
@@ -27,16 +30,20 @@ async def recipes_list(request: Request, lang: str = Query("fr")):
         recipe['tags'] = db.get_recipe_tags(recipe['id'])
         recipe['event_types'] = db.get_recipe_event_types(recipe['id'])
 
+    # Récupérer la liste des utilisateurs pour le filtre
+    from app.models import list_users
+    users = list_users()
+
     return templates.TemplateResponse(
         "recipes_list.html",
-        {"request": request, "lang": lang, "rows": rows}
+        {"request": request, "lang": lang, "rows": rows, "users": users, "creator_id": user_id_filter}
     )
 
 # --------------------------------------------------------------------
 # Détail d'une recette
 # --------------------------------------------------------------------
 @router.get("/recipe/{slug}", response_class=HTMLResponse)
-async def recipe_detail(request: Request, slug: str, lang: str = Query("fr")):
+async def recipe_detail(request: Request, slug: str, lang: str = Query("fr"), event_id: Optional[int] = Query(None)):
     """Affiche le détail d'une recette"""
     result = db.get_recipe_by_slug(slug, lang)
 
@@ -64,7 +71,8 @@ async def recipe_detail(request: Request, slug: str, lang: str = Query("fr")):
             "rec": rec,
             "ings": ings,
             "steps": steps_with_ids,  # Utiliser steps_with_ids au lieu de steps
-            "has_translation": has_translation
+            "has_translation": has_translation,
+            "event_id": event_id
         }
     )
 
@@ -923,7 +931,7 @@ async def save_pdf_recipe(request: Request, lang: str = Query("fr")):
     Sauvegarde la recette extraite du PDF après validation par l'utilisateur
     """
     import sqlite3
-    from app.models.db import DB_PATH
+    from app.models.db_core import DB_PATH
 
     data = await request.json()
 
@@ -949,7 +957,8 @@ async def save_pdf_recipe(request: Request, lang: str = Query("fr")):
         recipe_name = data.get('name', 'recette-importee')
         slug = create_slug(recipe_name)
 
-        if not slug or len(slug) < 2:
+        # Si le slug est vide, trop court, ou composé uniquement de chiffres, utiliser un slug par défaut
+        if not slug or len(slug) < 2 or slug.isdigit():
             slug = 'recipe-import'
 
         # Connexion à la base
@@ -974,10 +983,11 @@ async def save_pdf_recipe(request: Request, lang: str = Query("fr")):
             servings = data.get('servings', 4)
             country = data.get('country', '')
             recipe_type = data.get('recipe_type', 'PERSO')
+            user_id = request.session.get('user_id')  # Récupérer l'utilisateur connecté
 
             cur.execute(
-                "INSERT INTO recipe (slug, country, servings_default) VALUES (?, ?, ?)",
-                (slug, country, servings)
+                "INSERT INTO recipe (slug, country, servings_default, user_id) VALUES (?, ?, ?, ?)",
+                (slug, country, servings, user_id)
             )
             recipe_id = cur.lastrowid
 

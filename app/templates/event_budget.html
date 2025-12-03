@@ -114,10 +114,20 @@
                             const unitPrice = ing.unit_price || 0;
                             ing.planned_price = Math.ceil(unitPrice * 100) / 100;
                         }
+
+                        // Initialiser le montant dépensé individuel
+                        ing.actual_total = ing.actual_total_price || 0;
                     });
 
-                    // Charger le montant total réel sauvegardé depuis l'événement
-                    this.ingredientsActualTotal = {{ event.ingredients_actual_total if event.ingredients_actual_total else 0 }};
+                    // Calculer le montant total réel en sommant les montants individuels
+                    this.updateActualTotal();
+                },
+
+                updateActualTotal() {
+                    // Calculer la somme des montants dépensés
+                    this.ingredientsActualTotal = this.ingredients.reduce((sum, ing) => {
+                        return sum + (parseFloat(ing.actual_total) || 0);
+                    }, 0);
                 },
 
                 async syncCatalogPrices() {
@@ -284,14 +294,13 @@
                                 </div>
                             </div>
                             <div class="text-center">
-                                <div class="text-xs text-gray-600 dark:text-gray-400 mb-1">{{ 'Réel' if lang == 'fr' else '実績' }}</div>
-                                <input type="number"
+                                <div class="text-xs text-gray-600 dark:text-gray-400 mb-1">{{ 'Dépensé' if lang == 'fr' else '支出済' }}</div>
+                                <div class="text-xl font-bold text-green-600 dark:text-green-400"
+                                     x-text="ingredientsActualTotal.toFixed(2) + ' {{ currency }}'">
+                                </div>
+                                <input type="hidden"
                                        name="ingredients_actual_total"
-                                       x-model="ingredientsActualTotal"
-                                       step="0.01"
-                                       min="0"
-                                       placeholder="0.00"
-                                       class="w-full px-3 py-2 text-center border border-gray-300 dark:border-gray-600 rounded dark:bg-gray-600 dark:text-white font-bold text-xl text-green-600 dark:text-green-400">
+                                       :value="ingredientsActualTotal">
                             </div>
                         </div>
                     </div>
@@ -311,7 +320,10 @@
                                             {{ 'Recette (Besoin)' if lang == 'fr' else 'レシピ（必要）' }}
                                         </th>
                                         <th colspan="2" class="px-3 py-2 text-center text-xs font-medium text-gray-700 dark:text-gray-300 border-l border-gray-300 dark:border-gray-600">
-                                            {{ 'Calcul' if lang == 'fr' else '計算' }}
+                                            {{ 'Budget Prévu' if lang == 'fr' else '予算予定' }}
+                                        </th>
+                                        <th rowspan="2" class="px-3 py-2 text-center text-xs font-medium text-gray-700 dark:text-gray-300 border-l border-gray-300 dark:border-gray-600">
+                                            {{ 'Dépensé' if lang == 'fr' else '支出済' }}
                                         </th>
                                     </tr>
                                     <tr class="bg-gray-100 dark:bg-gray-600">
@@ -367,6 +379,17 @@
                                             </td>
                                             <td class="px-2 py-2 text-right font-medium text-gray-900 dark:text-white"
                                                 x-text="((ing.planned_price || 0) * (ing.needed_quantity || ing.purchase_quantity || 0)).toFixed(2) + ' {{ currency }}'">
+                                            </td>
+                                            <!-- Montant dépensé -->
+                                            <td class="px-2 py-2 text-right border-l border-gray-200 dark:border-gray-700">
+                                                <input type="number"
+                                                       :name="'ingredient_' + ing.id + '_actual'"
+                                                       x-model="ing.actual_total"
+                                                       step="0.01"
+                                                       min="0"
+                                                       @input="updateActualTotal()"
+                                                       placeholder="0.00"
+                                                       class="w-24 px-2 py-1 text-right border border-gray-300 dark:border-gray-600 rounded dark:bg-gray-600 dark:text-white text-xs">
                                             </td>
                                         </tr>
                                     </template>

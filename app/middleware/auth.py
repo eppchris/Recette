@@ -7,7 +7,7 @@ import os
 
 
 class AuthMiddleware(BaseHTTPMiddleware):
-    """Middleware pour protéger les routes avec un mot de passe partagé"""
+    """Middleware pour protéger les routes avec authentification utilisateur"""
 
     def __init__(self, app, require_password: bool, shared_password: str):
         super().__init__(app)
@@ -17,6 +17,7 @@ class AuthMiddleware(BaseHTTPMiddleware):
         # Routes publiques (accessibles sans authentification)
         self.public_paths = [
             "/login",
+            "/register",
             "/static",
             "/health",
             "/robots.txt",

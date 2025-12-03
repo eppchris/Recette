@@ -6,6 +6,9 @@ Ce package contient tous les modules de gestion de la base de donnees,
 organises par domaine fonctionnel.
 """
 
+# Créer un module 'db' pour compatibilité avec l'ancien code
+from types import SimpleNamespace
+
 # Import des fonctions de base
 from .db_core import get_db, normalize_ingredient_name
 
@@ -13,6 +16,7 @@ from .db_core import get_db, normalize_ingredient_name
 from .db_recipes import (
     list_recipes,
     list_recipes_by_type,
+    list_recipes_by_event_types,
     get_recipe_by_slug,
     get_recipe_steps_with_ids,
     check_translation_exists,
@@ -54,6 +58,8 @@ from .db_events import (
     remove_recipe_from_event,
     get_event_recipes,
     get_event_recipes_with_ingredients,
+    get_recipe_event_types,
+    set_recipe_event_types,
 )
 
 # Import des fonctions de gestion des listes de courses
@@ -141,6 +147,21 @@ from .db_logging import (
     get_recent_access_logs,
 )
 
+# Import des fonctions de gestion des utilisateurs
+from .db_users import (
+    hash_password,
+    verify_password,
+    create_user,
+    get_user_by_username,
+    get_user_by_email,
+    get_user_by_id,
+    authenticate_user,
+    list_users,
+    update_user_password,
+    deactivate_user,
+    activate_user,
+)
+
 __all__ = [
     # Core
     'get_db',
@@ -149,6 +170,7 @@ __all__ = [
     # Recipes
     'list_recipes',
     'list_recipes_by_type',
+    'list_recipes_by_event_types',
     'get_recipe_by_slug',
     'get_recipe_steps_with_ids',
     'check_translation_exists',
@@ -186,6 +208,8 @@ __all__ = [
     'remove_recipe_from_event',
     'get_event_recipes',
     'get_event_recipes_with_ingredients',
+    'get_recipe_event_types',
+    'set_recipe_event_types',
 
     # Shopping
     'get_shopping_list_items',
@@ -259,4 +283,154 @@ __all__ = [
     'get_access_stats',
     'cleanup_old_access_logs',
     'get_recent_access_logs',
+
+    # Users
+    'hash_password',
+    'verify_password',
+    'create_user',
+    'get_user_by_username',
+    'get_user_by_email',
+    'get_user_by_id',
+    'authenticate_user',
+    'list_users',
+    'update_user_password',
+    'deactivate_user',
+    'activate_user',
 ]
+
+# Créer un objet 'db' pour compatibilité avec l'ancien code (permet d'utiliser db.fonction())
+db = SimpleNamespace(
+    # Core
+    get_db=get_db,
+    normalize_ingredient_name=normalize_ingredient_name,
+
+    # Recipes
+    list_recipes=list_recipes,
+    list_recipes_by_type=list_recipes_by_type,
+    list_recipes_by_event_types=list_recipes_by_event_types,
+    get_recipe_by_slug=get_recipe_by_slug,
+    get_recipe_steps_with_ids=get_recipe_steps_with_ids,
+    check_translation_exists=check_translation_exists,
+    get_recipe_id_by_slug=get_recipe_id_by_slug,
+    get_source_language=get_source_language,
+    update_recipe_complete=update_recipe_complete,
+    delete_recipe=delete_recipe,
+    update_recipe_image=update_recipe_image,
+    get_recipe_image_urls=get_recipe_image_urls,
+    update_servings_default=update_servings_default,
+    search_recipes_by_filters=search_recipes_by_filters,
+
+    # Translations
+    insert_recipe_translation=insert_recipe_translation,
+    insert_ingredient_translation=insert_ingredient_translation,
+    insert_step_translation=insert_step_translation,
+    update_ingredient_translation=update_ingredient_translation,
+    update_ingredient_quantity=update_ingredient_quantity,
+    update_step_translation=update_step_translation,
+    update_recipe_type=update_recipe_type,
+
+    # Events
+    list_event_types=list_event_types,
+    get_all_event_types=get_all_event_types,
+    create_event_type=create_event_type,
+    update_event_type=update_event_type,
+    list_events=list_events,
+    get_event_by_id=get_event_by_id,
+    create_event=create_event,
+    update_event=update_event,
+    delete_event=delete_event,
+    add_recipe_to_event=add_recipe_to_event,
+    update_event_recipe_servings=update_event_recipe_servings,
+    update_event_recipes_multipliers=update_event_recipes_multipliers,
+    remove_recipe_from_event=remove_recipe_from_event,
+    get_event_recipes=get_event_recipes,
+    get_event_recipes_with_ingredients=get_event_recipes_with_ingredients,
+    get_recipe_event_types=get_recipe_event_types,
+    set_recipe_event_types=set_recipe_event_types,
+
+    # Shopping
+    get_shopping_list_items=get_shopping_list_items,
+    save_shopping_list_items=save_shopping_list_items,
+    update_shopping_list_item=update_shopping_list_item,
+    update_shopping_list_item_prices=update_shopping_list_item_prices,
+    update_event_ingredients_actual_total=update_event_ingredients_actual_total,
+    delete_shopping_list_item=delete_shopping_list_item,
+    delete_all_shopping_list_items=delete_all_shopping_list_items,
+    regenerate_shopping_list=regenerate_shopping_list,
+
+    # Budget
+    get_event_budget_planned=get_event_budget_planned,
+    update_event_budget_planned=update_event_budget_planned,
+    update_event_currency=update_event_currency,
+    list_expense_categories=list_expense_categories,
+    create_expense_category=create_expense_category,
+    update_expense_category=update_expense_category,
+    delete_expense_category=delete_expense_category,
+    get_event_expenses=get_event_expenses,
+    create_event_expense=create_event_expense,
+    update_event_expense=update_event_expense,
+    delete_event_expense=delete_event_expense,
+    get_event_budget_summary=get_event_budget_summary,
+    save_expense_ingredient_details=save_expense_ingredient_details,
+    get_expense_ingredient_details=get_expense_ingredient_details,
+
+    # Catalog
+    get_ingredient_price_suggestions=get_ingredient_price_suggestions,
+    update_ingredient_price_from_shopping_list=update_ingredient_price_from_shopping_list,
+    list_ingredient_catalog=list_ingredient_catalog,
+    get_ingredient_from_catalog=get_ingredient_from_catalog,
+    update_ingredient_catalog_price=update_ingredient_catalog_price,
+    delete_ingredient_from_catalog=delete_ingredient_from_catalog,
+    sync_ingredients_from_recipes=sync_ingredients_from_recipes,
+    cleanup_unused_ingredients_from_catalog=cleanup_unused_ingredients_from_catalog,
+    get_all_ingredients_from_catalog=get_all_ingredients_from_catalog,
+    get_ingredient_price_for_currency=get_ingredient_price_for_currency,
+    calculate_ingredient_price=calculate_ingredient_price,
+
+    # Conversions
+    convert_unit=convert_unit,
+    get_convertible_units=get_convertible_units,
+    get_all_unit_conversions=get_all_unit_conversions,
+    get_unit_conversion_by_id=get_unit_conversion_by_id,
+    add_unit_conversion=add_unit_conversion,
+    update_unit_conversion=update_unit_conversion,
+    delete_unit_conversion=delete_unit_conversion,
+    get_specific_conversion=get_specific_conversion,
+    get_all_specific_conversions=get_all_specific_conversions,
+    add_specific_conversion=add_specific_conversion,
+    update_specific_conversion=update_specific_conversion,
+    delete_specific_conversion=delete_specific_conversion,
+
+    # Metadata
+    get_all_categories=get_all_categories,
+    get_all_tags=get_all_tags,
+    get_recipe_categories=get_recipe_categories,
+    get_recipe_tags=get_recipe_tags,
+    set_recipe_categories=set_recipe_categories,
+    set_recipe_tags=set_recipe_tags,
+    create_tag=create_tag,
+    update_tag=update_tag,
+    delete_tag=delete_tag,
+    create_category=create_category,
+    update_category=update_category,
+    delete_category=delete_category,
+
+    # Logging
+    log_access=log_access,
+    get_access_stats=get_access_stats,
+    cleanup_old_access_logs=cleanup_old_access_logs,
+    get_recent_access_logs=get_recent_access_logs,
+
+    # Users
+    hash_password=hash_password,
+    verify_password=verify_password,
+    create_user=create_user,
+    get_user_by_username=get_user_by_username,
+    get_user_by_email=get_user_by_email,
+    get_user_by_id=get_user_by_id,
+    authenticate_user=authenticate_user,
+    list_users=list_users,
+    update_user_password=update_user_password,
+    deactivate_user=deactivate_user,
+    activate_user=activate_user,
+)

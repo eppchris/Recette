@@ -17,7 +17,7 @@ import os
 # Ajouter le répertoire parent au PYTHONPATH pour pouvoir importer app.models.db
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from app.models.db import get_db, normalize_ingredient_name
+from app.models import get_db, normalize_ingredient_name
 
 
 def normalize_catalog():
