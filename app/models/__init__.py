@@ -28,6 +28,7 @@ from .db_recipes import (
     get_recipe_image_urls,
     update_servings_default,
     search_recipes_by_filters,
+    search_recipes_by_ingredients,
 )
 
 # Import des fonctions de traduction
@@ -60,6 +61,11 @@ from .db_events import (
     get_event_recipes_with_ingredients,
     get_recipe_event_types,
     set_recipe_event_types,
+    save_event_dates,
+    get_event_dates,
+    toggle_event_date_selection,
+    save_recipe_planning,
+    get_recipe_planning,
 )
 
 # Import des fonctions de gestion des listes de courses
@@ -182,6 +188,7 @@ __all__ = [
     'get_recipe_image_urls',
     'update_servings_default',
     'search_recipes_by_filters',
+    'search_recipes_by_ingredients',
 
     # Translations
     'insert_recipe_translation',
@@ -210,6 +217,11 @@ __all__ = [
     'get_event_recipes_with_ingredients',
     'get_recipe_event_types',
     'set_recipe_event_types',
+    'save_event_dates',
+    'get_event_dates',
+    'toggle_event_date_selection',
+    'save_recipe_planning',
+    'get_recipe_planning',
 
     # Shopping
     'get_shopping_list_items',
@@ -319,6 +331,7 @@ db = SimpleNamespace(
     get_recipe_image_urls=get_recipe_image_urls,
     update_servings_default=update_servings_default,
     search_recipes_by_filters=search_recipes_by_filters,
+    search_recipes_by_ingredients=search_recipes_by_ingredients,
 
     # Translations
     insert_recipe_translation=insert_recipe_translation,
@@ -347,6 +360,11 @@ db = SimpleNamespace(
     get_event_recipes_with_ingredients=get_event_recipes_with_ingredients,
     get_recipe_event_types=get_recipe_event_types,
     set_recipe_event_types=set_recipe_event_types,
+    save_event_dates=save_event_dates,
+    get_event_dates=get_event_dates,
+    toggle_event_date_selection=toggle_event_date_selection,
+    save_recipe_planning=save_recipe_planning,
+    get_recipe_planning=get_recipe_planning,
 
     # Shopping
     get_shopping_list_items=get_shopping_list_items,

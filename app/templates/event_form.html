@@ -6,9 +6,74 @@
     <title>{{ S('new_event') if not event else S('edit') }} - Recette</title>
     <script src="/static/css/tailwind.min.js"></script>
     <script defer src="/static/css/alpine.min.js"></script>
+    <script>
+        function eventFormData() {
+            return {
+                darkMode: false,
+                dateDebut: '{{ event.date_debut if event and event.date_debut else '' }}',
+                dateFin: '{{ event.date_fin if event and event.date_fin else '' }}',
+                nombreJours: {{ event.nombre_jours if event and event.nombre_jours else 1 }},
+                dates: [],
+
+                init() {
+                    {% if event_dates %}
+                    // Charger les dates existantes
+                    this.dates = {{ event_dates | tojson }}.map(d => ({
+                        date: d.date,
+                        selected: d.is_selected == 1
+                    }));
+                    {% elif event and event.date_debut and event.date_fin %}
+                    this.generateDates();
+                    {% endif %}
+                },
+
+                updateDates() {
+                    if (this.dateDebut && this.dateFin) {
+                        const start = new Date(this.dateDebut);
+                        const end = new Date(this.dateFin);
+
+                        // Vérifier que date_fin >= date_debut
+                        if (end < start) {
+                            return;
+                        }
+
+                        this.generateDates();
+
+                        // Calculer le nombre de jours entre les dates (inclusif)
+                        const diffTime = end - start;
+                        const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24)) + 1;
+                        this.nombreJours = diffDays;
+                    }
+                },
+
+                generateDates() {
+                    this.dates = [];
+                    if (!this.dateDebut || !this.dateFin) return;
+
+                    const start = new Date(this.dateDebut);
+                    const end = new Date(this.dateFin);
+
+                    let current = new Date(start);
+                    while (current <= end) {
+                        this.dates.push({
+                            date: current.toISOString().split('T')[0],
+                            selected: true
+                        });
+                        current.setDate(current.getDate() + 1);
+                    }
+                },
+
+                toggleDate(index) {
+                    this.dates[index].selected = !this.dates[index].selected;
+                    // Recalculer le nombre de jours sélectionnés
+                    this.nombreJours = this.dates.filter(d => d.selected).length;
+                }
+            }
+        }
+    </script>
 </head>
-<body class="bg-gray-50" x-data="{ darkMode: false }">
-    <div :class="darkMode ? 'dark bg-gray-900' : 'bg-gray-50'" class="min-h-screen">
+<body class="bg-gray-50">
+    <div x-data="eventFormData()" :class="darkMode ? 'dark bg-gray-900' : 'bg-gray-50'" class="min-h-screen">
         <!-- Header -->
         <header class="bg-white dark:bg-gray-800 shadow-sm border-b border-gray-200 dark:border-gray-700">
             <div class="max-w-7xl mx-auto px-4 py-4 flex justify-between items-center">
@@ -42,7 +107,7 @@
         </header>
 
         <!-- Contenu principal -->
-        <main class="max-w-3xl mx-auto px-4 py-8">
+        <main class="max-w-4xl mx-auto px-4 py-8">
             <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
                 <form method="POST" action="{{ '/events/new' if not event else '/events/' + (event.id|string) + '/edit' }}">
                     <input type="hidden" name="lang" value="{{ lang }}">
@@ -77,18 +142,82 @@
                         </select>
                     </div>
 
-                    <!-- Date -->
-                    <div class="mb-4">
-                        <label for="event_date" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                            {{ S('event_date') }}
-                        </label>
-                        <input type="date"
-                               id="event_date"
-                               name="event_date"
-                               required
-                               value="{{ event.event_date if event else '' }}"
-                               class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white">
+                    <!-- Dates de l'événement -->
+                    <div class="mb-6 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+                        <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+                            {{ 'Dates de l\'événement' if lang == 'fr' else 'イベント日程' }}
+                        </h3>
+
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                            <!-- Date de début -->
+                            <div>
+                                <label for="date_debut" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                    {{ 'Date de début' if lang == 'fr' else '開始日' }}
+                                </label>
+                                <input type="date"
+                                       id="date_debut"
+                                       name="date_debut"
+                                       required
+                                       x-model="dateDebut"
+                                       @change="updateDates()"
+                                       class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white">
+                            </div>
+
+                            <!-- Date de fin -->
+                            <div>
+                                <label for="date_fin" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                    {{ 'Date de fin' if lang == 'fr' else '終了日' }}
+                                </label>
+                                <input type="date"
+                                       id="date_fin"
+                                       name="date_fin"
+                                       required
+                                       x-model="dateFin"
+                                       @change="updateDates()"
+                                       class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white">
+                            </div>
+
+                            <!-- Nombre de jours -->
+                            <div>
+                                <label for="nombre_jours" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                    {{ 'Nombre de jours' if lang == 'fr' else '日数' }}
+                                </label>
+                                <input type="number"
+                                       id="nombre_jours"
+                                       name="nombre_jours"
+                                       required
+                                       min="1"
+                                       x-model="nombreJours"
+                                       class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white">
+                            </div>
+                        </div>
+
+                        <!-- Tableau de sélection des dates -->
+                        <div x-show="dates.length > 0" class="mt-4">
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
+                                {{ 'Déselectionner les jours non travaillés (cliquer pour désélectionner)' if lang == 'fr' else '非作業日を選択解除（クリックで解除）' }}
+                            </label>
+                            <div class="grid grid-cols-7 gap-2">
+                                <template x-for="(dateInfo, index) in dates" :key="index">
+                                    <button type="button"
+                                            @click="toggleDate(index)"
+                                            :class="dateInfo.selected ? 'bg-blue-500 text-white' : 'bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-300'"
+                                            class="px-3 py-2 rounded-lg text-sm font-medium hover:opacity-80 transition-opacity">
+                                        <div x-text="new Date(dateInfo.date).toLocaleDateString('{{ 'fr-FR' if lang == 'fr' else 'ja-JP' }}', {day: '2-digit', month: '2-digit'})"></div>
+                                        <input type="hidden"
+                                               :name="'event_dates[' + index + '][date]'"
+                                               :value="dateInfo.date">
+                                        <input type="hidden"
+                                               :name="'event_dates[' + index + '][selected]'"
+                                               :value="dateInfo.selected ? '1' : '0'">
+                                    </button>
+                                </template>
+                            </div>
+                        </div>
                     </div>
+
+                    <!-- Date (conservée pour compatibilité) -->
+                    <input type="hidden" name="event_date" x-model="dateDebut">
 
                     <!-- Lieu -->
                     <div class="mb-4">

@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="{{ lang }}">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ 'Organisation' if lang == 'fr' else '企画' }} - {{ event.name }}</title>
+    <script src="/static/css/tailwind.min.js"></script>
+    <script defer src="/static/css/alpine.min.js"></script>
+</head>
+<body class="bg-gray-50" x-data="{ darkMode: false }">
+    <div :class="darkMode ? 'dark bg-gray-900' : 'bg-gray-50'" class="min-h-screen">
+        <!-- Header -->
+        <header class="bg-white dark:bg-gray-800 shadow-sm border-b border-gray-200 dark:border-gray-700">
+            <div class="max-w-7xl mx-auto px-4 py-4 flex justify-between items-center">
+                <div class="flex items-center gap-4">
+                    <a href="/events/{{ event.id }}?lang={{ lang }}" class="text-blue-600 dark:text-blue-400 hover:underline">
+                        ← {{ S('back') }}
+                    </a>
+                    <h1 class="text-2xl font-bold text-gray-900 dark:text-white">
+                        {{ 'Organisation' if lang == 'fr' else '企画' }} - {{ event.name }}
+                    </h1>
+                </div>
+
+                <div class="flex items-center gap-4">
+                    <!-- Sélecteur de langue -->
+                    <div class="flex gap-2">
+                        <a href="?lang=fr"
+                           class="px-3 py-1.5 rounded-lg {{ 'bg-blue-500 text-white' if lang == 'fr' else 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600' }}">
+                            FR
+                        </a>
+                        <a href="?lang=jp"
+                           class="px-3 py-1.5 rounded-lg {{ 'bg-blue-500 text-white' if lang == 'jp' else 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600' }}">
+                            JP
+                        </a>
+                    </div>
+
+                    <!-- Toggle mode sombre -->
+                    <button @click="darkMode = !darkMode"
+                            class="p-2 rounded-lg bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600">
+                        <span x-show="!darkMode">🌙</span>
+                        <span x-show="darkMode">☀️</span>
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        <!-- Contenu principal -->
+        <main class="max-w-7xl mx-auto px-4 py-8">
+            <!-- Bouton pour modifier la planification -->
+            <div class="mb-6 flex justify-end">
+                <a href="/events/{{ event.id }}/planning?lang={{ lang }}"
+                   class="inline-flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium">
+                    <span>✏️</span>
+                    <span>{{ 'Modifier la planification' if lang == 'fr' else 'プランニングを編集' }}</span>
+                </a>
+            </div>
+
+            {% if planning_by_date %}
+            <!-- Grille des jours avec recettes -->
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {% for date, day_info in planning_by_date.items() %}
+                <div class="bg-white dark:bg-gray-800 rounded-lg shadow-lg overflow-hidden border-2 border-gray-200 dark:border-gray-700">
+                    <!-- En-tête de la date -->
+                    <div class="bg-gradient-to-r from-blue-500 to-blue-600 px-4 py-3">
+                        <h3 class="text-white font-bold text-lg">
+                            {{ day_info.date }}
+                        </h3>
+                    </div>
+
+                    <!-- Liste des recettes du jour -->
+                    <div class="p-4">
+                        {% if day_info.recipes %}
+                        <div class="space-y-3">
+                            {% for recipe in day_info.recipes %}
+                            <a href="/recipe/{{ recipe.slug }}?lang={{ lang }}&from_event={{ event.id }}"
+                               class="block group">
+                                <div class="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors border border-gray-200 dark:border-gray-600">
+                                    <!-- Image de la recette (icône) -->
+                                    {% if recipe.thumbnail_url %}
+                                    <img src="{{ recipe.thumbnail_url }}"
+                                         alt="{{ recipe.name }}"
+                                         class="w-16 h-16 object-cover rounded-lg">
+                                    {% else %}
+                                    <div class="w-16 h-16 bg-gray-300 dark:bg-gray-600 rounded-lg flex items-center justify-center text-2xl">
+                                        🍽️
+                                    </div>
+                                    {% endif %}
+
+                                    <!-- Nom de la recette -->
+                                    <div class="flex-1">
+                                        <p class="font-medium text-gray-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400">
+                                            {{ recipe.name }}
+                                        </p>
+                                        <p class="text-sm text-gray-500 dark:text-gray-400">
+                                            {{ '№' }} {{ recipe.position + 1 }}
+                                        </p>
+                                    </div>
+
+                                    <!-- Icône de lien -->
+                                    <svg class="w-5 h-5 text-gray-400 group-hover:text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+                                    </svg>
+                                </div>
+                            </a>
+                            {% endfor %}
+                        </div>
+                        {% else %}
+                        <div class="text-center py-8 text-gray-500 dark:text-gray-400">
+                            <p class="text-4xl mb-2">📭</p>
+                            <p>{{ 'Aucune recette planifiée' if lang == 'fr' else 'レシピが計画されていません' }}</p>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <!-- Message si aucune planification -->
+            <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-12 text-center">
+                <div class="text-6xl mb-4">📅</div>
+                <h2 class="text-2xl font-bold text-gray-900 dark:text-white mb-2">
+                    {{ 'Aucune organisation définie' if lang == 'fr' else '企画が未定義です' }}
+                </h2>
+                <p class="text-gray-600 dark:text-gray-400 mb-6">
+                    {{ 'Cliquez sur le bouton ci-dessus pour commencer à planifier vos recettes par jour' if lang == 'fr' else '上のボタンをクリックして、日ごとにレシピを計画し始めてください' }}
+                </p>
+                <a href="/events/{{ event.id }}/planning?lang={{ lang }}"
+                   class="inline-flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium">
+                    <span>✏️</span>
+                    <span>{{ 'Créer la planification' if lang == 'fr' else 'プランニングを作成' }}</span>
+                </a>
+            </div>
+            {% endif %}
+        </main>
+    </div>
+</body>
+</html>

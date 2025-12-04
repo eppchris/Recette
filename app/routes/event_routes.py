@@ -18,9 +18,19 @@ router = APIRouter()
 @router.get("/events", response_class=HTMLResponse)
 async def events_list(request: Request, lang: str = "fr"):
     """
-    Affiche la liste de tous les événements
+    Affiche la liste des événements
+    - L'utilisateur 'admin' voit tous les événements
+    - Les autres utilisateurs voient uniquement leurs événements
     """
-    events = db.list_events()
+    user_id = request.session.get('user_id')
+    username = request.session.get('username')
+
+    # Si l'utilisateur est 'admin', afficher tous les événements, sinon filtrer par user_id
+    if username == 'admin':
+        events = db.list_events()
+    else:
+        events = db.list_events(user_id=user_id)
+
     event_types = db.list_event_types()
 
     return templates.TemplateResponse(
@@ -59,15 +69,19 @@ async def event_create(
     event_type_id: int = Form(...),
     name: str = Form(...),
     event_date: str = Form(...),
+    date_debut: str = Form(...),
+    date_fin: str = Form(...),
+    nombre_jours: int = Form(1),
     location: str = Form(...),
     attendees: int = Form(...),
     notes: str = Form("")
 ):
     """
-    Crée un nouvel événement
+    Crée un nouvel événement avec gestion multi-jours
     """
-    user_id = request.session.get('user_id')  # Récupérer l'utilisateur connecté
+    user_id = request.session.get('user_id')
 
+    # Créer l'événement
     event_id = db.create_event(
         event_type_id=event_type_id,
         name=name,
@@ -75,8 +89,25 @@ async def event_create(
         location=location,
         attendees=attendees,
         notes=notes,
-        user_id=user_id
+        user_id=user_id,
+        date_debut=date_debut,
+        date_fin=date_fin,
+        nombre_jours=nombre_jours
     )
+
+    # Récupérer et sauvegarder les dates sélectionnées
+    form_data = await request.form()
+    dates = []
+    i = 0
+    while f"event_dates[{i}][date]" in form_data:
+        dates.append({
+            'date': form_data[f"event_dates[{i}][date]"],
+            'is_selected': form_data[f"event_dates[{i}][selected]"] == "1"
+        })
+        i += 1
+
+    if dates:
+        db.save_event_dates(event_id, dates)
 
     return RedirectResponse(
         url=f"/events/{event_id}?lang={lang}",
@@ -124,13 +155,17 @@ async def event_edit(request: Request, event_id: int, lang: str = "fr"):
 
     event_types = db.list_event_types()
 
+    # Récupérer les dates de l'événement
+    event_dates = db.get_event_dates(event_id)
+
     return templates.TemplateResponse(
         "event_form.html",
         {
             "request": request,
             "lang": lang,
             "event_types": event_types,
-            "event": event
+            "event": event,
+            "event_dates": event_dates
         }
     )
 
@@ -143,12 +178,15 @@ async def event_update(
     event_type_id: int = Form(...),
     name: str = Form(...),
     event_date: str = Form(...),
+    date_debut: str = Form(...),
+    date_fin: str = Form(...),
+    nombre_jours: int = Form(1),
     location: str = Form(...),
     attendees: int = Form(...),
     notes: str = Form("")
 ):
     """
-    Met à jour un événement existant
+    Met à jour un événement existant avec gestion multi-jours
     Si le nombre de participants change et qu'une liste de courses existe,
     la liste est automatiquement régénérée pour refléter le nouveau nombre.
     """
@@ -164,8 +202,25 @@ async def event_update(
         event_date=event_date,
         location=location,
         attendees=attendees,
-        notes=notes
+        notes=notes,
+        date_debut=date_debut,
+        date_fin=date_fin,
+        nombre_jours=nombre_jours
     )
+
+    # Récupérer et sauvegarder les dates sélectionnées
+    form_data = await request.form()
+    dates = []
+    i = 0
+    while f"event_dates[{i}][date]" in form_data:
+        dates.append({
+            'date': form_data[f"event_dates[{i}][date]"],
+            'is_selected': form_data[f"event_dates[{i}][selected]"] == "1"
+        })
+        i += 1
+
+    if dates:
+        db.save_event_dates(event_id, dates)
 
     # Si le nombre de participants a changé, ajuster les multiplicateurs de portions
     # et régénérer la liste de courses si elle existe
@@ -487,8 +542,17 @@ async def event_budget_view(request: Request, event_id: int, lang: str = "fr"):
     # Récupérer la liste de courses
     shopping_list = db.get_shopping_list_items(event_id)
 
+    # Si la liste est vide, essayer de la générer depuis les recettes de l'événement
+    if not shopping_list:
+        recipes_data = db.get_event_recipes_with_ingredients(event_id, lang)
+        if recipes_data:
+            from app.services.ingredient_aggregator import get_ingredient_aggregator
+            aggregator = get_ingredient_aggregator()
+            aggregated_ingredients = aggregator.aggregate_ingredients(recipes_data, lang)
+            db.save_shopping_list_items(event_id, aggregated_ingredients)
+            shopping_list = db.get_shopping_list_items(event_id)
     # Vérifier si la liste doit être régénérée pour la bonne langue
-    if shopping_list:
+    elif shopping_list:
         # Vérifier si la liste contient des caractères japonais
         first_item_name = shopping_list[0]['ingredient_name'] if shopping_list else ''
         has_japanese = any(ord(char) > 0x3000 for char in first_item_name)
@@ -1078,3 +1142,94 @@ async def api_update_ingredient_catalog(
 
             new_id = cursor.lastrowid
             return JSONResponse(content={"success": True, "id": new_id})
+
+
+# ============================================================================
+# Routes pour l'organisation des événements multi-jours
+# ============================================================================
+
+@router.get("/events/{event_id}/organization")
+async def event_organization_view(request: Request, event_id: int, lang: str = "fr"):
+    """
+    Affiche l'organisation des recettes par jour (lecture seule)
+    """
+    event = db.get_event_by_id(event_id)
+    if not event:
+        raise HTTPException(status_code=404, detail="Événement non trouvé")
+
+    # Récupérer la planification par jour
+    planning_by_date = db.get_recipe_planning(event_id, lang)
+
+    return templates.TemplateResponse(
+        "event_organization.html",
+        {
+            "request": request,
+            "lang": lang,
+            "event": event,
+            "planning_by_date": planning_by_date
+        }
+    )
+
+
+@router.get("/events/{event_id}/planning")
+async def event_planning_edit(request: Request, event_id: int, lang: str = "fr"):
+    """
+    Écran de planification avec drag & drop des recettes vers les dates
+    """
+    event = db.get_event_by_id(event_id)
+    if not event:
+        raise HTTPException(status_code=404, detail="Événement non trouvé")
+
+    # Récupérer les recettes de l'événement
+    recipes = db.get_event_recipes(event_id, lang)
+
+    # Récupérer les dates sélectionnées de l'événement
+    event_dates = db.get_event_dates(event_id)
+    # Filtrer seulement les dates sélectionnées
+    selected_dates = [d for d in event_dates if d['is_selected']]
+
+    # Récupérer la planification existante
+    planning_by_date = db.get_recipe_planning(event_id, lang)
+
+    return templates.TemplateResponse(
+        "event_planning.html",
+        {
+            "request": request,
+            "lang": lang,
+            "event": event,
+            "recipes": recipes,
+            "selected_dates": selected_dates,
+            "planning_by_date": planning_by_date
+        }
+    )
+
+
+@router.post("/events/{event_id}/planning/save")
+async def event_planning_save(
+    request: Request,
+    event_id: int,
+    lang: str = Form("fr")
+):
+    """
+    Sauvegarde la planification des recettes par jour
+    """
+    form_data = await request.form()
+
+    # Parser les données de planification
+    planning_data = []
+    i = 0
+    while f"planning[{i}][recipe_id]" in form_data:
+        planning_data.append({
+            'recipe_id': int(form_data[f"planning[{i}][recipe_id]"]),
+            'event_date_id': int(form_data[f"planning[{i}][event_date_id]"]),
+            'position': int(form_data[f"planning[{i}][position]"])
+        })
+        i += 1
+
+    # Sauvegarder la planification
+    db.save_recipe_planning(event_id, planning_data)
+
+    return RedirectResponse(
+        url=f"/events/{event_id}/organization?lang={lang}",
+        status_code=303
+    )

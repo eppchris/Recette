@@ -43,8 +43,11 @@ async def recipes_list(request: Request, lang: str = Query("fr"), creator_id: Op
 # Détail d'une recette
 # --------------------------------------------------------------------
 @router.get("/recipe/{slug}", response_class=HTMLResponse)
-async def recipe_detail(request: Request, slug: str, lang: str = Query("fr"), event_id: Optional[int] = Query(None)):
+async def recipe_detail(request: Request, slug: str, lang: str = Query("fr"), event_id: Optional[int] = Query(None), from_event: Optional[int] = Query(None)):
     """Affiche le détail d'une recette"""
+    # Priorité à from_event si fourni, sinon event_id (pour compatibilité)
+    event_context = from_event or event_id
+
     result = db.get_recipe_by_slug(slug, lang)
 
     if not result:
@@ -63,6 +66,9 @@ async def recipe_detail(request: Request, slug: str, lang: str = Query("fr"), ev
     # Vérifier si une traduction existe dans la langue actuelle
     has_translation = db.check_translation_exists(recipe_id, lang) if recipe_id else False
 
+    # Récupérer la liste des utilisateurs pour le sélecteur
+    all_users = db.list_users()
+
     return templates.TemplateResponse(
         "recipe_detail.html",
         {
@@ -72,7 +78,8 @@ async def recipe_detail(request: Request, slug: str, lang: str = Query("fr"), ev
             "ings": ings,
             "steps": steps_with_ids,  # Utiliser steps_with_ids au lieu de steps
             "has_translation": has_translation,
-            "event_id": event_id
+            "event_id": event_context,
+            "all_users": all_users
         }
     )
 
@@ -854,6 +861,39 @@ async def api_search_recipes(
     for recipe in results:
         recipe['categories'] = db.get_recipe_categories(recipe['id'])
         recipe['tags'] = db.get_recipe_tags(recipe['id'])
+
+    return results
+
+
+@router.get("/api/recipes/search-by-ingredients")
+async def api_search_recipes_by_ingredients(
+    ingredients: str = Query(..., description="Ingrédients séparés par des virgules"),
+    lang: str = Query("fr")
+):
+    """
+    Recherche des recettes contenant tous les ingrédients spécifiés
+
+    Paramètres:
+    - ingredients: Liste d'ingrédients séparés par virgules (ex: "tomate,basilic,mozzarella")
+    - lang: langue (fr/jp)
+
+    Retourne: Liste de recettes contenant TOUS les ingrédients
+    """
+    # Séparer les ingrédients et nettoyer les espaces
+    ingredient_list = [ing.strip() for ing in ingredients.split(',') if ing.strip()]
+
+    if not ingredient_list:
+        return []
+
+    results = db.search_recipes_by_ingredients(ingredient_list, lang)
+
+    # Enrichir avec les catégories, tags et event types
+    for recipe in results:
+        recipe['categories'] = db.get_recipe_categories(recipe['id'])
+        recipe['tags'] = db.get_recipe_tags(recipe['id'])
+        recipe['event_types'] = db.get_recipe_event_types(recipe['id'])
+        # Ajouter le nom du créateur si disponible
+        recipe['creator_name'] = None
 
     return results
 

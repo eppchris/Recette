@@ -139,9 +139,13 @@ def get_recipe_by_slug(slug: str, lang: str):
                 r.image_url,
                 r.thumbnail_url,
                 COALESCE(rt.name, r.slug) AS name,
-                rt.recipe_type AS type
+                rt.recipe_type AS type,
+                r.user_id,
+                u.username AS creator_username,
+                u.display_name AS creator_display_name
             FROM recipe r
             LEFT JOIN recipe_translation rt ON rt.recipe_id = r.id AND rt.lang = ?
+            LEFT JOIN user u ON u.id = r.user_id
             WHERE r.slug = ?
         """
         recipe = con.execute(recipe_sql, (lang, slug)).fetchone()
@@ -284,6 +288,13 @@ def update_recipe_complete(recipe_id: int, lang: str, data: dict):
                 (data['servings_default'], recipe_id)
             )
 
+        # Mettre à jour l'utilisateur créateur
+        if 'user_id' in data:
+            con.execute(
+                "UPDATE recipe SET user_id = ? WHERE id = ?",
+                (data['user_id'], recipe_id)
+            )
+
         # Mettre à jour les ingrédients
         for ing in data.get('ingredients', []):
             # Mettre à jour la quantité (indépendante de la langue)
@@ -408,6 +419,64 @@ def update_servings_default(recipe_id: int, servings: int):
             WHERE id = ?
         """
         con.execute(sql, (servings, recipe_id))
+
+
+def search_recipes_by_ingredients(ingredients: list, lang: str = 'fr'):
+    """
+    Recherche des recettes contenant tous les ingrédients spécifiés (ET logique)
+
+    Args:
+        ingredients: Liste de noms d'ingrédients à rechercher
+        lang: Langue pour l'affichage ('fr' ou 'jp')
+
+    Returns:
+        Liste de recettes contenant tous les ingrédients
+    """
+    if not ingredients:
+        return []
+
+    with get_db() as conn:
+        # Pour chaque recette, compter combien d'ingrédients matchent
+        # On ne garde que les recettes qui ont TOUS les ingrédients
+        sql = """
+            SELECT DISTINCT
+                r.id,
+                r.slug,
+                COALESCE(rt.name, r.slug) AS name,
+                r.image_url,
+                r.thumbnail_url,
+                r.servings_default AS servings
+            FROM recipe r
+            LEFT JOIN recipe_translation rt ON r.id = rt.recipe_id AND rt.lang = ?
+            LEFT JOIN recipe_ingredient ri ON ri.recipe_id = r.id
+            LEFT JOIN recipe_ingredient_translation rit ON rit.recipe_ingredient_id = ri.id AND rit.lang = ?
+            WHERE (
+                {}
+            )
+            GROUP BY r.id
+            HAVING COUNT(DISTINCT LOWER(rit.name)) >= ?
+            ORDER BY r.slug
+        """
+
+        # Construire les conditions pour chaque ingrédient
+        ingredient_conditions = []
+        params = [lang, lang]
+
+        for ingredient in ingredients:
+            ingredient_lower = ingredient.strip().lower()
+            ingredient_conditions.append(
+                "LOWER(rit.name) LIKE ?"
+            )
+            params.append(f"%{ingredient_lower}%")
+
+        # Combiner avec OR pour matcher n'importe quel ingrédient
+        sql = sql.format(" OR ".join(ingredient_conditions))
+
+        # Ajouter le nombre d'ingrédients requis (tous doivent être présents)
+        params.append(len(ingredients))
+
+        rows = conn.execute(sql, params).fetchall()
+        return [dict(row) for row in rows]
 
 
 def search_recipes_by_filters(search_text: str = None, category_ids: list = None,

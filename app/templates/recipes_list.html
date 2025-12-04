@@ -12,9 +12,12 @@
 <div x-data="{
   lang: '{{ lang }}',
   search: '',
+  searchIngredients: '',
+  searchingByIngredients: false,
   sortBy: 'name',
   sortOrder: 'asc',
   recipes: window.recipesData || [],
+  allRecipes: window.recipesData || [],
   categories: [],
   tags: [],
   eventTypes: [],
@@ -43,6 +46,30 @@
     } catch (error) {
       console.error('Erreur chargement catégories/tags/event types:', error);
     }
+  },
+
+  async searchByIngredients() {
+    if (!this.searchIngredients.trim()) {
+      this.recipes = this.allRecipes;
+      this.searchingByIngredients = false;
+      return;
+    }
+
+    this.searchingByIngredients = true;
+    try {
+      const response = await fetch(`/api/recipes/search-by-ingredients?ingredients=${encodeURIComponent(this.searchIngredients)}&lang=${this.lang}`);
+      const results = await response.json();
+      this.recipes = results;
+    } catch (error) {
+      console.error('Erreur recherche par ingrédients:', error);
+      alert('{{ 'Erreur lors de la recherche' if lang == 'fr' else '検索エラー' }}');
+    }
+  },
+
+  clearIngredientSearch() {
+    this.searchIngredients = '';
+    this.recipes = this.allRecipes;
+    this.searchingByIngredients = false;
   },
 
   get filteredRecipes() {
@@ -203,6 +230,42 @@
       </option>
       {% endfor %}
     </select>
+  </div>
+
+  <!-- Recherche par ingrédients -->
+  <div class="mb-4 bg-gradient-to-r from-green-50 to-blue-50 dark:from-green-900/20 dark:to-blue-900/20 border-2 border-green-200 dark:border-green-700 rounded-lg p-4">
+    <div class="flex items-center gap-2 mb-2">
+      <span class="text-lg">🥕</span>
+      <h3 class="font-semibold text-gray-900 dark:text-white">
+        {{ 'Recherche par ingrédients' if lang == 'fr' else '食材で検索' }}
+      </h3>
+    </div>
+    <p class="text-sm text-gray-600 dark:text-gray-400 mb-3">
+      {{ 'Entrez plusieurs ingrédients séparés par des virgules (ex: tomate, basilic, mozzarella)' if lang == 'fr' else '複数の食材をカンマで区切って入力してください（例：トマト、バジル、モッツァレラ）' }}
+    </p>
+    <div class="flex gap-2">
+      <input
+        type="text"
+        x-model="searchIngredients"
+        @keyup.enter="searchByIngredients()"
+        placeholder="{{ 'tomate, basilic, mozzarella...' if lang == 'fr' else 'トマト、バジル、モッツァレラ...' }}"
+        class="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
+      >
+      <button
+        @click="searchByIngredients()"
+        class="px-6 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium transition-colors">
+        {{ 'Rechercher' if lang == 'fr' else '検索' }}
+      </button>
+      <button
+        x-show="searchingByIngredients"
+        @click="clearIngredientSearch()"
+        class="px-4 py-2 bg-gray-400 hover:bg-gray-500 text-white rounded-lg transition-colors">
+        {{ 'Effacer' if lang == 'fr' else 'クリア' }}
+      </button>
+    </div>
+    <div x-show="searchingByIngredients" class="mt-2 text-sm text-green-700 dark:text-green-400">
+      ✓ {{ 'Recherche active avec' if lang == 'fr' else 'アクティブな検索:' }} "<span x-text="searchIngredients"></span>"
+    </div>
   </div>
 
   <!-- Filtres rapides par type d'événement -->

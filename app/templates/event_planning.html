@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="{{ lang }}">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ 'Planification' if lang == 'fr' else 'プランニング' }} - {{ event.name }}</title>
+    <script src="/static/css/tailwind.min.js"></script>
+    <script defer src="/static/css/alpine.min.js"></script>
+</head>
+<body class="bg-gray-50">
+    <div x-data="planningApp()" :class="darkMode ? 'dark bg-gray-900' : 'bg-gray-50'" class="min-h-screen">
+        <!-- Header -->
+        <header class="bg-white dark:bg-gray-800 shadow-sm border-b border-gray-200 dark:border-gray-700">
+            <div class="max-w-7xl mx-auto px-4 py-4 flex justify-between items-center">
+                <div class="flex items-center gap-4">
+                    <a href="/events/{{ event.id }}/organization?lang={{ lang }}" class="text-blue-600 dark:text-blue-400 hover:underline">
+                        ← {{ S('back') }}
+                    </a>
+                    <h1 class="text-2xl font-bold text-gray-900 dark:text-white">
+                        {{ 'Planification' if lang == 'fr' else 'プランニング' }} - {{ event.name }}
+                    </h1>
+                </div>
+
+                <div class="flex items-center gap-4">
+                    <!-- Sélecteur de langue -->
+                    <div class="flex gap-2">
+                        <a href="?lang=fr"
+                           class="px-3 py-1.5 rounded-lg {{ 'bg-blue-500 text-white' if lang == 'fr' else 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600' }}">
+                            FR
+                        </a>
+                        <a href="?lang=jp"
+                           class="px-3 py-1.5 rounded-lg {{ 'bg-blue-500 text-white' if lang == 'jp' else 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600' }}">
+                            JP
+                        </a>
+                    </div>
+
+                    <!-- Toggle mode sombre -->
+                    <button @click="darkMode = !darkMode"
+                            class="p-2 rounded-lg bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600">
+                        <span x-show="!darkMode">🌙</span>
+                        <span x-show="darkMode">☀️</span>
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        <!-- Contenu principal -->
+        <main class="max-w-7xl mx-auto px-4 py-8" style="height: calc(100vh - 180px); display: flex; gap: 2rem;">
+            <!-- Colonne de gauche: Recettes disponibles -->
+            <div class="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6" style="flex: 1; display: flex; flex-direction: column; height: 100%; overflow: hidden;">
+                <h2 class="text-xl font-bold text-gray-900 dark:text-white mb-4" style="flex-shrink: 0;">
+                    {{ 'Recettes disponibles' if lang == 'fr' else '利用可能なレシピ' }}
+                </h2>
+
+                <div class="space-y-3" style="flex: 1; overflow-y: auto; overflow-x: hidden;">
+                        <template x-for="recipe in availableRecipes" :key="recipe.id">
+                            <div draggable="true"
+                                 @dragstart="startDrag($event, recipe)"
+                                 @dragend="endDrag($event)"
+                                 class="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg cursor-move hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors border border-gray-200 dark:border-gray-600">
+                                <!-- Image de la recette (icône) -->
+                                <template x-if="recipe.thumbnail_url">
+                                    <img :src="recipe.thumbnail_url"
+                                         :alt="recipe.name"
+                                         class="w-16 h-16 object-cover rounded-lg">
+                                </template>
+                                <template x-if="!recipe.thumbnail_url">
+                                    <div class="w-16 h-16 bg-gray-300 dark:bg-gray-600 rounded-lg flex items-center justify-center text-2xl">
+                                        🍽️
+                                    </div>
+                                </template>
+
+                                <!-- Nom de la recette -->
+                                <div class="flex-1">
+                                    <p class="font-medium text-gray-900 dark:text-white" x-text="recipe.name"></p>
+                                </div>
+
+                                <!-- Icône de drag -->
+                                <svg class="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8h16M4 16h16"/>
+                                </svg>
+                            </div>
+                        </template>
+
+                        <template x-if="availableRecipes.length === 0">
+                            <div class="text-center py-8 text-gray-500 dark:text-gray-400">
+                                <p class="text-4xl mb-2">✓</p>
+                                <p>{{ 'Toutes les recettes sont planifiées' if lang == 'fr' else 'すべてのレシピが計画済み' }}</p>
+                            </div>
+                        </template>
+                    </div>
+            </div>
+
+            <!-- Colonne de droite: Jours avec recettes assignées -->
+            <div class="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6" style="flex: 1; display: flex; flex-direction: column; height: 100%; overflow: hidden;">
+                <h2 class="text-xl font-bold text-gray-900 dark:text-white mb-4" style="flex-shrink: 0;">
+                    {{ 'Planification par jour' if lang == 'fr' else '日別プランニング' }}
+                </h2>
+
+                <div class="space-y-4" style="flex: 1; overflow-y: auto; overflow-x: hidden; min-height: 200px;">
+                        <!-- Debug: afficher le nombre de dates -->
+                        <div x-show="dates.length === 0" class="text-center py-8 text-red-500">
+                            <p>⚠️ Aucune date détectée - dates.length = <span x-text="dates.length"></span></p>
+                            <p class="text-sm">selected_dates depuis backend: {{ selected_dates | length }}</p>
+                        </div>
+
+                        <template x-for="(dateInfo, index) in dates" :key="dateInfo.id">
+                            <div class="border-2 border-gray-300 dark:border-gray-600 rounded-lg overflow-hidden" style="margin-bottom: 1rem;">
+                                <!-- En-tête de la date -->
+                                <div class="bg-blue-500 px-4 py-2">
+                                    <h3 class="text-white font-semibold" x-text="dateInfo.date"></h3>
+                                </div>
+
+                                <!-- Zone de drop pour les recettes -->
+                                <div @drop="drop($event, dateInfo.id)"
+                                     @dragover.prevent
+                                     @dragenter="dragEnter($event)"
+                                     @dragleave="dragLeave($event)"
+                                     :class="{'bg-blue-100 dark:bg-blue-900': isDragOver === dateInfo.id}"
+                                     class="min-h-[100px] p-3 space-y-2">
+
+                                    <template x-for="(recipe, recipeIndex) in dateInfo.recipes" :key="recipe.id">
+                                        <div draggable="true"
+                                             @dragstart="startDragFromDate($event, recipe, dateInfo.id, recipeIndex)"
+                                             @dragend="endDrag($event)"
+                                             class="flex items-center gap-3 p-2 bg-gray-50 dark:bg-gray-700 rounded border border-gray-200 dark:border-gray-600 cursor-move hover:bg-gray-100 dark:hover:bg-gray-600">
+                                            <!-- Image miniature -->
+                                            <template x-if="recipe.thumbnail_url">
+                                                <img :src="recipe.thumbnail_url"
+                                                     :alt="recipe.name"
+                                                     class="w-12 h-12 object-cover rounded">
+                                            </template>
+                                            <template x-if="!recipe.thumbnail_url">
+                                                <div class="w-12 h-12 bg-gray-300 dark:bg-gray-600 rounded flex items-center justify-center text-xl">
+                                                    🍽️
+                                                </div>
+                                            </template>
+
+                                            <!-- Nom et position -->
+                                            <div class="flex-1">
+                                                <p class="font-medium text-gray-900 dark:text-white text-sm" x-text="recipe.name"></p>
+                                                <p class="text-xs text-gray-500 dark:text-gray-400" x-text="'№ ' + (recipeIndex + 1)"></p>
+                                            </div>
+
+                                            <!-- Boutons de réorganisation -->
+                                            <div class="flex flex-col gap-1">
+                                                <button type="button"
+                                                        @click="moveUp(dateInfo.id, recipeIndex)"
+                                                        :disabled="recipeIndex === 0"
+                                                        class="p-1 hover:bg-gray-200 dark:hover:bg-gray-500 rounded disabled:opacity-30">
+                                                    <svg class="w-4 h-4 text-gray-600 dark:text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7"/>
+                                                    </svg>
+                                                </button>
+                                                <button type="button"
+                                                        @click="moveDown(dateInfo.id, recipeIndex)"
+                                                        :disabled="recipeIndex === dateInfo.recipes.length - 1"
+                                                        class="p-1 hover:bg-gray-200 dark:hover:bg-gray-500 rounded disabled:opacity-30">
+                                                    <svg class="w-4 h-4 text-gray-600 dark:text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                                                    </svg>
+                                                </button>
+                                            </div>
+
+                                            <!-- Bouton de suppression -->
+                                            <button type="button"
+                                                    @click="removeRecipe(dateInfo.id, recipeIndex)"
+                                                    class="p-1 hover:bg-red-100 dark:hover:bg-red-900 rounded text-red-600 dark:text-red-400">
+                                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                                                </svg>
+                                            </button>
+                                        </div>
+                                    </template>
+
+                                    <template x-if="dateInfo.recipes.length === 0">
+                                        <div class="text-center py-6 text-gray-400 dark:text-gray-500 text-sm">
+                                            {{ 'Glissez des recettes ici' if lang == 'fr' else 'ここにレシピをドラッグ' }}
+                                        </div>
+                                    </template>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+            </div>
+        </main>
+
+        <!-- Boutons d'action -->
+        <div class="max-w-7xl mx-auto px-4 py-4">
+            <div class="flex gap-4 justify-end">
+                <a href="/events/{{ event.id }}/organization?lang={{ lang }}"
+                   class="px-6 py-3 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 font-medium">
+                    {{ 'Annuler' if lang == 'fr' else 'キャンセル' }}
+                </a>
+                <button @click="savePlanning"
+                        class="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium">
+                    {{ 'Enregistrer' if lang == 'fr' else '保存' }}
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function planningApp() {
+            return {
+                darkMode: false,
+                isDragOver: null,
+                draggedRecipe: null,
+                dragSource: null, // 'available' ou {dateId: X, index: Y}
+
+                // Recettes disponibles (non encore assignées)
+                availableRecipes: {{ recipes | tojson }}.filter(r => {
+                    const planning = {{ planning_by_date | tojson }};
+                    for (let date in planning) {
+                        if (planning[date].recipes.some(pr => pr.id === r.id)) {
+                            return false;
+                        }
+                    }
+                    return true;
+                }),
+
+                // Dates avec leurs recettes
+                dates: {{ selected_dates | tojson }}.map(d => {
+                    const planning = {{ planning_by_date | tojson }};
+                    return {
+                        id: d.id,
+                        date: d.date,
+                        recipes: planning[d.date] ? planning[d.date].recipes : []
+                    };
+                }),
+
+                startDrag(event, recipe) {
+                    this.draggedRecipe = recipe;
+                    this.dragSource = 'available';
+                    event.dataTransfer.effectAllowed = 'move';
+                },
+
+                startDragFromDate(event, recipe, dateId, index) {
+                    this.draggedRecipe = recipe;
+                    this.dragSource = {dateId, index};
+                    event.dataTransfer.effectAllowed = 'move';
+                },
+
+                endDrag(event) {
+                    this.isDragOver = null;
+                },
+
+                dragEnter(event) {
+                    event.preventDefault();
+                },
+
+                dragLeave(event) {
+                    this.isDragOver = null;
+                },
+
+                drop(event, targetDateId) {
+                    event.preventDefault();
+                    if (!this.draggedRecipe) return;
+
+                    // Trouver la date cible
+                    const targetDate = this.dates.find(d => d.id === targetDateId);
+                    if (!targetDate) return;
+
+                    // Si la recette vient d'une autre date, la retirer
+                    if (this.dragSource !== 'available') {
+                        const sourceDate = this.dates.find(d => d.id === this.dragSource.dateId);
+                        if (sourceDate) {
+                            sourceDate.recipes.splice(this.dragSource.index, 1);
+                        }
+                    } else {
+                        // Retirer de availableRecipes
+                        const index = this.availableRecipes.findIndex(r => r.id === this.draggedRecipe.id);
+                        if (index !== -1) {
+                            this.availableRecipes.splice(index, 1);
+                        }
+                    }
+
+                    // Ajouter à la date cible
+                    targetDate.recipes.push(this.draggedRecipe);
+
+                    this.isDragOver = null;
+                    this.draggedRecipe = null;
+                    this.dragSource = null;
+                },
+
+                removeRecipe(dateId, recipeIndex) {
+                    const date = this.dates.find(d => d.id === dateId);
+                    if (!date) return;
+
+                    const recipe = date.recipes[recipeIndex];
+                    date.recipes.splice(recipeIndex, 1);
+
+                    // Remettre dans availableRecipes
+                    this.availableRecipes.push(recipe);
+                },
+
+                moveUp(dateId, recipeIndex) {
+                    if (recipeIndex === 0) return;
+
+                    const date = this.dates.find(d => d.id === dateId);
+                    if (!date) return;
+
+                    const temp = date.recipes[recipeIndex];
+                    date.recipes[recipeIndex] = date.recipes[recipeIndex - 1];
+                    date.recipes[recipeIndex - 1] = temp;
+                },
+
+                moveDown(dateId, recipeIndex) {
+                    const date = this.dates.find(d => d.id === dateId);
+                    if (!date || recipeIndex >= date.recipes.length - 1) return;
+
+                    const temp = date.recipes[recipeIndex];
+                    date.recipes[recipeIndex] = date.recipes[recipeIndex + 1];
+                    date.recipes[recipeIndex + 1] = temp;
+                },
+
+                savePlanning() {
+                    // Construire les données de planification
+                    const form = document.createElement('form');
+                    form.method = 'POST';
+                    form.action = '/events/{{ event.id }}/planning/save';
+
+                    // Ajouter le token de langue
+                    const langInput = document.createElement('input');
+                    langInput.type = 'hidden';
+                    langInput.name = 'lang';
+                    langInput.value = '{{ lang }}';
+                    form.appendChild(langInput);
+
+                    // Ajouter les données de planification
+                    let planningIndex = 0;
+                    this.dates.forEach(date => {
+                        date.recipes.forEach((recipe, position) => {
+                            const recipeIdInput = document.createElement('input');
+                            recipeIdInput.type = 'hidden';
+                            recipeIdInput.name = `planning[${planningIndex}][recipe_id]`;
+                            recipeIdInput.value = recipe.id;
+                            form.appendChild(recipeIdInput);
+
+                            const dateIdInput = document.createElement('input');
+                            dateIdInput.type = 'hidden';
+                            dateIdInput.name = `planning[${planningIndex}][event_date_id]`;
+                            dateIdInput.value = date.id;
+                            form.appendChild(dateIdInput);
+
+                            const positionInput = document.createElement('input');
+                            positionInput.type = 'hidden';
+                            positionInput.name = `planning[${planningIndex}][position]`;
+                            positionInput.value = position;
+                            form.appendChild(positionInput);
+
+                            planningIndex++;
+                        });
+                    });
+
+                    document.body.appendChild(form);
+                    form.submit();
+                }
+            }
+        }
+    </script>
+</body>
+</html>

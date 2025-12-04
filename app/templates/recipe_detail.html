@@ -4,9 +4,9 @@
   <!-- Bouton retour à l'événement (si on vient d'un événement) -->
   {% if event_id %}
   <div class="mb-4">
-    <a href="/events/{{ event_id }}?lang={{ lang }}" class="inline-flex items-center gap-2 text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300">
+    <a href="/events/{{ event_id }}/organization?lang={{ lang }}" class="inline-flex items-center gap-2 text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300">
       <span>←</span>
-      <span>{{ 'Retour à l\'événement' if lang == 'fr' else 'イベントに戻る' }}</span>
+      <span>{{ 'Retour à l\'organisation' if lang == 'fr' else '企画に戻る' }}</span>
     </a>
   </div>
   {% endif %}
@@ -44,6 +44,12 @@
         <span class="font-semibold">{{ S('servings') }}:</span>
         <span class="bg-green-100 text-green-800 px-2 py-1 rounded">{{ rec['servings'] or '-' }}</span>
       </div>
+      {% if rec['creator_username'] %}
+      <div>
+        <span class="font-semibold">👤 {{ 'Créateur' if lang == 'fr' else '作成者' }}:</span>
+        <span class="bg-purple-100 text-purple-800 px-2 py-1 rounded">{{ rec['creator_display_name'] or rec['creator_username'] }}</span>
+      </div>
+      {% endif %}
       {% if rec['source'] %}
       <div>
         <span class="font-semibold">{{ S('source') }}:</span>
@@ -435,6 +441,20 @@
               class="w-full px-3 py-2 border rounded"
             />
           </div>
+          <div>
+            <label class="block text-sm font-semibold mb-1">
+              👤 {{ '作成者' if lang == 'jp' else 'Créateur' }}
+            </label>
+            <select
+              x-model="editData.user_id"
+              class="w-full px-3 py-2 border rounded"
+            >
+              <option value="">{{ '選択してください' if lang == 'jp' else 'Sélectionner...' }}</option>
+              {% for user in all_users %}
+              <option value="{{ user.id }}">{{ user.display_name or user.username }}</option>
+              {% endfor %}
+            </select>
+          </div>
         </div>
       </div>
 
@@ -719,7 +739,8 @@
           ingredients: {{ ings | tojson | safe }},
           steps: {{ steps | tojson | safe }},
           recipe_type: '{{ rec["type"] or "" }}',
-          servings_default: {{ rec['servings'] or 'null' }}
+          servings_default: {{ rec['servings'] or 'null' }},
+          user_id: {{ rec['user_id'] or 'null' }}
         };
       },
 
@@ -852,7 +873,8 @@
               ingredients: this.editData.ingredients,
               steps: this.editData.steps,
               recipe_type: this.editData.recipe_type,
-              servings_default: this.editData.servings_default
+              servings_default: this.editData.servings_default,
+              user_id: this.editData.user_id
             })
           });
 

@@ -72,15 +72,32 @@
                 </div>
                 {% endif %}
 
-                <div class="mt-4 flex gap-3">
+                <div class="mt-4 flex flex-wrap gap-3">
+                    {% if recipes %}
+                    <a href="/events/{{ event.id }}/shopping-list?lang={{ lang }}"
+                       class="inline-flex items-center gap-2 px-6 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 font-medium">
+                        <span>📝</span>
+                        <span>{{ 'Liste d\'ingrédients' if lang == 'fr' else '材料リスト' }}</span>
+                    </a>
+                    <a href="/events/{{ event.id }}/budget?lang={{ lang }}"
+                       class="inline-flex items-center gap-2 px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium">
+                        <span>💰</span>
+                        <span>{{ 'Gérer le budget' if lang == 'fr' else '予算管理' }}</span>
+                    </a>
+                    <a href="/events/{{ event.id }}/organization?lang={{ lang }}"
+                       class="inline-flex items-center gap-2 px-6 py-3 bg-orange-600 text-white rounded-lg hover:bg-orange-700 font-medium">
+                        <span>📅</span>
+                        <span>{{ 'Organisation' if lang == 'fr' else '企画' }}</span>
+                    </a>
+                    {% endif %}
                     <a href="/events/{{ event.id }}/edit?lang={{ lang }}"
-                       class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                       class="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium">
                         {{ S('edit') }}
                     </a>
                     <form method="POST" action="/events/{{ event.id }}/delete"
                           onsubmit="return confirm('{{ 'Êtes-vous sûr de vouloir supprimer cet événement ?' if lang == 'fr' else 'このイベントを削除してもよろしいですか？' }}');">
                         <input type="hidden" name="lang" value="{{ lang }}">
-                        <button type="submit" class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700">
+                        <button type="submit" class="px-6 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 font-medium">
                             {{ S('delete') }}
                         </button>
                     </form>
@@ -164,20 +181,6 @@
                         </div>
                     </div>
                     {% endfor %}
-                </div>
-
-                <!-- Boutons d'action -->
-                <div class="mt-6 flex gap-3">
-                    <a href="/events/{{ event.id }}/shopping-list?lang={{ lang }}"
-                       class="inline-flex items-center gap-2 px-6 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 font-medium">
-                        <span>📝</span>
-                        <span>{{ 'Liste d\'ingrédients' if lang == 'fr' else '材料リスト' }}</span>
-                    </a>
-                    <a href="/events/{{ event.id }}/budget?lang={{ lang }}"
-                       class="inline-flex items-center gap-2 px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium">
-                        <span>💰</span>
-                        <span>{{ 'Gérer le budget' if lang == 'fr' else '予算管理' }}</span>
-                    </a>
                 </div>
                 {% else %}
                 <p class="text-gray-500 dark:text-gray-400 text-center py-8">

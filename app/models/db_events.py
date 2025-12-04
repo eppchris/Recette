@@ -94,9 +94,12 @@ def update_event_type(event_type_id: int, name_fr: str = None, name_jp: str = No
         return True
 
 
-def list_events():
+def list_events(user_id: int = None):
     """
     Liste tous les événements avec leurs informations de base
+
+    Args:
+        user_id: Si fourni, filtre les événements de cet utilisateur uniquement
 
     Returns:
         Liste des événements triés par date décroissante
@@ -114,14 +117,22 @@ def list_events():
                 e.updated_at,
                 e.currency,
                 e.budget_planned,
+                e.user_id,
                 et.id AS event_type_id,
                 et.name_fr AS event_type_name_fr,
                 et.name_jp AS event_type_name_jp
             FROM event e
             JOIN event_type et ON et.id = e.event_type_id
-            ORDER BY e.event_date DESC
         """
-        rows = con.execute(sql).fetchall()
+
+        if user_id is not None:
+            sql += " WHERE e.user_id = ?"
+            sql += " ORDER BY e.event_date DESC"
+            rows = con.execute(sql, (user_id,)).fetchall()
+        else:
+            sql += " ORDER BY e.event_date DESC"
+            rows = con.execute(sql).fetchall()
+
         return [dict(row) for row in rows]
 
 
@@ -149,6 +160,9 @@ def get_event_by_id(event_id: int):
                 e.currency,
                 e.budget_planned,
                 e.ingredients_actual_total,
+                e.date_debut,
+                e.date_fin,
+                e.nombre_jours,
                 et.id AS event_type_id,
                 et.name_fr AS event_type_name_fr,
                 et.name_jp AS event_type_name_jp
@@ -160,32 +174,41 @@ def get_event_by_id(event_id: int):
         return dict(result) if result else None
 
 
-def create_event(event_type_id: int, name: str, event_date: str, location: str, attendees: int, notes: str = '', user_id: int = None):
+def create_event(event_type_id: int, name: str, event_date: str, location: str, attendees: int, notes: str = '', user_id: int = None, date_debut: str = None, date_fin: str = None, nombre_jours: int = 1):
     """
     Crée un nouvel événement
 
     Args:
         event_type_id: ID du type d'événement
         name: Nom de l'événement
-        event_date: Date de l'événement (format YYYY-MM-DD)
+        event_date: Date de l'événement (format YYYY-MM-DD) - conservé pour compatibilité
         location: Lieu de l'événement
         attendees: Nombre de convives
         notes: Notes optionnelles
         user_id: ID de l'utilisateur créateur (optionnel)
+        date_debut: Date de début de l'événement (format YYYY-MM-DD)
+        date_fin: Date de fin de l'événement (format YYYY-MM-DD)
+        nombre_jours: Nombre de jours travaillés
 
     Returns:
         ID du nouvel événement créé
     """
+    # Si date_debut et date_fin ne sont pas fournis, utiliser event_date
+    if date_debut is None:
+        date_debut = event_date
+    if date_fin is None:
+        date_fin = event_date
+
     with get_db() as con:
         sql = """
-            INSERT INTO event (event_type_id, name, event_date, location, attendees, notes, user_id)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO event (event_type_id, name, event_date, location, attendees, notes, user_id, date_debut, date_fin, nombre_jours)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """
-        cursor = con.execute(sql, (event_type_id, name, event_date, location, attendees, notes, user_id))
+        cursor = con.execute(sql, (event_type_id, name, event_date, location, attendees, notes, user_id, date_debut, date_fin, nombre_jours))
         return cursor.lastrowid
 
 
-def update_event(event_id: int, event_type_id: int, name: str, event_date: str, location: str, attendees: int, notes: str = ''):
+def update_event(event_id: int, event_type_id: int, name: str, event_date: str, location: str, attendees: int, notes: str = '', date_debut: str = None, date_fin: str = None, nombre_jours: int = None):
     """
     Met à jour un événement existant
 
@@ -193,14 +216,25 @@ def update_event(event_id: int, event_type_id: int, name: str, event_date: str, 
         event_id: ID de l'événement à mettre à jour
         event_type_id: ID du type d'événement
         name: Nom de l'événement
-        event_date: Date de l'événement (format YYYY-MM-DD)
+        event_date: Date de l'événement (format YYYY-MM-DD) - conservé pour compatibilité
         location: Lieu de l'événement
         attendees: Nombre de convives
         notes: Notes optionnelles
+        date_debut: Date de début de l'événement
+        date_fin: Date de fin de l'événement
+        nombre_jours: Nombre de jours travaillés
 
     Returns:
         True si la mise à jour a réussi
     """
+    # Si date_debut et date_fin ne sont pas fournis, utiliser event_date
+    if date_debut is None:
+        date_debut = event_date
+    if date_fin is None:
+        date_fin = event_date
+    if nombre_jours is None:
+        nombre_jours = 1
+
     with get_db() as con:
         sql = """
             UPDATE event
@@ -210,10 +244,13 @@ def update_event(event_id: int, event_type_id: int, name: str, event_date: str, 
                 location = ?,
                 attendees = ?,
                 notes = ?,
+                date_debut = ?,
+                date_fin = ?,
+                nombre_jours = ?,
                 updated_at = CURRENT_TIMESTAMP
             WHERE id = ?
         """
-        con.execute(sql, (event_type_id, name, event_date, location, attendees, notes, event_id))
+        con.execute(sql, (event_type_id, name, event_date, location, attendees, notes, date_debut, date_fin, nombre_jours, event_id))
         return True
 
 
@@ -453,3 +490,162 @@ def set_recipe_event_types(recipe_id: int, event_type_ids: list):
                 (recipe_id, event_type_id)
             )
         con.commit()
+
+
+# ============================================================================
+# Gestion des dates d'événement multi-jours
+# ============================================================================
+
+def save_event_dates(event_id: int, dates: list):
+    """
+    Enregistre ou met à jour les dates d'un événement
+
+    Args:
+        event_id: ID de l'événement
+        dates: Liste de dicts avec 'date' et 'is_selected'
+    """
+    with get_db() as con:
+        cursor = con.cursor()
+        # Supprimer les anciennes dates
+        cursor.execute("DELETE FROM event_date WHERE event_id = ?", (event_id,))
+        # Ajouter les nouvelles dates
+        for date_info in dates:
+            cursor.execute(
+                "INSERT INTO event_date (event_id, date, is_selected) VALUES (?, ?, ?)",
+                (event_id, date_info['date'], date_info.get('is_selected', 1))
+            )
+        con.commit()
+
+
+def get_event_dates(event_id: int):
+    """
+    Récupère toutes les dates d'un événement
+
+    Args:
+        event_id: ID de l'événement
+
+    Returns:
+        Liste des dates avec leur statut de sélection
+    """
+    with get_db() as con:
+        sql = """
+            SELECT id, event_id, date, is_selected, created_at
+            FROM event_date
+            WHERE event_id = ?
+            ORDER BY date
+        """
+        rows = con.execute(sql, (event_id,)).fetchall()
+        return [dict(row) for row in rows]
+
+
+def toggle_event_date_selection(event_date_id: int):
+    """
+    Inverse la sélection d'une date d'événement
+
+    Args:
+        event_date_id: ID de la date d'événement
+
+    Returns:
+        Nouveau statut de is_selected
+    """
+    with get_db() as con:
+        cursor = con.cursor()
+        # Récupérer le statut actuel
+        current = cursor.execute(
+            "SELECT is_selected FROM event_date WHERE id = ?",
+            (event_date_id,)
+        ).fetchone()
+
+        if current:
+            new_status = 0 if current['is_selected'] else 1
+            cursor.execute(
+                "UPDATE event_date SET is_selected = ? WHERE id = ?",
+                (new_status, event_date_id)
+            )
+            con.commit()
+            return new_status
+        return None
+
+
+# ============================================================================
+# Gestion de l'organisation des recettes par jour
+# ============================================================================
+
+def save_recipe_planning(event_id: int, planning_data: list):
+    """
+    Sauvegarde l'organisation des recettes par jour
+
+    Args:
+        event_id: ID de l'événement
+        planning_data: Liste de dicts avec 'recipe_id', 'event_date_id', 'position'
+    """
+    with get_db() as con:
+        cursor = con.cursor()
+        # Supprimer l'ancienne planification
+        cursor.execute("DELETE FROM event_recipe_planning WHERE event_id = ?", (event_id,))
+        # Ajouter la nouvelle planification
+        for item in planning_data:
+            cursor.execute(
+                """INSERT INTO event_recipe_planning
+                   (event_id, recipe_id, event_date_id, position)
+                   VALUES (?, ?, ?, ?)""",
+                (event_id, item['recipe_id'], item['event_date_id'], item['position'])
+            )
+        con.commit()
+
+
+def get_recipe_planning(event_id: int, lang: str):
+    """
+    Récupère l'organisation des recettes par jour pour un événement
+
+    Args:
+        event_id: ID de l'événement
+        lang: Langue ('fr' ou 'jp')
+
+    Returns:
+        Dict organisé par date avec les recettes dans l'ordre
+    """
+    with get_db() as con:
+        sql = """
+            SELECT
+                ed.id AS event_date_id,
+                ed.date,
+                ed.is_selected,
+                r.id AS recipe_id,
+                r.slug,
+                r.image_url,
+                r.thumbnail_url,
+                COALESCE(rt.name, r.slug) AS recipe_name,
+                erp.position
+            FROM event_date ed
+            LEFT JOIN event_recipe_planning erp ON erp.event_date_id = ed.id
+            LEFT JOIN recipe r ON r.id = erp.recipe_id
+            LEFT JOIN recipe_translation rt ON rt.recipe_id = r.id AND rt.lang = ?
+            WHERE ed.event_id = ? AND ed.is_selected = 1
+            ORDER BY ed.date, erp.position
+        """
+        rows = con.execute(sql, (lang, event_id)).fetchall()
+
+        # Organiser par date
+        result = {}
+        for row in rows:
+            date = row['date']
+            if date not in result:
+                result[date] = {
+                    'event_date_id': row['event_date_id'],
+                    'date': date,
+                    'recipes': []
+                }
+
+            # Ajouter la recette si elle existe
+            if row['recipe_id']:
+                result[date]['recipes'].append({
+                    'id': row['recipe_id'],
+                    'slug': row['slug'],
+                    'name': row['recipe_name'],
+                    'image_url': row['image_url'],
+                    'thumbnail_url': row['thumbnail_url'],
+                    'position': row['position']
+                })
+
+        return result
