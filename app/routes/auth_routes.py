@@ -1,5 +1,7 @@
 """Routes d'authentification multi-utilisateurs"""
 
+import os
+import markdown
 from fastapi import APIRouter, Request, Form, Query
 from fastapi.responses import HTMLResponse, RedirectResponse
 
@@ -403,7 +405,110 @@ async def reset_user_password(
 @router.get("/help", response_class=HTMLResponse)
 async def help_page(request: Request, lang: str = Query("fr")):
     """Page d'aide générale par fonction"""
+    # Charger le contenu markdown
+    help_file = f"docs/help/content/help_{lang}.md"
+
+    if os.path.exists(help_file):
+        with open(help_file, 'r', encoding='utf-8') as f:
+            md_content = f.read()
+            help_content = markdown.markdown(md_content, extensions=['tables', 'fenced_code'])
+    else:
+        help_content = "Aide non disponible" if lang == "fr" else "ヘルプは利用できません"
+
     return templates.TemplateResponse(
         "help.html",
-        {"request": request, "lang": lang}
+        {"request": request, "lang": lang, "help_content": help_content}
     )
+
+
+@router.get("/admin/help/edit", response_class=HTMLResponse)
+async def admin_help_edit_form(request: Request, lang: str = Query("fr")):
+    """Formulaire d'édition de l'aide (admins uniquement)"""
+    user_id = request.session.get("user_id")
+    is_admin = request.session.get("is_admin")
+
+    # Vérifier que l'utilisateur est connecté et admin
+    if not user_id or not is_admin:
+        return RedirectResponse(url=f"/recipes?lang={lang}", status_code=303)
+
+    # Charger le contenu markdown actuel
+    help_file = f"docs/help/content/help_{lang}.md"
+
+    if os.path.exists(help_file):
+        with open(help_file, 'r', encoding='utf-8') as f:
+            content = f.read()
+    else:
+        content = ""
+
+    # Générer preview
+    preview_html = markdown.markdown(content, extensions=['tables', 'fenced_code']) if content else ""
+
+    return templates.TemplateResponse(
+        "admin_help_edit.html",
+        {
+            "request": request,
+            "lang": lang,
+            "content": content,
+            "preview_html": preview_html,
+            "error": None,
+            "success": None
+        }
+    )
+
+
+@router.post("/admin/help/edit", response_class=HTMLResponse)
+async def admin_help_edit_save(
+    request: Request,
+    content: str = Form(...),
+    lang: str = Query("fr")
+):
+    """Sauvegarde le contenu de l'aide (admins uniquement)"""
+    user_id = request.session.get("user_id")
+    is_admin = request.session.get("is_admin")
+
+    # Vérifier que l'utilisateur est connecté et admin
+    if not user_id or not is_admin:
+        return RedirectResponse(url=f"/recipes?lang={lang}", status_code=303)
+
+    try:
+        # Sauvegarder le contenu
+        help_file = f"docs/help/content/help_{lang}.md"
+
+        # Créer le dossier si nécessaire
+        os.makedirs(os.path.dirname(help_file), exist_ok=True)
+
+        with open(help_file, 'w', encoding='utf-8') as f:
+            f.write(content)
+
+        # Générer preview pour affichage
+        preview_html = markdown.markdown(content, extensions=['tables', 'fenced_code'])
+
+        success = "Aide mise à jour avec succès" if lang == "fr" else "ヘルプが正常に更新されました"
+
+        return templates.TemplateResponse(
+            "admin_help_edit.html",
+            {
+                "request": request,
+                "lang": lang,
+                "content": content,
+                "preview_html": preview_html,
+                "success": success,
+                "error": None
+            }
+        )
+
+    except Exception as e:
+        error = f"Erreur lors de la sauvegarde: {str(e)}" if lang == "fr" else f"保存エラー: {str(e)}"
+        preview_html = markdown.markdown(content, extensions=['tables', 'fenced_code'])
+
+        return templates.TemplateResponse(
+            "admin_help_edit.html",
+            {
+                "request": request,
+                "lang": lang,
+                "content": content,
+                "preview_html": preview_html,
+                "error": error,
+                "success": None
+            }
+        )

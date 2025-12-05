@@ -1,14 +1,45 @@
-# Guide pour modifier la page d'aide
+# Système d'aide modifiable (V1.7+)
+
+## 📖 Vue d'ensemble
+
+⚠️ **ATTENTION**: Depuis la version 1.7, l'aide est désormais **modifiable par les administrateurs** via une interface web.
+
+L'ancien système (contenu HTML en dur dans `help.html`) a été remplacé par un système Markdown modifiable.
 
 ## 📍 Fichiers concernés
 
-La page d'aide se trouve dans:
-- **Template HTML**: `app/templates/help.html`
+### Nouveaux fichiers (V1.7+)
+- **Contenu FR**: `docs/help/content/help_fr.md` (Markdown)
+- **Contenu JP**: `docs/help/content/help_jp.md` (Markdown)
+- **Template édition**: `app/templates/admin_help_edit.html`
+- **Route d'édition**: `app/routes/auth_routes.py` (fonctions `/admin/help/edit`)
+
+### Fichiers existants (modifiés)
+- **Template HTML**: `app/templates/help.html` (charge maintenant le Markdown)
 - **Route**: `app/routes/auth_routes.py` (fonction `help_page`)
 
 ## ✏️ Comment modifier le contenu
 
-### Option 1: Modifier directement le fichier help.html
+### Option 1: Via l'interface web (RECOMMANDÉ - V1.7+)
+
+1. **Se connecter en tant qu'administrateur**
+2. **Accéder à la page d'aide** (`/help`)
+3. **Cliquer sur "✏️ Éditer l'aide"** (bouton jaune visible uniquement pour les admins)
+4. **Modifier le contenu Markdown** dans l'éditeur
+5. **Basculer sur "Aperçu"** pour voir le rendu
+6. **Cliquer sur "💾 Enregistrer"**
+
+✅ **Avantages**: Modification sans redéploiement, aperçu en temps réel, accessible en production
+
+### Option 2: Modifier directement les fichiers Markdown
+
+Éditer directement:
+- `docs/help/content/help_fr.md` pour le français
+- `docs/help/content/help_jp.md` pour le japonais
+
+Nécessite un commit et redéploiement.
+
+### Option 3: Modifier directement le fichier help.html (DÉPRÉCIÉ)
 
 Le fichier est structuré en sections bilingues (FR/JP). Chaque section suit ce format:
 
