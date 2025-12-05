@@ -16,6 +16,7 @@
 - [ ] Scan ticket de caisse pour prix - 🔵 À SPÉCIFIER
 
 ### Backlog
+- [ ] Harmoniser navigation (boutons retour, icônes, cohérence UI)
 - [ ] Export PDF planification
 - [ ] Notifications événements
 - [ ] Copie événements avec planning
