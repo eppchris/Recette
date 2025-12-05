@@ -32,6 +32,7 @@ logs/
 deploy/*.sh
 !deploy/deploy_synology.sh
 !deploy/deploy_synology_V1_6.sh
+!deploy/deploy_synology_V1_7.sh
 
 # Fichiers de service système
 *.service
