@@ -398,3 +398,12 @@ async def reset_user_password(
 
     success = f"Mot de passe de {username} modifié" if lang == "fr" else f"{username} のパスワードを変更しました"
     return RedirectResponse(url=f"/admin/users?lang={lang}&success={success}", status_code=303)
+
+
+@router.get("/help", response_class=HTMLResponse)
+async def help_page(request: Request, lang: str = Query("fr")):
+    """Page d'aide générale par fonction"""
+    return templates.TemplateResponse(
+        "help.html",
+        {"request": request, "lang": lang}
+    )
