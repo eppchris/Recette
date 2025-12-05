@@ -1,18 +1,34 @@
 # TODO - Recette App
 
-Liste des tâches et évolutions futures du projet.
+## 📋 Vue d'ensemble
 
-**Légende des statuts:**
-- 🔴 **À faire** - Pas encore commencé
-- 🟡 **En cours** - Développement en cours
-- 🟢 **Terminé** - Implémenté et déployé
-- 🔵 **À spécifier** - Besoin de clarification avant développement
-- ⏸️ **En pause** - Reporté ou bloqué
+### V1.7 (Prochaine version)
+- [ ] Aide: Ajouter bouton retour
+- [ ] Aide: Rendre modifiable par admin (🔥 priorité)
+- [ ] Aide: Mise à jour automatique avec versions
 
-**Priorité:**
-- 🔥 Haute - Urgent
-- ⚡ Moyenne - Important
-- 💡 Basse - Nice to have
+### V1.8+
+- [ ] Recettes composées (recette comme ingrédient) - 🔵 À SPÉCIFIER
+- [ ] Images dans les étapes de recette
+- [ ] Clarifier système de versioning
+
+### V2.0
+- [ ] Scan ticket de caisse pour prix - 🔵 À SPÉCIFIER
+
+### Backlog
+- [ ] Export PDF planification
+- [ ] Notifications événements
+- [ ] Copie événements avec planning
+- [ ] Filtres avancés recherche ingrédients
+- [ ] Autocomplete ingrédients
+- [ ] Dashboard statistiques
+
+---
+
+## 📝 Détails
+
+**Légende:** 🔴 À faire | 🟡 En cours | 🟢 Terminé | 🔵 À spécifier | ⏸️ En pause
+**Priorité:** 🔥 Haute | ⚡ Moyenne | 💡 Basse
 
 ---
 
