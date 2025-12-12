@@ -102,7 +102,15 @@
                            title="{{ 'Voir' if lang == 'fr' else '見る' }}">
                             👁️
                         </a>
-                        <button @click="openParticipantModal({{ participant|tojson }})"
+                        <button @click="openParticipantModal({
+                                id: {{ participant.id }},
+                                nom: '{{ participant.nom }}',
+                                prenom: '{{ participant.prenom or '' }}',
+                                role: '{{ participant.role or '' }}',
+                                telephone: '{{ participant.telephone or '' }}',
+                                email: '{{ participant.email or '' }}',
+                                adresse: '{{ participant.adresse or '' }}'
+                            })"
                                 class="p-2 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600 rounded transition-colors"
                                 title="{{ 'Modifier' if lang == 'fr' else '編集' }}">
                             ✏️
@@ -150,7 +158,11 @@
                            title="{{ 'Voir' if lang == 'fr' else '見る' }}">
                             👁️
                         </a>
-                        <button @click="openGroupModal({{ group|tojson }})"
+                        <button @click="openGroupModal({
+                                id: {{ group.id }},
+                                nom: '{{ group.nom }}',
+                                description: '{{ group.description or '' }}'
+                            })"
                                 class="p-2 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600 rounded transition-colors"
                                 title="{{ 'Modifier' if lang == 'fr' else '編集' }}">
                             ✏️
