@@ -326,9 +326,11 @@ def add_participant_to_group(participant_id: int, group_id: int):
                 VALUES (?, ?)
             """
             cursor = con.execute(sql, (participant_id, group_id))
+            con.commit()  # Commit explicite
             return cursor.lastrowid
-        except Exception:
+        except Exception as e:
             # L'association existe déjà (UNIQUE constraint)
+            print(f"Error adding participant to group: {e}")
             return None
 
 
