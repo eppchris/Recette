@@ -22,13 +22,23 @@ async def participants_index(request: Request, lang: str = "fr"):
     participants = db.list_participants()
     groups = db.list_groups()
 
+    # Enrichir les participants avec leurs groupes
+    for participant in participants:
+        participant['group_ids'] = [g['id'] for g in db.get_participant_groups(participant['id'])]
+
+    # Enrichir les groupes avec leurs membres
+    for group in groups:
+        group['member_ids'] = [m['id'] for m in db.get_group_members(group['id'])]
+
     return templates.TemplateResponse(
         "participants_index.html",
         {
             "request": request,
             "lang": lang,
             "participants": participants,
-            "groups": groups
+            "groups": groups,
+            "all_participants": participants,  # Pour les selects
+            "all_groups": groups  # Pour les selects
         }
     )
 
