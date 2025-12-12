@@ -202,26 +202,63 @@
     this.recipeToDelete = null;
   }
 }">
-  <div class="flex justify-between items-center mb-4">
-    <h1 class="text-2xl font-bold">{{ S('all') }}</h1>
-    <a href="/import?lang={{ lang }}" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">
-      {{ S('import') }}
+  <!-- Bouton retour vers l'accueil -->
+  <div class="mb-4">
+    <a href="/?lang={{ lang }}"
+       class="inline-flex items-center gap-2 px-3 py-2
+              text-blue-600 dark:text-blue-400
+              hover:bg-blue-50 dark:hover:bg-blue-900/20
+              rounded-lg transition-colors duration-150">
+      <span class="text-lg">←</span>
+      <span class="font-medium">{{ 'Accueil' if lang == 'fr' else 'ホーム' }}</span>
     </a>
   </div>
 
+  <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-4">
+    <h1 class="text-2xl font-bold">{{ S('all') }}</h1>
+    <div class="relative w-full sm:w-auto" x-data="{ showImportMenu: false }">
+      <button
+        @click="showImportMenu = !showImportMenu"
+        class="w-full sm:w-auto px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition flex items-center justify-center gap-2">
+        {{ S('import') }}
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+        </svg>
+      </button>
+      <div
+        x-show="showImportMenu"
+        @click.away="showImportMenu = false"
+        x-transition
+        class="absolute right-0 mt-2 w-64 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 z-10">
+        <a href="/import?lang={{ lang }}" class="block px-4 py-3 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-t-lg">
+          <div class="font-semibold">📄 {{ 'Import CSV' if lang == 'fr' else 'CSVインポート' }}</div>
+          <div class="text-xs text-gray-600 dark:text-gray-400">{{ 'Fichier CSV local' if lang == 'fr' else 'ローカルCSVファイル' }}</div>
+        </a>
+        <a href="/import-url?lang={{ lang }}" class="block px-4 py-3 hover:bg-gray-100 dark:hover:bg-gray-700">
+          <div class="font-semibold">🌐 {{ 'Import depuis URL' if lang == 'fr' else 'URLからインポート' }}</div>
+          <div class="text-xs text-gray-600 dark:text-gray-400">{{ 'Importer depuis un site web' if lang == 'fr' else 'ウェブサイトからインポート' }}</div>
+        </a>
+        <a href="/import-pdf?lang={{ lang }}" class="block px-4 py-3 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-b-lg">
+          <div class="font-semibold">📑 {{ 'Import PDF' if lang == 'fr' else 'PDFインポート' }}</div>
+          <div class="text-xs text-gray-600 dark:text-gray-400">{{ 'Document PDF' if lang == 'fr' else 'PDFドキュメント' }}</div>
+        </a>
+      </div>
+    </div>
+  </div>
+
   <!-- Barre de recherche et filtre créateur -->
-  <div class="mb-4 flex gap-4">
+  <div class="mb-4 flex flex-col sm:flex-row gap-3">
     <input
       type="text"
       x-model="search"
       placeholder="🔍 {{ 'Rechercher une recette...' if lang == 'fr' else 'レシピを検索...' }}"
-      class="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+      class="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
     >
 
     <!-- Filtre par créateur -->
     <select
       onchange="window.location.href = '/recipes?lang={{ lang }}&creator_id=' + this.value"
-      class="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
+      class="w-full sm:w-auto px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 dark:text-white"
     >
       <option value="">{{ 'Tous les créateurs' if lang == 'fr' else 'すべての作成者' }}</option>
       {% for user in users %}
@@ -243,7 +280,7 @@
     <p class="text-sm text-gray-600 dark:text-gray-400 mb-3">
       {{ 'Entrez plusieurs ingrédients séparés par des virgules (ex: tomate, basilic, mozzarella)' if lang == 'fr' else '複数の食材をカンマで区切って入力してください（例：トマト、バジル、モッツァレラ）' }}
     </p>
-    <div class="flex gap-2">
+    <div class="flex flex-col sm:flex-row gap-2">
       <input
         type="text"
         x-model="searchIngredients"
@@ -251,17 +288,19 @@
         placeholder="{{ 'tomate, basilic, mozzarella...' if lang == 'fr' else 'トマト、バジル、モッツァレラ...' }}"
         class="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
       >
-      <button
-        @click="searchByIngredients()"
-        class="px-6 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium transition-colors">
-        {{ 'Rechercher' if lang == 'fr' else '検索' }}
-      </button>
-      <button
-        x-show="searchingByIngredients"
-        @click="clearIngredientSearch()"
-        class="px-4 py-2 bg-gray-400 hover:bg-gray-500 text-white rounded-lg transition-colors">
-        {{ 'Effacer' if lang == 'fr' else 'クリア' }}
-      </button>
+      <div class="flex gap-2">
+        <button
+          @click="searchByIngredients()"
+          class="flex-1 sm:flex-none px-6 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium transition-colors">
+          {{ 'Rechercher' if lang == 'fr' else '検索' }}
+        </button>
+        <button
+          x-show="searchingByIngredients"
+          @click="clearIngredientSearch()"
+          class="flex-1 sm:flex-none px-4 py-2 bg-gray-400 hover:bg-gray-500 text-white rounded-lg transition-colors">
+          {{ 'Effacer' if lang == 'fr' else 'クリア' }}
+        </button>
+      </div>
     </div>
     <div x-show="searchingByIngredients" class="mt-2 text-sm text-green-700 dark:text-green-400">
       ✓ {{ 'Recherche active avec' if lang == 'fr' else 'アクティブな検索:' }} "<span x-text="searchIngredients"></span>"
@@ -287,10 +326,10 @@
   </div>
 
   <!-- Filtres avancés (accordéon) -->
-  <div class="mb-4 bg-white border rounded-lg">
+  <div class="mb-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg">
     <!-- Filtres actifs -->
-    <div x-show="selectedEventTypeId !== null || selectedCategories.length > 0 || selectedTags.length > 0" class="p-3 border-b bg-blue-50">
-      <div class="flex items-center gap-2 flex-wrap">
+    <div x-show="selectedEventTypeId !== null || selectedCategories.length > 0 || selectedTags.length > 0" class="p-3 border-b border-gray-200 dark:border-gray-700 bg-blue-50 dark:bg-blue-900/20">
+      <div class="flex items-center gap-2 flex-wrap text-sm sm:text-base">
         <span class="text-sm font-medium text-gray-700">{{ 'Filtres actifs :' if lang == 'fr' else 'アクティブなフィルター:' }}</span>
         <!-- Type d'événement actif -->
         <span x-show="selectedEventTypeId !== null" class="inline-flex items-center gap-1 px-2 py-1 bg-purple-600 text-white text-xs rounded">
@@ -319,12 +358,12 @@
     </div>
 
     <!-- Accordéon Catégories -->
-    <div class="border-b">
+    <div class="border-b border-gray-200 dark:border-gray-700">
       <button @click="showCategories = !showCategories"
-              class="w-full flex items-center justify-between p-3 hover:bg-gray-50 transition">
-        <span class="font-medium">
+              class="w-full flex items-center justify-between p-3 hover:bg-gray-50 dark:hover:bg-gray-700 transition">
+        <span class="font-medium text-sm sm:text-base">
           📂 {{ 'Catégories' if lang == 'fr' else 'カテゴリー' }}
-          <span x-show="selectedCategories.length > 0" class="text-sm text-blue-600">
+          <span x-show="selectedCategories.length > 0" class="text-sm text-blue-600 dark:text-blue-400">
             (<span x-text="selectedCategories.length"></span>)
           </span>
         </span>
@@ -333,13 +372,13 @@
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
         </svg>
       </button>
-      <div x-show="showCategories" x-collapse class="p-3 bg-gray-50">
+      <div x-show="showCategories" x-collapse class="p-3 bg-gray-50 dark:bg-gray-900/50">
         <div class="flex flex-wrap gap-2">
           <template x-for="category in categories" :key="category.id">
             <button
               @click="toggleCategory(category.id)"
-              :class="selectedCategories.includes(category.id) ? 'bg-blue-600 text-white ring-2 ring-blue-600' : 'bg-white text-gray-700 hover:bg-gray-100'"
-              class="px-3 py-1.5 rounded-lg border text-sm transition-all">
+              :class="selectedCategories.includes(category.id) ? 'bg-blue-600 text-white ring-2 ring-blue-600' : 'bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-600'"
+              class="px-2 sm:px-3 py-1.5 rounded-lg border border-gray-300 dark:border-gray-600 text-xs sm:text-sm transition-all">
               <span x-text="lang === 'jp' ? category.name_jp : category.name_fr"></span>
               <span class="ml-1 text-xs opacity-75">(<span x-text="category.recipe_count || 0"></span>)</span>
             </button>
@@ -349,12 +388,12 @@
     </div>
 
     <!-- Accordéon Tags -->
-    <div class="border-b">
+    <div class="border-b border-gray-200 dark:border-gray-700">
       <button @click="showTags = !showTags"
-              class="w-full flex items-center justify-between p-3 hover:bg-gray-50 transition">
-        <span class="font-medium">
+              class="w-full flex items-center justify-between p-3 hover:bg-gray-50 dark:hover:bg-gray-700 transition">
+        <span class="font-medium text-sm sm:text-base">
           🏷️ {{ 'Tags' if lang == 'fr' else 'タグ' }}
-          <span x-show="selectedTags.length > 0" class="text-sm text-purple-600">
+          <span x-show="selectedTags.length > 0" class="text-sm text-purple-600 dark:text-purple-400">
             (<span x-text="selectedTags.length"></span>)
           </span>
         </span>
@@ -363,14 +402,14 @@
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
         </svg>
       </button>
-      <div x-show="showTags" x-collapse class="p-3 bg-gray-50">
+      <div x-show="showTags" x-collapse class="p-3 bg-gray-50 dark:bg-gray-900/50">
         <div class="flex flex-wrap gap-2">
           <template x-for="tag in tags" :key="tag.id">
             <button
               @click="toggleTag(tag.id)"
               :class="selectedTags.includes(tag.id) ? 'ring-2 ring-offset-1 opacity-100' : 'opacity-70 hover:opacity-90'"
               :style="`background-color: ${tag.color}; color: white`"
-              class="px-3 py-1.5 rounded-lg text-sm transition-all">
+              class="px-2 sm:px-3 py-1.5 rounded-lg text-xs sm:text-sm transition-all">
               <span x-text="lang === 'jp' ? tag.name_jp : tag.name_fr"></span>
               <span class="ml-1 text-xs opacity-90">(<span x-text="tag.recipe_count || 0"></span>)</span>
             </button>
@@ -380,16 +419,16 @@
     </div>
 
     <!-- Résultat du filtrage -->
-    <div class="p-3 text-sm text-gray-600 bg-gray-50">
+    <div class="p-3 text-sm text-gray-600 dark:text-gray-400 bg-gray-50 dark:bg-gray-900/50">
       <span x-text="filteredRecipes.length"></span>
       {{ 'recette(s) trouvée(s)' if lang == 'fr' else 'レシピが見つかりました' }}
     </div>
   </div>
 
   <!-- Grille de cartes de recettes -->
-  <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+  <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6">
     <template x-for="r in filteredRecipes" :key="r.id">
-      <div class="bg-white rounded-lg border overflow-hidden hover:shadow-lg transition-shadow">
+      <div class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden hover:shadow-lg transition-shadow">
         <!-- Image -->
         <a :href="`/recipe/${r.slug}?lang={{ lang }}`" class="block relative pb-[75%] overflow-hidden bg-gray-100">
           <img
@@ -454,27 +493,27 @@
   <div
     x-show="deleteModal"
     x-cloak
-    class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+    class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
     @click.self="cancelDelete()"
   >
-    <div class="bg-white rounded-lg p-6 max-w-md w-full mx-4 shadow-xl">
+    <div class="bg-white dark:bg-gray-800 rounded-lg p-4 sm:p-6 max-w-md w-full shadow-xl">
       <h2 class="text-xl font-bold mb-4">
         {{ 'Confirmer la suppression' if lang == 'fr' else '削除の確認' }}
       </h2>
-      <p class="mb-6 text-gray-700">
+      <p class="mb-4 sm:mb-6 text-gray-700 dark:text-gray-300">
         {{ 'Êtes-vous sûr de vouloir supprimer cette recette ?' if lang == 'fr' else 'このレシピを削除してもよろしいですか？' }}
       </p>
-      <p class="mb-6 font-semibold text-gray-900" x-text="recipeToDelete?.name"></p>
-      <div class="flex gap-3 justify-end">
+      <p class="mb-4 sm:mb-6 font-semibold text-gray-900 dark:text-white" x-text="recipeToDelete?.name"></p>
+      <div class="flex flex-col sm:flex-row gap-2 sm:gap-3 sm:justify-end">
         <button
           @click="cancelDelete()"
-          class="px-4 py-2 bg-gray-200 text-gray-800 rounded hover:bg-gray-300 transition"
+          class="w-full sm:w-auto px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 rounded hover:bg-gray-300 dark:hover:bg-gray-600 transition"
         >
           {{ 'Non' if lang == 'fr' else 'いいえ' }}
         </button>
         <button
           @click="deleteRecipe()"
-          class="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 transition"
+          class="w-full sm:w-auto px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 transition"
         >
           {{ 'Oui, supprimer' if lang == 'fr' else 'はい、削除' }}
         </button>

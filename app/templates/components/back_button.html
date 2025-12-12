@@ -1,0 +1,26 @@
+{#
+  Composant bouton retour standardisé
+
+  Usage:
+    {% include 'components/back_button.html' with back_url='/recipes', back_label='Retour aux recettes' %}
+
+  Paramètres:
+    - back_url: URL de destination (requis)
+    - back_label: Texte du bouton (optionnel, défaut: "Retour" / "戻る")
+    - show_icon: Afficher l'icône flèche (optionnel, défaut: true)
+#}
+
+{% set default_label = 'Retour' if lang == 'fr' else '戻る' %}
+{% set label = back_label if back_label is defined else default_label %}
+{% set display_icon = show_icon if show_icon is defined else true %}
+
+<a href="{{ back_url }}"
+   class="inline-flex items-center gap-2 px-3 py-2
+          text-blue-600 dark:text-blue-400
+          hover:bg-blue-50 dark:hover:bg-blue-900/20
+          rounded-lg transition-colors duration-150">
+  {% if display_icon %}
+  <span class="text-lg">←</span>
+  {% endif %}
+  <span class="font-medium">{{ label }}</span>
+</a>

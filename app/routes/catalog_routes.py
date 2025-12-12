@@ -231,6 +231,10 @@ async def access_logs(
     # Récupérer les 50 derniers logs de la période
     recent_logs = db.get_recent_access_logs(limit=50, hours=time_range)
 
+    # Récupérer les statistiques de performance côté client
+    # DÉSACTIVÉ: Nécessite table client_performance_log (migration non appliquée en prod)
+    client_stats = {}  # db.get_client_performance_stats(hours=time_range)
+
     # Calculer le temps de réponse moyen
     avg_response_time = None
     if stats['slow_pages']:
@@ -244,6 +248,7 @@ async def access_logs(
         "lang": lang,
         "time_range": time_range,
         "stats": stats,
+        "client_stats": client_stats,
         "recent_logs": recent_logs,
         "avg_response_time": avg_response_time
     })

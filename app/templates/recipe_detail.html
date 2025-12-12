@@ -1,28 +1,42 @@
 {% extends 'base.html' %}
 {% block content %}
-<article class="bg-white border p-6 rounded" x-data="recipeDetail()">
-  <!-- Bouton retour à l'événement (si on vient d'un événement) -->
-  {% if event_id %}
+<article class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-3 sm:p-6 rounded" x-data="recipeDetail()">
+  <!-- Bouton retour -->
   <div class="mb-4">
-    <a href="/events/{{ event_id }}/organization?lang={{ lang }}" class="inline-flex items-center gap-2 text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300">
-      <span>←</span>
-      <span>{{ 'Retour à l\'organisation' if lang == 'fr' else '企画に戻る' }}</span>
-    </a>
+    {% if event_id %}
+      <a href="/events/{{ event_id }}/organization?lang={{ lang }}"
+         class="inline-flex items-center gap-2 px-3 py-2
+                text-blue-600 dark:text-blue-400
+                hover:bg-blue-50 dark:hover:bg-blue-900/20
+                rounded-lg transition-colors duration-150">
+        <span class="text-lg">←</span>
+        <span class="font-medium">{{ 'Retour à l\'organisation' if lang == 'fr' else '企画に戻る' }}</span>
+      </a>
+    {% else %}
+      <a href="/recipes?lang={{ lang }}"
+         class="inline-flex items-center gap-2 px-3 py-2
+                text-blue-600 dark:text-blue-400
+                hover:bg-blue-50 dark:hover:bg-blue-900/20
+                rounded-lg transition-colors duration-150">
+        <span class="text-lg">←</span>
+        <span class="font-medium">{{ 'Retour aux recettes' if lang == 'fr' else 'レシピに戻る' }}</span>
+      </a>
+    {% endif %}
   </div>
-  {% endif %}
 
   <!-- En-tête de la recette -->
-  <header class="mb-6 pb-4 border-b">
-    <div class="flex justify-between items-start mb-3">
-      <h1 class="text-3xl font-bold">{{ rec['name'] }}</h1>
+  <header class="mb-6 pb-4 border-b border-gray-200 dark:border-gray-700">
+    <div class="flex flex-col sm:flex-row justify-between items-start gap-3 mb-3">
+      <h1 class="text-2xl sm:text-3xl font-bold">{{ rec['name'] }}</h1>
 
-      <div class="flex gap-2">
+      <div class="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
         <!-- Bouton de modification -->
         <button
           @click="openEditModal()"
-          class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded font-semibold transition-colors"
+          class="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded font-semibold transition-colors"
         >
-          {{ '編集' if lang == 'jp' else 'Modifier' }}
+          <span>✏️</span>
+          <span>{{ '編集' if lang == 'jp' else 'Modifier' }}</span>
         </button>
 
         <!-- Bouton de traduction (affiché seulement si pas de traduction) -->
@@ -31,15 +45,23 @@
           @click="translateRecipe()"
           :disabled="translating"
           :class="apiStatus === 'operational' ? 'bg-green-600 hover:bg-green-700' : 'bg-red-600 hover:bg-red-700'"
-          class="px-4 py-2 text-white rounded font-semibold disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          class="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-2 text-white rounded font-semibold disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
         >
-          <span x-show="!translating">{{ '翻訳' if lang == 'jp' else 'Traduction' }}</span>
-          <span x-show="translating">⏳ Traduction...</span>
+          <span x-show="!translating">🌐 {{ '翻訳' if lang == 'jp' else 'Traduction' }}</span>
+          <span x-show="translating">⏳ {{ 'Traduction...' if lang == 'fr' else '翻訳中...' }}</span>
         </button>
         {% endif %}
       </div>
     </div>
-    <div class="flex flex-wrap gap-4 text-sm text-gray-700">
+
+    <!-- Description de la recette -->
+    {% if rec.get('description') %}
+    <div class="mt-4 mb-4 p-3 bg-blue-50 dark:bg-blue-900/30 border-l-4 border-blue-500 rounded">
+      <p class="text-gray-800 dark:text-gray-200">{{ rec['description'] }}</p>
+    </div>
+    {% endif %}
+
+    <div class="flex flex-wrap gap-3 sm:gap-4 text-xs sm:text-sm text-gray-700 dark:text-gray-300">
       <div>
         <span class="font-semibold">{{ S('servings') }}:</span>
         <span class="bg-green-100 text-green-800 px-2 py-1 rounded">{{ rec['servings'] or '-' }}</span>
@@ -159,6 +181,13 @@
           <span x-show="!converting">{{ '✨ Convertir' if lang == 'fr' else '✨ 変換' }}</span>
           <span x-show="converting">{{ '⏳ Conversion...' if lang == 'fr' else '⏳ 変換中...' }}</span>
         </button>
+
+        <a
+          :href="`/recipe/{{ slug }}/cost?lang={{ lang }}&servings=${targetServings}`"
+          class="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded font-semibold transition-colors whitespace-nowrap inline-flex items-center"
+        >
+          {{ '💰 Coût' if lang == 'fr' else '💰 コスト' }}
+        </a>
 
         <p class="text-xs text-gray-600 ml-auto whitespace-nowrap">
           {{ 'Recette originale:' if lang == 'fr' else '元のレシピ:' }}
@@ -383,12 +412,10 @@
     <div class="mt-4 pt-4 border-t border-blue-300">
       <button
         @click="openEditModal()"
-        class="text-blue-600 hover:text-blue-800 text-sm font-medium flex items-center gap-2"
+        class="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 text-sm flex items-center gap-2"
       >
-        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
-        </svg>
-        {{ 'カテゴリーとタグを編集' if lang == 'jp' else 'Modifier les catégories et tags' }}
+        <span>✏️</span>
+        <span>{{ 'カテゴリーとタグを編集' if lang == 'jp' else 'Modifier les catégories et tags' }}</span>
       </button>
     </div>
   </section>
@@ -455,6 +482,19 @@
               {% endfor %}
             </select>
           </div>
+        </div>
+
+        <!-- Description -->
+        <div class="col-span-2 mt-4">
+          <label class="block text-sm font-semibold mb-1">
+            {{ '説明' if lang == 'jp' else 'Description' }}
+          </label>
+          <textarea
+            x-model="editData.description"
+            rows="3"
+            placeholder="{{ '短い説明（1〜2文）' if lang == 'jp' else 'Courte description (1-2 phrases)' }}"
+            class="w-full px-3 py-2 border rounded resize-y"
+          ></textarea>
         </div>
       </div>
 
@@ -567,48 +607,83 @@
         </div>
         <div class="space-y-2">
           <template x-for="(ing, index) in editData.ingredients" :key="index">
-            <div class="grid grid-cols-12 gap-2 items-center p-2 border rounded">
-              <div class="col-span-4">
-                <input
-                  type="text"
-                  x-model="ing.name"
-                  placeholder="{{ 'Nom' if lang == 'fr' else '名前' }}"
-                  class="w-full px-2 py-1 border rounded"
-                />
-              </div>
-              <div class="col-span-2">
-                <input
-                  type="number"
-                  step="0.01"
-                  x-model="ing.quantity"
-                  placeholder="{{ 'Qté' if lang == 'fr' else '量' }}"
-                  class="w-full px-2 py-1 border rounded"
-                />
-              </div>
-              <div class="col-span-2">
-                <input
-                  type="text"
-                  x-model="ing.unit"
-                  placeholder="{{ 'Unité' if lang == 'fr' else '単位' }}"
-                  class="w-full px-2 py-1 border rounded"
-                />
-              </div>
-              <div class="col-span-3">
-                <input
-                  type="text"
-                  x-model="ing.notes"
-                  placeholder="{{ 'Notes' if lang == 'fr' else '備考' }}"
-                  class="w-full px-2 py-1 border rounded"
-                />
-              </div>
-              <div class="col-span-1">
-                <button
-                  @click="removeIngredient(index)"
-                  type="button"
-                  class="w-full px-2 py-1 bg-red-500 hover:bg-red-600 text-white rounded font-semibold transition-colors"
-                >
-                  ✕
-                </button>
+            <div class="border rounded">
+              <div class="grid grid-cols-12 gap-2 items-center p-2">
+                <!-- Drag handle -->
+                <div class="col-span-1 flex flex-col gap-1 items-center">
+                  <button
+                    @click="moveIngredientUp(index)"
+                    type="button"
+                    :disabled="index === 0"
+                    class="px-2 py-1 text-gray-600 hover:text-blue-600 disabled:opacity-30 disabled:cursor-not-allowed"
+                    title="{{ '上へ' if lang == 'jp' else 'Monter' }}"
+                  >
+                    ▲
+                  </button>
+                  <button
+                    @click="moveIngredientDown(index)"
+                    type="button"
+                    :disabled="index === editData.ingredients.length - 1"
+                    class="px-2 py-1 text-gray-600 hover:text-blue-600 disabled:opacity-30 disabled:cursor-not-allowed"
+                    title="{{ '下へ' if lang == 'jp' else 'Descendre' }}"
+                  >
+                    ▼
+                  </button>
+                </div>
+
+                <!-- Champs de l'ingrédient -->
+                <div class="col-span-3">
+                  <input
+                    type="text"
+                    x-model="ing.name"
+                    placeholder="{{ 'Nom' if lang == 'fr' else '名前' }}"
+                    class="w-full px-2 py-1 border rounded"
+                  />
+                </div>
+                <div class="col-span-2">
+                  <input
+                    type="number"
+                    step="0.01"
+                    x-model="ing.quantity"
+                    placeholder="{{ 'Qté' if lang == 'fr' else '量' }}"
+                    class="w-full px-2 py-1 border rounded"
+                  />
+                </div>
+                <div class="col-span-2">
+                  <input
+                    type="text"
+                    x-model="ing.unit"
+                    placeholder="{{ 'Unité' if lang == 'fr' else '単位' }}"
+                    class="w-full px-2 py-1 border rounded"
+                  />
+                </div>
+                <div class="col-span-3">
+                  <input
+                    type="text"
+                    x-model="ing.notes"
+                    placeholder="{{ 'Notes' if lang == 'fr' else '備考' }}"
+                    class="w-full px-2 py-1 border rounded"
+                  />
+                </div>
+
+                <!-- Actions -->
+                <div class="col-span-1 flex flex-col gap-1">
+                  <button
+                    @click="addIngredientAt(index + 1)"
+                    type="button"
+                    class="px-2 py-1 bg-blue-500 hover:bg-blue-600 text-white rounded text-xs font-semibold transition-colors"
+                    title="{{ '後に追加' if lang == 'jp' else 'Insérer après' }}"
+                  >
+                    +
+                  </button>
+                  <button
+                    @click="removeIngredient(index)"
+                    type="button"
+                    class="px-2 py-1 bg-red-500 hover:bg-red-600 text-white rounded text-xs font-semibold transition-colors"
+                  >
+                    ✕
+                  </button>
+                </div>
               </div>
             </div>
           </template>
@@ -629,21 +704,58 @@
         </div>
         <div class="space-y-3">
           <template x-for="(step, index) in editData.steps" :key="index">
-            <div class="flex gap-3 items-start">
-              <span class="flex-shrink-0 w-8 h-8 bg-blue-600 text-white rounded-full flex items-center justify-center font-semibold text-sm" x-text="index + 1"></span>
-              <textarea
-                x-model="step.text"
-                rows="3"
-                class="flex-1 px-3 py-2 border rounded resize-y"
-                :placeholder="'{{ 'Étape' if lang == 'fr' else 'ステップ' }} ' + (index + 1)"
-              ></textarea>
-              <button
-                @click="removeStep(index)"
-                type="button"
-                class="flex-shrink-0 px-3 py-2 bg-red-500 hover:bg-red-600 text-white rounded font-semibold transition-colors"
-              >
-                ✕
-              </button>
+            <div class="border rounded p-3">
+              <div class="flex gap-3 items-start">
+                <!-- Numéro et contrôles d'ordre -->
+                <div class="flex-shrink-0 flex flex-col items-center gap-2">
+                  <button
+                    @click="moveStepUp(index)"
+                    type="button"
+                    :disabled="index === 0"
+                    class="px-2 py-1 text-gray-600 hover:text-blue-600 disabled:opacity-30 disabled:cursor-not-allowed"
+                    title="{{ '上へ' if lang == 'jp' else 'Monter' }}"
+                  >
+                    ▲
+                  </button>
+                  <span class="w-8 h-8 bg-blue-600 text-white rounded-full flex items-center justify-center font-semibold text-sm" x-text="index + 1"></span>
+                  <button
+                    @click="moveStepDown(index)"
+                    type="button"
+                    :disabled="index === editData.steps.length - 1"
+                    class="px-2 py-1 text-gray-600 hover:text-blue-600 disabled:opacity-30 disabled:cursor-not-allowed"
+                    title="{{ '下へ' if lang == 'jp' else 'Descendre' }}"
+                  >
+                    ▼
+                  </button>
+                </div>
+
+                <!-- Texte de l'étape -->
+                <textarea
+                  x-model="step.text"
+                  rows="3"
+                  class="flex-1 px-3 py-2 border rounded resize-y"
+                  :placeholder="'{{ 'Étape' if lang == 'fr' else 'ステップ' }} ' + (index + 1)"
+                ></textarea>
+
+                <!-- Boutons d'action -->
+                <div class="flex-shrink-0 flex flex-col gap-2">
+                  <button
+                    @click="addStepAt(index + 1)"
+                    type="button"
+                    class="px-3 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded font-semibold transition-colors"
+                    title="{{ '後に追加' if lang == 'jp' else 'Insérer après' }}"
+                  >
+                    +
+                  </button>
+                  <button
+                    @click="removeStep(index)"
+                    type="button"
+                    class="px-3 py-2 bg-red-500 hover:bg-red-600 text-white rounded font-semibold transition-colors"
+                  >
+                    ✕
+                  </button>
+                </div>
+              </div>
             </div>
           </template>
         </div>
@@ -740,7 +852,8 @@
           steps: {{ steps | tojson | safe }},
           recipe_type: '{{ rec["type"] or "" }}',
           servings_default: {{ rec['servings'] or 'null' }},
-          user_id: {{ rec['user_id'] or 'null' }}
+          user_id: {{ rec['user_id'] or 'null' }},
+          description: '{{ rec.get("description", "") | replace("'", "\\'") | replace("\n", "\\n") }}'
         };
       },
 
@@ -832,7 +945,9 @@
           ingredients: JSON.parse(JSON.stringify(this.originalData.ingredients)),
           steps: JSON.parse(JSON.stringify(this.originalData.steps)),
           recipe_type: this.originalData.recipe_type,
-          servings_default: this.originalData.servings_default
+          servings_default: this.originalData.servings_default,
+          description: this.originalData.description || '',
+          user_id: this.originalData.user_id || null
         };
         this.editMode = true;
         this.message = '';
@@ -874,7 +989,8 @@
               steps: this.editData.steps,
               recipe_type: this.editData.recipe_type,
               servings_default: this.editData.servings_default,
-              user_id: this.editData.user_id
+              user_id: this.editData.user_id,
+              description: this.editData.description
             })
           });
 
@@ -1082,9 +1198,35 @@
         });
       },
 
+      addIngredientAt(index) {
+        this.editData.ingredients.splice(index, 0, {
+          id: null,
+          name: '',
+          quantity: null,
+          unit: '',
+          notes: ''
+        });
+      },
+
       removeIngredient(index) {
         if (confirm('{{ 'この材料を削除しますか？' if lang == 'jp' else 'Supprimer cet ingrédient ?' }}')) {
           this.editData.ingredients.splice(index, 1);
+        }
+      },
+
+      moveIngredientUp(index) {
+        if (index > 0) {
+          const temp = this.editData.ingredients[index];
+          this.editData.ingredients[index] = this.editData.ingredients[index - 1];
+          this.editData.ingredients[index - 1] = temp;
+        }
+      },
+
+      moveIngredientDown(index) {
+        if (index < this.editData.ingredients.length - 1) {
+          const temp = this.editData.ingredients[index];
+          this.editData.ingredients[index] = this.editData.ingredients[index + 1];
+          this.editData.ingredients[index + 1] = temp;
         }
       },
 
@@ -1096,9 +1238,32 @@
         });
       },
 
+      addStepAt(index) {
+        this.editData.steps.splice(index, 0, {
+          id: null,
+          text: ''
+        });
+      },
+
       removeStep(index) {
         if (confirm('{{ 'このステップを削除しますか？' if lang == 'jp' else 'Supprimer cette étape ?' }}')) {
           this.editData.steps.splice(index, 1);
+        }
+      },
+
+      moveStepUp(index) {
+        if (index > 0) {
+          const temp = this.editData.steps[index];
+          this.editData.steps[index] = this.editData.steps[index - 1];
+          this.editData.steps[index - 1] = temp;
+        }
+      },
+
+      moveStepDown(index) {
+        if (index < this.editData.steps.length - 1) {
+          const temp = this.editData.steps[index];
+          this.editData.steps[index] = this.editData.steps[index + 1];
+          this.editData.steps[index + 1] = temp;
         }
       }
     }

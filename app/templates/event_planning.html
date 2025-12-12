@@ -4,6 +4,12 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{ 'Planification' if lang == 'fr' else 'プランニング' }} - {{ event.name }}</title>
+
+    <!-- Favicons -->
+    <link rel="icon" type="image/x-icon" href="/static/favicon.ico?v=2">
+    <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-32x32.png?v=2">
+    <link rel="icon" type="image/png" sizes="16x16" href="/static/favicon-16x16.png?v=2">
+    <link rel="apple-touch-icon" sizes="64x64" href="/static/favicon-64x64.png?v=2">
     <script src="/static/css/tailwind.min.js"></script>
     <script defer src="/static/css/alpine.min.js"></script>
 </head>
@@ -13,8 +19,13 @@
         <header class="bg-white dark:bg-gray-800 shadow-sm border-b border-gray-200 dark:border-gray-700">
             <div class="max-w-7xl mx-auto px-4 py-4 flex justify-between items-center">
                 <div class="flex items-center gap-4">
-                    <a href="/events/{{ event.id }}/organization?lang={{ lang }}" class="text-blue-600 dark:text-blue-400 hover:underline">
-                        ← {{ S('back') }}
+                    <a href="/events/{{ event.id }}/organization?lang={{ lang }}"
+                       class="inline-flex items-center gap-2 px-3 py-2
+                              text-blue-600 dark:text-blue-400
+                              hover:bg-blue-50 dark:hover:bg-blue-900/20
+                              rounded-lg transition-colors duration-150">
+                        <span class="text-lg">←</span>
+                        <span class="font-medium">{{ S('back') }}</span>
                     </a>
                     <h1 class="text-2xl font-bold text-gray-900 dark:text-white">
                         {{ 'Planification' if lang == 'fr' else 'プランニング' }} - {{ event.name }}

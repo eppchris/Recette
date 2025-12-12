@@ -4,10 +4,23 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{ 'Logs d\'accès' if lang == 'fr' else 'アクセスログ' }} - Recette</title>
+
+    <!-- Favicons -->
+    <link rel="icon" type="image/x-icon" href="/static/favicon.ico?v=2">
+    <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-32x32.png?v=2">
+    <link rel="icon" type="image/png" sizes="16x16" href="/static/favicon-16x16.png?v=2">
+    <link rel="apple-touch-icon" sizes="64x64" href="/static/favicon-64x64.png?v=2">
     <script src="/static/css/tailwind.min.js"></script>
     <script defer src="/static/css/alpine.min.js"></script>
 </head>
-<body class="bg-gray-50" x-data="{ darkMode: false, timeRange: '{{ time_range }}' }">
+<body class="bg-gray-50" x-data="{
+    darkMode: localStorage.getItem('darkMode') === 'true' || false,
+    timeRange: '{{ time_range }}',
+    toggleDarkMode() {
+        this.darkMode = !this.darkMode;
+        localStorage.setItem('darkMode', this.darkMode);
+    }
+}">
     <div :class="darkMode ? 'dark bg-gray-900' : 'bg-gray-50'" class="min-h-screen">
         <!-- Header -->
         <header class="bg-white dark:bg-gray-800 shadow-sm border-b border-gray-200 dark:border-gray-700">
@@ -215,6 +228,118 @@
                 </div>
             </div>
 
+            <!-- Comparaison Performance Client vs Serveur -->
+            {% if client_stats.server_vs_client %}
+            <div class="bg-white dark:bg-gray-800 rounded-lg shadow mb-8">
+                <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+                    <h2 class="text-lg font-semibold text-gray-900 dark:text-white">
+                        {{ 'Performance Client vs Serveur' if lang == 'fr' else 'クライアント vs サーバーパフォーマンス' }}
+                    </h2>
+                    <p class="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                        {{ 'Comparaison du temps serveur avec le temps total perçu par l\'utilisateur (incluant réseau et rendu)' if lang == 'fr' else 'サーバー時間とユーザーが感じる合計時間（ネットワークとレンダリングを含む）の比較' }}
+                    </p>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                        <thead class="bg-gray-50 dark:bg-gray-700">
+                            <tr>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">
+                                    {{ 'Page' if lang == 'fr' else 'ページ' }}
+                                </th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">
+                                    {{ 'Serveur (ms)' if lang == 'fr' else 'サーバー (ms)' }}
+                                </th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">
+                                    {{ 'Total Client (ms)' if lang == 'fr' else 'クライアント合計 (ms)' }}
+                                </th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">
+                                    {{ 'Réseau (ms)' if lang == 'fr' else 'ネットワーク (ms)' }}
+                                </th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">
+                                    {{ 'Overhead Client (ms)' if lang == 'fr' else 'クライアント負荷 (ms)' }}
+                                </th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">
+                                    {{ 'Mesures' if lang == 'fr' else '測定回数' }}
+                                </th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-gray-200 dark:divide-gray-600">
+                            {% for perf in client_stats.server_vs_client %}
+                            <tr class="hover:bg-gray-50 dark:hover:bg-gray-700">
+                                <td class="px-6 py-4 text-sm font-mono text-gray-900 dark:text-white">
+                                    {{ perf.page_url }}
+                                </td>
+                                <td class="px-6 py-4 text-sm text-gray-600 dark:text-gray-400">
+                                    {{ "%.0f"|format(perf.avg_server_time) }}
+                                </td>
+                                <td class="px-6 py-4 text-sm text-gray-600 dark:text-gray-400">
+                                    {{ "%.0f"|format(perf.avg_total_time) }}
+                                </td>
+                                <td class="px-6 py-4 text-sm text-gray-600 dark:text-gray-400">
+                                    {% if perf.avg_network_time %}
+                                        {{ "%.0f"|format(perf.avg_network_time) }}
+                                    {% else %}
+                                        -
+                                    {% endif %}
+                                </td>
+                                <td class="px-6 py-4 text-sm">
+                                    {% set overhead = perf.avg_client_overhead %}
+                                    <span class="{% if overhead > 500 %}text-red-600 dark:text-red-400{% elif overhead > 200 %}text-yellow-600 dark:text-yellow-400{% else %}text-green-600 dark:text-green-400{% endif %}">
+                                        {{ "%.0f"|format(overhead) }}
+                                    </span>
+                                </td>
+                                <td class="px-6 py-4 text-sm text-gray-600 dark:text-gray-400">
+                                    {{ perf.count }}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Pages les plus lourdes -->
+            <div class="bg-white dark:bg-gray-800 rounded-lg shadow mb-8">
+                <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+                    <h2 class="text-lg font-semibold text-gray-900 dark:text-white">
+                        {{ 'Pages les plus lourdes (taille de réponse)' if lang == 'fr' else '最も重いページ（レスポンスサイズ）' }}
+                    </h2>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                        <thead class="bg-gray-50 dark:bg-gray-700">
+                            <tr>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">
+                                    {{ 'Chemin' if lang == 'fr' else 'パス' }}
+                                </th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">
+                                    {{ 'Taille moyenne (KB)' if lang == 'fr' else '平均サイズ (KB)' }}
+                                </th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">
+                                    {{ 'Requêtes' if lang == 'fr' else 'リクエスト数' }}
+                                </th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-gray-200 dark:divide-gray-600">
+                            {% for heavy in stats.heavy_pages %}
+                            <tr class="hover:bg-gray-50 dark:hover:bg-gray-700">
+                                <td class="px-6 py-4 text-sm font-mono text-gray-900 dark:text-white">
+                                    {{ heavy.path }}
+                                </td>
+                                <td class="px-6 py-4 text-sm text-gray-600 dark:text-gray-400">
+                                    {{ "%.1f"|format(heavy.avg_size / 1024) }}
+                                </td>
+                                <td class="px-6 py-4 text-sm text-gray-600 dark:text-gray-400">
+                                    {{ heavy.count }}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
             <!-- Logs récents -->
             <div class="bg-white dark:bg-gray-800 rounded-lg shadow">
                 <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
@@ -243,6 +368,9 @@
                                 </th>
                                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">
                                     {{ 'Temps (ms)' if lang == 'fr' else '時間 (ms)' }}
+                                </th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">
+                                    {{ 'Taille (KB)' if lang == 'fr' else 'サイズ (KB)' }}
                                 </th>
                                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">
                                     {{ 'Langue' if lang == 'fr' else '言語' }}
@@ -286,6 +414,13 @@
                                 <td class="px-6 py-4 text-sm text-gray-600 dark:text-gray-400">
                                     {% if log.response_time_ms %}
                                         {{ "%.1f"|format(log.response_time_ms) }}
+                                    {% else %}
+                                        -
+                                    {% endif %}
+                                </td>
+                                <td class="px-6 py-4 text-sm text-gray-600 dark:text-gray-400">
+                                    {% if log.response_size_bytes %}
+                                        {{ "%.1f"|format(log.response_size_bytes / 1024) }}
                                     {% else %}
                                         -
                                     {% endif %}

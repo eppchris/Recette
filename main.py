@@ -12,6 +12,7 @@ import os
 from config import Config
 from app.services.translation_service import init_translation_service
 from app.services.conversion_service import init_conversion_service
+from app.services.web_recipe_importer import init_web_recipe_importer
 from app.middleware.auth import AuthMiddleware
 from app.middleware.access_logger import AccessLoggerMiddleware
 from app.template_config import templates
@@ -86,6 +87,13 @@ if Config.GROQ_API_KEY:
 else:
     logger.warning("⚠️  Service de conversion initialisé sans IA (clé API manquante)")
 
+# Initialiser le service d'import de recettes web si la clé API est configurée
+if Config.GROQ_API_KEY:
+    init_web_recipe_importer(Config.GROQ_API_KEY)
+    logger.info("✅ Service d'import de recettes web initialisé")
+else:
+    logger.warning("⚠️  Clé API Groq non configurée - l'import de recettes depuis URL est désactivé")
+
 # Montage des fichiers statiques
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
@@ -95,12 +103,15 @@ from app.routes.auth_routes import router as auth_router
 from app.routes.event_routes import router as event_router
 from app.routes.catalog_routes import router as catalog_router
 from app.routes.conversion_routes import router as conversion_router
+# NOTE: monitoring_routes désactivé (nécessite table client_performance_log)
+# from app.routes.monitoring_routes import router as monitoring_router
 
 app.include_router(auth_router)
 app.include_router(recipe_router)
 app.include_router(event_router)
 app.include_router(catalog_router)
 app.include_router(conversion_router)
+# app.include_router(monitoring_router)
 
 # Page d'accueil : redirection vers la liste des recettes
 @app.get("/")

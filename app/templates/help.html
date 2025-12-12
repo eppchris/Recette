@@ -4,13 +4,184 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{ 'Aide' if lang == 'fr' else 'ヘルプ' }} - Recette</title>
+
+    <!-- Favicons -->
+    <link rel="icon" type="image/x-icon" href="/static/favicon.ico?v=2">
+    <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-32x32.png?v=2">
+    <link rel="icon" type="image/png" sizes="16x16" href="/static/favicon-16x16.png?v=2">
+    <link rel="apple-touch-icon" sizes="64x64" href="/static/favicon-64x64.png?v=2">
     <script src="/static/css/tailwind.min.js"></script>
     <script defer src="/static/css/alpine.min.js"></script>
     <style>
         .help-section { scroll-margin-top: 80px; }
+
+        /* Styles pour le rendu Markdown */
+        .markdown-content h1 {
+            font-size: 2rem;
+            font-weight: 700;
+            margin-top: 2rem;
+            margin-bottom: 1rem;
+            color: #1f2937;
+        }
+
+        .dark .markdown-content h1 {
+            color: #f9fafb;
+        }
+
+        .markdown-content h2 {
+            font-size: 1.5rem;
+            font-weight: 700;
+            margin-top: 2rem;
+            margin-bottom: 1rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 2px solid #e5e7eb;
+            color: #1f2937;
+        }
+
+        .dark .markdown-content h2 {
+            color: #f9fafb;
+            border-bottom-color: #374151;
+        }
+
+        .markdown-content h3 {
+            font-size: 1.25rem;
+            font-weight: 600;
+            margin-top: 1.5rem;
+            margin-bottom: 0.75rem;
+            color: #374151;
+        }
+
+        .dark .markdown-content h3 {
+            color: #e5e7eb;
+        }
+
+        .markdown-content p {
+            margin-bottom: 1rem;
+            line-height: 1.75;
+            color: #1f2937;
+        }
+
+        .dark .markdown-content p {
+            color: #e5e7eb;
+        }
+
+        .markdown-content ul, .markdown-content ol {
+            margin-left: 1.5rem;
+            margin-bottom: 1rem;
+            color: #1f2937;
+        }
+
+        .dark .markdown-content ul, .dark .markdown-content ol {
+            color: #e5e7eb;
+        }
+
+        .markdown-content li {
+            margin-bottom: 0.5rem;
+            line-height: 1.75;
+        }
+
+        .markdown-content ul {
+            list-style-type: disc;
+        }
+
+        .markdown-content ol {
+            list-style-type: decimal;
+        }
+
+        .markdown-content code {
+            background-color: #f3f4f6;
+            padding: 0.2rem 0.4rem;
+            border-radius: 0.25rem;
+            font-size: 0.875rem;
+            font-family: 'Monaco', 'Courier New', monospace;
+            color: #dc2626;
+        }
+
+        .dark .markdown-content code {
+            background-color: #374151;
+            color: #fca5a5;
+        }
+
+        .markdown-content pre {
+            background-color: #1f2937;
+            padding: 1rem;
+            border-radius: 0.5rem;
+            overflow-x: auto;
+            margin-bottom: 1rem;
+        }
+
+        .markdown-content pre code {
+            background-color: transparent;
+            color: #e5e7eb;
+            padding: 0;
+        }
+
+        .markdown-content blockquote {
+            border-left: 4px solid #3b82f6;
+            padding-left: 1rem;
+            margin: 1rem 0;
+            background-color: #eff6ff;
+            padding: 1rem;
+            border-radius: 0.5rem;
+        }
+
+        .dark .markdown-content blockquote {
+            background-color: #1e3a8a;
+            border-left-color: #60a5fa;
+        }
+
+        .markdown-content blockquote p {
+            color: #1e40af;
+        }
+
+        .dark .markdown-content blockquote p {
+            color: #bfdbfe;
+        }
+
+        .markdown-content strong {
+            font-weight: 600;
+            color: #1f2937;
+        }
+
+        .dark .markdown-content strong {
+            color: #f3f4f6;
+        }
+
+        .markdown-content hr {
+            border: none;
+            border-top: 2px solid #e5e7eb;
+            margin: 2rem 0;
+        }
+
+        .dark .markdown-content hr {
+            border-top-color: #374151;
+        }
+
+        .markdown-content a {
+            color: #2563eb;
+            text-decoration: underline;
+        }
+
+        .dark .markdown-content a {
+            color: #60a5fa;
+        }
+
+        .markdown-content a:hover {
+            color: #1d4ed8;
+        }
+
+        .dark .markdown-content a:hover {
+            color: #93c5fd;
+        }
     </style>
 </head>
-<body class="bg-gray-50" x-data="{ darkMode: false }">
+<body class="bg-gray-50" x-data="{
+    darkMode: localStorage.getItem('darkMode') === 'true' || false,
+    toggleDarkMode() {
+        this.darkMode = !this.darkMode;
+        localStorage.setItem('darkMode', this.darkMode);
+    }
+}">
     <div :class="darkMode ? 'dark bg-gray-900' : 'bg-gray-50'" class="min-h-screen">
         <!-- Header -->
         <header class="bg-white dark:bg-gray-800 shadow-sm border-b border-gray-200 dark:border-gray-700 sticky top-0 z-50">
@@ -33,7 +204,7 @@
                     </div>
 
                     <!-- Toggle mode sombre -->
-                    <button @click="darkMode = !darkMode" class="p-2 rounded-lg bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600">
+                    <button @click="toggleDarkMode()" class="p-2 rounded-lg bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600">
                         <span x-show="!darkMode">🌙</span>
                         <span x-show="darkMode">☀️</span>
                     </button>
@@ -95,7 +266,7 @@
                     {% endif %}
 
                     <!-- Contenu markdown -->
-                    <div class="prose dark:prose-invert max-w-none">
+                    <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6 markdown-content">
                         {{ help_content | safe }}
                     </div>
 
@@ -680,7 +851,7 @@
             <!-- Pied de page -->
             <div class="mt-12 text-center text-gray-500 dark:text-gray-400 text-sm">
                 <p>{{ 'Besoin d\'aide supplémentaire? Contactez un administrateur.' if lang == 'fr' else 'さらにヘルプが必要ですか？管理者にお問い合わせください。' }}</p>
-                <p class="mt-2">Version 1.6 - {{ 'Mise à jour: Décembre 2025' if lang == 'fr' else '更新: 2025年12月' }}</p>
+                <p class="mt-2">Version 1.8 - {{ 'Mise à jour: Décembre 2025' if lang == 'fr' else '更新: 2025年12月' }}</p>
             </div>
         </main>
     </div>

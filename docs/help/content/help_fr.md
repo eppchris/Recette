@@ -41,6 +41,26 @@ Cette fonctionnalité vous permet de trouver des recettes contenant **TOUS** les
 3. Ajoutez des notes si nécessaire
 4. Cliquez sur "Enregistrer"
 
+### Copier un événement
+Créez rapidement un nouvel événement à partir d'un événement existant:
+1. Dans la liste des événements, cliquez sur "Copier" à côté de l'événement à dupliquer
+2. Le formulaire se pré-remplit avec toutes les informations de l'événement source
+3. Modifiez le nom, les dates, le lieu et toute autre information nécessaire
+4. Le nombre de jours de l'événement source est conservé
+5. Entrez la date de début: la date de fin se calcule automatiquement
+6. Validez pour créer le nouvel événement
+
+**Ce qui est copié:**
+- ✅ Toutes les recettes avec leurs quantités ajustées
+- ✅ Le budget prévu et la devise
+- ✅ L'organisation/planification des recettes (si même nombre de jours)
+
+**Ce qui n'est PAS copié:**
+- ❌ Les dépenses effectuées
+- ❌ La liste de courses (elle sera regénérée automatiquement)
+
+> **💡 Astuce:** Si vous avez désélectionné des jours dans l'événement source (ex: week-ends), seuls les jours sélectionnés seront pris en compte pour la copie de la planification.
+
 ### Ajouter des recettes à un événement
 1. Ouvrez l'événement
 2. Cliquez sur "Ajouter une recette"
@@ -149,6 +169,89 @@ Accédez au catalogue depuis le menu principal:
 
 ---
 
+## ✅ Vérification des recettes et des coûts
+
+### 🔍 Étape 1 : Vérifier les recettes
+
+Pour garantir des calculs de coût corrects, vérifiez chaque recette:
+
+1. **Ouvrez chaque recette** depuis la liste des recettes
+2. **Vérifiez les unités des ingrédients**
+   - L'unité doit correspondre à l'usage réel (ml, g, c.s., pièce, etc.)
+   - Exemple : dashi → ml (dans la recette)
+3. **Notez les ingrédients** qui nécessitent une attention particulière
+
+### 💰 Étape 2 : Vérifier le catalogue des prix
+
+Pour chaque ingrédient utilisé dans vos recettes:
+
+1. **Accédez au catalogue des prix**
+2. **Vérifiez l'unité d'achat** de chaque ingrédient
+   - L'unité doit correspondre à l'emballage réel
+   - Exemple : dashi → 30g (sachet), beurre → 250g (plaquette)
+3. **Vérifiez le prix et la quantité**
+   - Prix : montant payé à l'achat
+   - Quantité : contenu de l'emballage
+   - Exemple : dashi 30g = 5.01€
+
+### 🔄 Étape 3 : Gérer les conversions spécifiques
+
+Certains ingrédients changent de forme entre achat et utilisation:
+
+**Quand utiliser les conversions spécifiques?**
+- L'ingrédient s'achète dans une unité (g) mais s'utilise dans une autre (ml)
+- Il n'existe pas de conversion standard volume↔poids pour cet ingrédient
+- Exemple : dashi en poudre (g) → bouillon liquide (ml)
+
+**Comment ajouter une conversion spécifique:**
+
+1. Accédez à "**Conversions spécifiques par ingrédient**" depuis le menu
+2. Cliquez sur "**➕ Ajouter**"
+3. Remplissez les informations:
+   - **Ingrédient** : nom exact (ex: dashi)
+   - **De** : unité du catalogue (ex: g)
+   - **Vers** : unité de la recette (ex: ml)
+   - **Facteur** : ratio de conversion (ex: 33 = 1g → 33ml)
+   - **Notes** : explication (ex: "30g de poudre → 1000ml de bouillon")
+
+**Exemples de conversions spécifiques:**
+- **Dashi** : 1g → 33ml (30g de poudre = 1000ml de bouillon)
+- **Bouillon cube** : 1 cube → 500ml (1 cube = 500ml de bouillon)
+- **Champignon de paris** : 1g → 1 boîte (conversion conditionnement)
+
+### 💡 Étape 4 : Vérifier le coût des recettes
+
+Une fois les conversions configurées:
+
+1. **Ouvrez une recette**
+2. Cliquez sur l'onglet "**💰 Coût**" (si disponible) ou consultez le détail
+3. **Vérifiez la cohérence des montants**:
+   - Le coût total doit être réaliste
+   - Le coût par personne doit être cohérent
+   - Les ingrédients avec conversions spécifiques doivent afficher le bon prix
+
+**Exemple de vérification (dashi):**
+- ✅ Recette : 250ml de dashi
+- ✅ Catalogue : 30g = 5.01€
+- ✅ Conversion : 1g → 33ml
+- ✅ Calcul : 250ml ÷ 33 = 7.58g → 7.58g × (5.01€/30g) = **1.27€**
+- ❌ Si vous voyez 41.75€ → la conversion spécifique n'est pas configurée
+
+### 📊 Étape 5 : Vérifier le budget des événements
+
+Pour les événements existants:
+
+1. **Ouvrez un événement**
+2. Cliquez sur "**Budget**"
+3. **Vérifiez la liste de courses** et les prix calculés
+4. Les prix doivent correspondre aux quantités réelles nécessaires
+5. Si un prix semble incorrect, vérifiez:
+   - Le prix dans le catalogue
+   - L'existence d'une conversion spécifique si nécessaire
+   - Les unités utilisées (recette vs catalogue)
+
+---
+
 ## ❓ Questions fréquentes
 
 ### Puis-je modifier le nombre de convives après avoir créé l'événement?
@@ -165,4 +268,4 @@ Non, ils sont optionnels. Le catalogue sert surtout à gagner du temps en suggé
 
 ---
 
-*Dernière mise à jour: Version 1.7*
+*Dernière mise à jour: Version 1.11 - 11 décembre 2025*

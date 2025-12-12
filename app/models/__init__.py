@@ -29,6 +29,7 @@ from .db_recipes import (
     update_servings_default,
     search_recipes_by_filters,
     search_recipes_by_ingredients,
+    calculate_recipe_cost,
 )
 
 # Import des fonctions de traduction
@@ -66,6 +67,7 @@ from .db_events import (
     toggle_event_date_selection,
     save_recipe_planning,
     get_recipe_planning,
+    copy_event,
 )
 
 # Import des fonctions de gestion des listes de courses
@@ -189,6 +191,7 @@ __all__ = [
     'update_servings_default',
     'search_recipes_by_filters',
     'search_recipes_by_ingredients',
+    'calculate_recipe_cost',
 
     # Translations
     'insert_recipe_translation',
@@ -222,6 +225,7 @@ __all__ = [
     'toggle_event_date_selection',
     'save_recipe_planning',
     'get_recipe_planning',
+    'copy_event',
 
     # Shopping
     'get_shopping_list_items',
@@ -332,6 +336,7 @@ db = SimpleNamespace(
     update_servings_default=update_servings_default,
     search_recipes_by_filters=search_recipes_by_filters,
     search_recipes_by_ingredients=search_recipes_by_ingredients,
+    calculate_recipe_cost=calculate_recipe_cost,
 
     # Translations
     insert_recipe_translation=insert_recipe_translation,
@@ -365,6 +370,7 @@ db = SimpleNamespace(
     toggle_event_date_selection=toggle_event_date_selection,
     save_recipe_planning=save_recipe_planning,
     get_recipe_planning=get_recipe_planning,
+    copy_event=copy_event,
 
     # Shopping
     get_shopping_list_items=get_shopping_list_items,

@@ -4,6 +4,12 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{ 'Conversions d\'unités' if lang == 'fr' else '単位変換' }} - Recette</title>
+
+    <!-- Favicons -->
+    <link rel="icon" type="image/x-icon" href="/static/favicon.ico?v=2">
+    <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-32x32.png?v=2">
+    <link rel="icon" type="image/png" sizes="16x16" href="/static/favicon-16x16.png?v=2">
+    <link rel="apple-touch-icon" sizes="64x64" href="/static/favicon-64x64.png?v=2">
     <script src="/static/css/tailwind.min.js"></script>
     <script defer src="/static/css/alpine.min.js"></script>
 </head>
@@ -308,20 +314,22 @@
                                     <td class="px-4 py-3 text-sm text-gray-600 dark:text-gray-400" x-text="translateNotes(conv.notes)"></td>
                                 </template>
                                 <template x-if="!editing">
-                                    <td class="px-4 py-3 text-center space-x-2">
-                                        <button @click="editing = true"
-                                                class="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 text-sm">
-                                            ✏️
-                                        </button>
-                                        <form method="POST" :action="`/unit-conversions/${conv.id}/delete`"
-                                              style="display: inline;"
-                                              onsubmit="return confirm('{{ 'Supprimer cette conversion ?' if lang == 'fr' else 'この変換規則を削除しますか？' }}');">
-                                            <input type="hidden" name="lang" value="{{ lang }}">
-                                            <button type="submit"
-                                                    class="text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300 text-sm">
-                                                🗑️
+                                    <td class="px-4 py-3 text-center">
+                                        <div class="flex justify-center gap-2">
+                                            <button @click="editing = true"
+                                                    class="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 text-sm">
+                                                ✏️ {{ 'Modifier' if lang == 'fr' else '編集' }}
                                             </button>
-                                        </form>
+                                            <form method="POST" :action="`/unit-conversions/${conv.id}/delete`"
+                                                  style="display: inline;"
+                                                  onsubmit="return confirm('{{ 'Supprimer cette conversion ?' if lang == 'fr' else 'この変換規則を削除しますか？' }}');">
+                                                <input type="hidden" name="lang" value="{{ lang }}">
+                                                <button type="submit"
+                                                        class="text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300 text-sm">
+                                                    🗑️ {{ 'Supprimer' if lang == 'fr' else '削除' }}
+                                                </button>
+                                            </form>
+                                        </div>
                                     </td>
                                 </template>
 

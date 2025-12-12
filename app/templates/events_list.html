@@ -1,142 +1,180 @@
-<!DOCTYPE html>
-<html lang="{{ lang }}">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{ S('events_list') }} - Recette</title>
-    <script src="/static/css/tailwind.min.js"></script>
-    <script defer src="/static/css/alpine.min.js"></script>
-</head>
-<body class="bg-gray-50" x-data="{ darkMode: false }">
-    <div :class="darkMode ? 'dark bg-gray-900' : 'bg-gray-50'" class="min-h-screen">
-        <!-- Header -->
-        <header class="bg-white dark:bg-gray-800 shadow-sm border-b border-gray-200 dark:border-gray-700">
-            <div class="max-w-7xl mx-auto px-4 py-4 flex justify-between items-center">
-                <div class="flex items-center gap-4">
-                    <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ S('events_list') }}</h1>
-                </div>
+{% extends 'base.html' %}
 
-                <div class="flex items-center gap-4">
-                    <!-- Sélecteur de langue -->
-                    <div class="flex gap-2">
-                        <a href="?lang=fr"
-                           class="px-3 py-1.5 rounded-lg {{ 'bg-blue-500 text-white' if lang == 'fr' else 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600' }}">
-                            FR
-                        </a>
-                        <a href="?lang=jp"
-                           class="px-3 py-1.5 rounded-lg {{ 'bg-blue-500 text-white' if lang == 'jp' else 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600' }}">
-                            JP
-                        </a>
-                    </div>
+{% block breadcrumb %}
+<a href="/recipes?lang={{ lang }}" class="hover:text-gray-900 dark:hover:text-gray-100 transition-colors">
+  {{ S('recipes') }}
+</a>
+<span class="mx-2">›</span>
+<span class="text-gray-900 dark:text-gray-100">{{ S('events_list') }}</span>
+{% endblock %}
 
-                    <!-- Toggle mode sombre -->
-                    <button @click="darkMode = !darkMode"
-                            class="p-2 rounded-lg bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600">
-                        <span x-show="!darkMode">🌙</span>
-                        <span x-show="darkMode">☀️</span>
-                    </button>
-                </div>
-            </div>
-        </header>
+{% block content %}
+<div x-data="{
+    deleteModal: false,
+    eventToDelete: null,
+    openDeleteModal(eventId, eventName) {
+        this.eventToDelete = { id: eventId, name: eventName };
+        this.deleteModal = true;
+    },
+    async confirmDelete() {
+        if (!this.eventToDelete) return;
 
-        <!-- Navigation principale -->
-        <nav class="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
-            <div class="max-w-7xl mx-auto px-4">
-                <div class="flex gap-1">
-                    <a href="/recipes?lang={{ lang }}"
-                       class="px-4 py-3 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-700 rounded-t-lg">
-                        {{ S('menu_recipes') }}
-                    </a>
-                    <a href="/events?lang={{ lang }}"
-                       class="px-4 py-3 bg-blue-50 dark:bg-gray-700 text-blue-600 dark:text-blue-400 border-b-2 border-blue-600 dark:border-blue-400 font-medium rounded-t-lg">
-                        {{ S('menu_events') }}
-                    </a>
-                </div>
-            </div>
-        </nav>
+        try {
+            const response = await fetch(`/events/${this.eventToDelete.id}/delete?lang={{ lang }}`, {
+                method: 'POST'
+            });
 
-        <!-- Contenu principal -->
-        <main class="max-w-7xl mx-auto px-4 py-8">
-            <!-- Bouton nouveau -->
-            <div class="mb-6">
+            if (response.ok) {
+                window.location.reload();
+            } else {
+                alert('{{ 'Erreur lors de la suppression' if lang == 'fr' else '削除エラー' }}');
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            alert('{{ 'Erreur lors de la suppression' if lang == 'fr' else '削除エラー' }}');
+        }
+    },
+    cancelDelete() {
+        this.deleteModal = false;
+        this.eventToDelete = null;
+    }
+}">
+    <!-- Bouton retour -->
+    <div class="mb-4">
+        <a href="/recipes?lang={{ lang }}"
+           class="inline-flex items-center gap-2 px-3 py-2
+                  text-blue-600 dark:text-blue-400
+                  hover:bg-blue-50 dark:hover:bg-blue-900/20
+                  rounded-lg transition-colors duration-150">
+            <span class="text-lg">←</span>
+            <span class="font-medium">{{ 'Retour aux recettes' if lang == 'fr' else 'レシピに戻る' }}</span>
+        </a>
+    </div>
+
+    <!-- Header avec titre et bouton nouveau -->
+    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-6">
+        <h1 class="text-2xl font-bold">{{ S('events_list') }}</h1>
+        <a href="/events/new?lang={{ lang }}"
+           class="inline-flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors">
+            <span class="text-xl">➕</span>
+            <span>{{ S('new_event') }}</span>
+        </a>
+    </div>
+
+    <!-- Liste des événements -->
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow overflow-x-auto">
+        {% if events %}
+            <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                <thead class="bg-gray-50 dark:bg-gray-700">
+                    <tr>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                            {{ S('event_name') }}
+                        </th>
+                        <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                            {{ S('event_type') }}
+                        </th>
+                        <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                            {{ S('event_date') }}
+                        </th>
+                        <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                            {{ S('event_location') }}
+                        </th>
+                        <th class="px-3 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                            {{ S('event_attendees') }}
+                        </th>
+                        <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                            Actions
+                        </th>
+                    </tr>
+                </thead>
+                <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                    {% for event in events %}
+                    <tr class="hover:bg-gray-50 dark:hover:bg-gray-700">
+                        <td class="px-4 py-4 whitespace-nowrap">
+                            <a href="/events/{{ event.id }}?lang={{ lang }}"
+                               class="text-blue-600 dark:text-blue-400 hover:underline font-medium">
+                                {{ event.name }}
+                            </a>
+                        </td>
+                        <td class="px-3 py-4 whitespace-nowrap">
+                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 dark:bg-purple-900 text-purple-800 dark:text-purple-200">
+                                {{ event.event_type_name_jp if lang == 'jp' else event.event_type_name_fr }}
+                            </span>
+                        </td>
+                        <td class="px-3 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100">
+                            {{ event.event_date }}
+                        </td>
+                        <td class="px-3 py-4 text-sm text-gray-600 dark:text-gray-400 max-w-xs truncate">
+                            {{ event.location }}
+                        </td>
+                        <td class="px-3 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100 text-center">
+                            {{ event.attendees }}
+                        </td>
+                        <td class="px-4 py-4 text-right text-sm whitespace-nowrap">
+                            <div class="flex items-center justify-end gap-3">
+                                <!-- Bouton Copier -->
+                                <a href="/events/{{ event.id }}/copy?lang={{ lang }}"
+                                   class="text-yellow-600 dark:text-yellow-400 hover:text-yellow-800 dark:hover:text-yellow-300 text-sm">
+                                    📋 {{ 'Copier' if lang == 'fr' else 'コピー' }}
+                                </a>
+
+                                <!-- Bouton Supprimer -->
+                                <button @click="openDeleteModal({{ event.id }}, '{{ event.name }}')"
+                                        class="text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300 text-sm">
+                                    🗑️ {{ 'Supprimer' if lang == 'fr' else '削除' }}
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        {% else %}
+            <div class="p-8 text-center text-gray-500 dark:text-gray-400">
+                <p class="text-4xl mb-4">📅</p>
+                <p class="mb-4 text-lg">{{ 'Aucun événement créé' if lang == 'fr' else 'イベントがありません' }}</p>
                 <a href="/events/new?lang={{ lang }}"
                    class="inline-flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700">
-                    <span class="text-xl">+</span>
+                    <span class="text-xl">➕</span>
                     <span>{{ S('new_event') }}</span>
                 </a>
             </div>
-
-            <!-- Liste des événements -->
-            <div class="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
-                {% if events %}
-                    <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                        <thead class="bg-gray-50 dark:bg-gray-700">
-                            <tr>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                                    {{ S('event_name') }}
-                                </th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                                    {{ S('event_type') }}
-                                </th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                                    {{ S('event_date') }}
-                                </th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                                    {{ S('event_location') }}
-                                </th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                                    {{ S('event_attendees') }}
-                                </th>
-                                <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                                    Actions
-                                </th>
-                            </tr>
-                        </thead>
-                        <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-                            {% for event in events %}
-                            <tr class="hover:bg-gray-50 dark:hover:bg-gray-700">
-                                <td class="px-6 py-4 whitespace-nowrap">
-                                    <a href="/events/{{ event.id }}?lang={{ lang }}"
-                                       class="text-blue-600 dark:text-blue-400 hover:underline font-medium">
-                                        {{ event.name }}
-                                    </a>
-                                </td>
-                                <td class="px-6 py-4 whitespace-nowrap">
-                                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 dark:bg-purple-900 text-purple-800 dark:text-purple-200">
-                                        {{ event.event_type_name_jp if lang == 'jp' else event.event_type_name_fr }}
-                                    </span>
-                                </td>
-                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100">
-                                    {{ event.event_date }}
-                                </td>
-                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-400">
-                                    {{ event.location }}
-                                </td>
-                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100">
-                                    {{ event.attendees }}
-                                </td>
-                                <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                    <a href="/events/{{ event.id }}?lang={{ lang }}"
-                                       class="text-blue-600 dark:text-blue-400 hover:underline mr-3">
-                                        {{ S('edit') }}
-                                    </a>
-                                </td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                {% else %}
-                    <div class="p-8 text-center text-gray-500 dark:text-gray-400">
-                        <p class="mb-4">{{ 'Aucun événement créé' if lang == 'fr' else 'イベントがありません' }}</p>
-                        <a href="/events/new?lang={{ lang }}"
-                           class="inline-flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700">
-                            <span class="text-xl">+</span>
-                            <span>{{ S('new_event') }}</span>
-                        </a>
-                    </div>
-                {% endif %}
-            </div>
-        </main>
+        {% endif %}
     </div>
-</body>
-</html>
+
+    <!-- Modal de confirmation de suppression -->
+    <div x-show="deleteModal"
+         x-cloak
+         class="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+         @click.self="cancelDelete()">
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-xl p-6 max-w-md w-full mx-4"
+             @click.stop>
+            <h3 class="text-xl font-bold mb-4 text-gray-900 dark:text-white">
+                {{ 'Confirmer la suppression' if lang == 'fr' else '削除の確認' }}
+            </h3>
+
+            <p class="text-gray-600 dark:text-gray-400 mb-6">
+                <span x-show="eventToDelete">
+                    {{ 'Êtes-vous sûr de vouloir supprimer l\'événement' if lang == 'fr' else 'イベントを削除してもよろしいですか' }}
+                    <strong class="text-gray-900 dark:text-white" x-text="eventToDelete?.name"></strong> ?
+                </span>
+            </p>
+
+            <div class="flex gap-3 justify-end">
+                <button @click="cancelDelete()"
+                        class="px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors">
+                    {{ 'Annuler' if lang == 'fr' else 'キャンセル' }}
+                </button>
+                <button @click="confirmDelete()"
+                        class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors">
+                    {{ 'Supprimer' if lang == 'fr' else '削除' }}
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    [x-cloak] { display: none !important; }
+</style>
+{% endblock %}

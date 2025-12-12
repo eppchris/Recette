@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="{{ lang }}">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ 'Copier l\'événement' if lang == 'fr' else 'イベントをコピー' }} - Recette</title>
+
+    <!-- Favicons -->
+    <link rel="icon" type="image/x-icon" href="/static/favicon.ico?v=2">
+    <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-32x32.png?v=2">
+    <link rel="icon" type="image/png" sizes="16x16" href="/static/favicon-16x16.png?v=2">
+    <link rel="apple-touch-icon" sizes="64x64" href="/static/favicon-64x64.png?v=2">
+    <script src="/static/css/tailwind.min.js"></script>
+    <script defer src="/static/css/alpine.min.js"></script>
+    <script>
+        function eventCopyData() {
+            return {
+                darkMode: false,
+                dateDebut: '',
+                dateFin: '',
+                nombreJours: {{ source_event.nombre_jours }},
+                dates: [],
+
+                init() {
+                    // Ne pas pré-remplir les dates - l'utilisateur doit choisir les nouvelles dates
+                },
+
+                updateDateFin() {
+                    // Calculer automatiquement la date de fin basée sur la date de début et le nombre de jours
+                    if (this.dateDebut && this.nombreJours > 0) {
+                        const start = new Date(this.dateDebut);
+                        const end = new Date(start);
+                        end.setDate(start.getDate() + this.nombreJours - 1);
+                        this.dateFin = end.toISOString().split('T')[0];
+                        this.updateDates();
+                    }
+                },
+
+                updateDates() {
+                    if (this.dateDebut && this.dateFin) {
+                        const start = new Date(this.dateDebut);
+                        const end = new Date(this.dateFin);
+
+                        // Vérifier que date_fin >= date_debut
+                        if (end < start) {
+                            return;
+                        }
+
+                        this.generateDates();
+
+                        // Calculer le nombre de jours entre les dates (inclusif)
+                        const diffTime = end - start;
+                        const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24)) + 1;
+                        this.nombreJours = diffDays;
+                    }
+                },
+
+                generateDates() {
+                    this.dates = [];
+                    if (!this.dateDebut || !this.dateFin) return;
+
+                    const start = new Date(this.dateDebut);
+                    const end = new Date(this.dateFin);
+
+                    let current = new Date(start);
+                    while (current <= end) {
+                        // Toutes les dates sont sélectionnées par défaut lors de la copie
+                        this.dates.push({
+                            date: current.toISOString().split('T')[0],
+                            selected: true
+                        });
+                        current.setDate(current.getDate() + 1);
+                    }
+                },
+
+                toggleDate(index) {
+                    this.dates[index].selected = !this.dates[index].selected;
+                    // Recalculer le nombre de jours sélectionnés
+                    this.nombreJours = this.dates.filter(d => d.selected).length;
+                }
+            }
+        }
+    </script>
+</head>
+<body class="bg-gray-50">
+    <div x-data="eventCopyData()" :class="darkMode ? 'dark bg-gray-900' : 'bg-gray-50'" class="min-h-screen">
+        <!-- Header -->
+        <header class="bg-white dark:bg-gray-800 shadow-sm border-b border-gray-200 dark:border-gray-700">
+            <div class="max-w-7xl mx-auto px-4 py-4 flex justify-between items-center">
+                <div class="flex items-center gap-4">
+                    <h1 class="text-2xl font-bold text-gray-900 dark:text-white">
+                        {{ 'Copier l\'événement' if lang == 'fr' else 'イベントをコピー' }}
+                    </h1>
+                </div>
+
+                <div class="flex items-center gap-4">
+                    <!-- Sélecteur de langue -->
+                    <div class="flex gap-2">
+                        <a href="?lang=fr"
+                           class="px-3 py-1.5 rounded-lg {{ 'bg-blue-500 text-white' if lang == 'fr' else 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600' }}">
+                            FR
+                        </a>
+                        <a href="?lang=jp"
+                           class="px-3 py-1.5 rounded-lg {{ 'bg-blue-500 text-white' if lang == 'jp' else 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600' }}">
+                            JP
+                        </a>
+                    </div>
+
+                    <!-- Toggle mode sombre -->
+                    <button @click="darkMode = !darkMode"
+                            class="p-2 rounded-lg bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600">
+                        <span x-show="!darkMode">🌙</span>
+                        <span x-show="darkMode">☀️</span>
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        <!-- Contenu principal -->
+        <main class="max-w-4xl mx-auto px-4 py-8">
+            <!-- Info sur l'événement source -->
+            <div class="mb-6 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+                <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+                    {{ 'Événement source' if lang == 'fr' else 'ソースイベント' }}
+                </h3>
+                <p class="text-gray-700 dark:text-gray-300">
+                    <strong>{{ source_event.name }}</strong>
+                    {% if source_recipes %}
+                    <br>
+                    <span class="text-sm">
+                        {{ source_recipes|length }} {{ 'recette(s)' if lang == 'fr' else 'レシピ' }} •
+                        {{ 'Budget prévu' if lang == 'fr' else '予算' }}: {{ source_event.budget_planned or 0 }} {{ source_event.currency or 'EUR' }}
+                    </span>
+                    {% endif %}
+                </p>
+            </div>
+
+            <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+                <form method="POST" action="/events/copy">
+                    <input type="hidden" name="lang" value="{{ lang }}">
+                    <input type="hidden" name="source_event_id" value="{{ source_event.id }}">
+
+                    <!-- Nom de l'événement -->
+                    <div class="mb-4">
+                        <label for="name" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                            {{ 'Nom du nouvel événement' if lang == 'fr' else '新しいイベント名' }}
+                        </label>
+                        <input type="text"
+                               id="name"
+                               name="name"
+                               required
+                               value="{{ source_event.name }} ({{ 'copie' if lang == 'fr' else 'コピー' }})"
+                               class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white">
+                    </div>
+
+                    <!-- Type d'événement -->
+                    <div class="mb-4">
+                        <label for="event_type_id" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                            {{ S('event_type') }}
+                        </label>
+                        <select id="event_type_id"
+                                name="event_type_id"
+                                required
+                                class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white">
+                            {% for et in event_types %}
+                            <option value="{{ et.id }}" {{ 'selected' if source_event.event_type_id == et.id else '' }}>
+                                {{ et.name_jp if lang == 'jp' else et.name_fr }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <!-- Dates de l'événement -->
+                    <div class="mb-6 p-4 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-800">
+                        <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+                            {{ 'Nouvelles dates de l\'événement' if lang == 'fr' else '新しいイベント日程' }}
+                        </h3>
+
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                            <!-- Date de début -->
+                            <div>
+                                <label for="date_debut" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                    {{ 'Date de début' if lang == 'fr' else '開始日' }}
+                                </label>
+                                <input type="date"
+                                       id="date_debut"
+                                       name="date_debut"
+                                       required
+                                       x-model="dateDebut"
+                                       @change="updateDateFin()"
+                                       class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white">
+                            </div>
+
+                            <!-- Date de fin -->
+                            <div>
+                                <label for="date_fin" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                    {{ 'Date de fin' if lang == 'fr' else '終了日' }}
+                                </label>
+                                <input type="date"
+                                       id="date_fin"
+                                       name="date_fin"
+                                       required
+                                       x-model="dateFin"
+                                       @change="updateDates()"
+                                       class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white">
+                            </div>
+
+                            <!-- Nombre de jours -->
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                    {{ 'Nombre de jours' if lang == 'fr' else '日数' }}
+                                </label>
+                                <div class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300">
+                                    <span x-text="nombreJours"></span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Info sur la planification -->
+                        <div x-show="dates.length > 0 && dates.length != {{ source_event.nombre_jours }}"
+                             class="mb-4 p-3 bg-yellow-50 dark:bg-yellow-900/20 rounded border border-yellow-200 dark:border-yellow-700">
+                            <p class="text-sm text-yellow-800 dark:text-yellow-300">
+                                ⚠️ {{ 'Le nombre de jours a changé. L\'organisation des recettes ne sera pas copiée.' if lang == 'fr' else '日数が変更されました。レシピの計画はコピーされません。' }}
+                            </p>
+                        </div>
+
+                        <!-- Note: Toutes les dates sélectionnées par défaut -->
+                        <div x-show="dates.length > 0" class="mb-3 text-sm text-gray-600 dark:text-gray-400">
+                            ℹ️ {{ 'Toutes les dates sont sélectionnées par défaut. Cliquez pour désélectionner les jours non travaillés.' if lang == 'fr' else 'すべての日付がデフォルトで選択されています。非作業日をクリックして選択解除してください。' }}
+                        </div>
+
+                        <!-- Tableau de sélection des dates -->
+                        <div x-show="dates.length > 0" class="mt-4">
+                            <div class="grid grid-cols-7 gap-2">
+                                <template x-for="(dateInfo, index) in dates" :key="index">
+                                    <button type="button"
+                                            @click="toggleDate(index)"
+                                            :class="dateInfo.selected ? 'bg-green-500 text-white' : 'bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-300'"
+                                            class="px-3 py-2 rounded-lg text-sm font-medium hover:opacity-80 transition-opacity">
+                                        <div x-text="new Date(dateInfo.date).toLocaleDateString('{{ 'fr-FR' if lang == 'fr' else 'ja-JP' }}', {day: '2-digit', month: '2-digit'})"></div>
+                                    </button>
+                                </template>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Lieu -->
+                    <div class="mb-4">
+                        <label for="location" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                            {{ S('event_location') }}
+                        </label>
+                        <input type="text"
+                               id="location"
+                               name="location"
+                               required
+                               value="{{ source_event.location }}"
+                               class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white">
+                    </div>
+
+                    <!-- Nombre de convives -->
+                    <div class="mb-4">
+                        <label for="attendees" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                            {{ S('event_attendees') }}
+                        </label>
+                        <input type="number"
+                               id="attendees"
+                               name="attendees"
+                               required
+                               min="1"
+                               value="{{ source_event.attendees }}"
+                               class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white">
+                    </div>
+
+                    <!-- Notes -->
+                    <div class="mb-6">
+                        <label for="notes" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                            {{ S('event_notes') }}
+                        </label>
+                        <textarea id="notes"
+                                  name="notes"
+                                  rows="4"
+                                  class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white">{{ source_event.notes }}</textarea>
+                    </div>
+
+                    <!-- Info sur ce qui sera copié -->
+                    <div class="mb-6 p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                        <h4 class="font-semibold text-gray-900 dark:text-white mb-2">
+                            {{ 'Éléments qui seront copiés :' if lang == 'fr' else 'コピーされる要素：' }}
+                        </h4>
+                        <ul class="list-disc ml-6 text-sm text-gray-700 dark:text-gray-300 space-y-1">
+                            <li>{{ 'Toutes les recettes avec leurs quantités ajustées' if lang == 'fr' else 'すべてのレシピと調整された数量' }}</li>
+                            <li>{{ 'Budget prévu et devise' if lang == 'fr' else '予算と通貨' }} ({{ source_event.budget_planned or 0 }} {{ source_event.currency or 'EUR' }})</li>
+                            <li x-show="dates.length == {{ source_event.nombre_jours }}">
+                                ✅ {{ 'Organisation des recettes (même nombre de jours)' if lang == 'fr' else 'レシピの計画（同じ日数）' }}
+                            </li>
+                        </ul>
+                        <h4 class="font-semibold text-gray-900 dark:text-white mt-3 mb-2">
+                            {{ 'Éléments qui ne seront PAS copiés :' if lang == 'fr' else 'コピーされない要素：' }}
+                        </h4>
+                        <ul class="list-disc ml-6 text-sm text-gray-700 dark:text-gray-300 space-y-1">
+                            <li>{{ 'Dépenses effectuées' if lang == 'fr' else '実際の支出' }}</li>
+                            <li x-show="dates.length != {{ source_event.nombre_jours }}">
+                                ⚠️ {{ 'Organisation des recettes (nombre de jours différent)' if lang == 'fr' else 'レシピの計画（異なる日数）' }}
+                            </li>
+                        </ul>
+                    </div>
+
+                    <!-- Boutons -->
+                    <div class="flex gap-3 justify-end">
+                        <a href="/events/{{ source_event.id }}?lang={{ lang }}"
+                           class="px-6 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700">
+                            {{ S('cancel') }}
+                        </a>
+                        <button type="submit"
+                                class="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700">
+                            {{ 'Créer la copie' if lang == 'fr' else 'コピーを作成' }}
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </main>
+    </div>
+</body>
+</html>

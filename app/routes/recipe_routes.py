@@ -1,5 +1,5 @@
 # app/routes/recipe_routes.py
-from fastapi import APIRouter, Request, Query, UploadFile, File
+from fastapi import APIRouter, Request, Query, UploadFile, File, Form
 from fastapi.responses import HTMLResponse, JSONResponse
 from typing import Optional
 import tempfile
@@ -10,6 +10,7 @@ from app.models import db
 from app.services.recipe_importer import import_recipe_from_csv
 from app.services.translation_service import get_translation_service
 from app.services.conversion_service import get_conversion_service
+from app.services.web_recipe_importer import get_web_recipe_importer
 from app.template_config import templates
 
 router = APIRouter()
@@ -74,6 +75,7 @@ async def recipe_detail(request: Request, slug: str, lang: str = Query("fr"), ev
         {
             "request": request,
             "lang": lang,
+            "slug": slug,
             "rec": rec,
             "ings": ings,
             "steps": steps_with_ids,  # Utiliser steps_with_ids au lieu de steps
@@ -593,6 +595,38 @@ async def convert_recipe_servings(slug: str, request: Request, lang: str = Query
         )
 
 
+# --------------------------------------------------------------------
+# Coût de la recette
+# --------------------------------------------------------------------
+@router.get("/recipe/{slug}/cost", response_class=HTMLResponse)
+async def recipe_cost(request: Request, slug: str, lang: str = Query("fr"), servings: Optional[int] = Query(None)):
+    """Affiche le coût détaillé d'une recette"""
+    # Calculer le coût de la recette
+    cost_data = db.calculate_recipe_cost(slug, lang, servings)
+
+    if not cost_data:
+        return templates.TemplateResponse(
+            "not_found.html",
+            {"request": request, "lang": lang, "message": f"Recette '{slug}' introuvable"},
+            status_code=404,
+        )
+
+    return templates.TemplateResponse(
+        "recipe_cost.html",
+        {
+            "request": request,
+            "lang": lang,
+            "slug": slug,
+            "recipe": cost_data['recipe'],
+            "servings": cost_data['servings'],
+            "original_servings": cost_data['original_servings'],
+            "ingredients": cost_data['ingredients'],
+            "total_planned": cost_data['total_planned'],
+            "currency": cost_data['currency']
+        }
+    )
+
+
 # ============================================================================
 # API - CATÉGORIES ET TAGS
 # ============================================================================
@@ -1074,6 +1108,198 @@ async def save_pdf_recipe(request: Request, lang: str = Query("fr")):
                 cur.execute(
                     "INSERT INTO step_translation (step_id, lang, text) VALUES (?, ?, ?)",
                     (step_id, recipe_lang, step_text)
+                )
+
+            con.commit()
+
+            return JSONResponse({
+                "success": True,
+                "recipe_id": recipe_id,
+                "slug": slug
+            })
+
+        except Exception as e:
+            con.rollback()
+            raise e
+        finally:
+            con.close()
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JSONResponse(
+            {"success": False, "error": str(e)},
+            status_code=500
+        )
+
+# ============================================================================
+# Import de recettes depuis URL web
+# ============================================================================
+
+@router.get("/import-url", response_class=HTMLResponse)
+async def import_url_form(request: Request, lang: str = Query("fr")):
+    """Affiche le formulaire d'import depuis URL"""
+    return templates.TemplateResponse(
+        "import_url.html",
+        {"request": request, "lang": lang}
+    )
+
+
+@router.post("/api/import-url/analyze")
+async def analyze_url_recipe(
+    request: Request,
+    url: str = Form(...),
+    target_lang: str = Form("fr")
+):
+    """
+    Analyse une URL et extrait les informations de la recette avec l'IA
+    """
+    try:
+        # Récupérer l'importateur web
+        importer = get_web_recipe_importer()
+
+        # Importer la recette
+        recipe_data = importer.import_recipe(url, target_lang)
+
+        return JSONResponse({
+            "success": True,
+            "recipe": recipe_data
+        })
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JSONResponse(
+            {"success": False, "error": str(e)},
+            status_code=500
+        )
+
+
+@router.post("/api/import-url/save")
+async def save_url_recipe(request: Request, lang: str = Query("fr")):
+    """
+    Sauvegarde la recette extraite de l'URL après validation par l'utilisateur
+    """
+    import sqlite3
+    from app.models.db_core import DB_PATH
+
+    data = await request.json()
+
+    try:
+        # Créer le slug depuis le nom
+        import re
+        import unicodedata
+
+        def create_slug(text: str) -> str:
+            # Normaliser et convertir en ASCII
+            text = unicodedata.normalize('NFKD', text)
+            text = text.encode('ascii', 'ignore').decode('ascii')
+            # Convertir en minuscules et remplacer espaces par tirets
+            text = text.lower()
+            text = re.sub(r'[^a-z0-9]+', '-', text)
+            text = text.strip('-')
+            return text[:50]  # Limiter à 50 caractères
+
+        # Créer le slug
+        recipe_name = data.get('name', 'recette-importee')
+        slug = create_slug(recipe_name)
+
+        # Si le slug est vide, trop court, ou composé uniquement de chiffres, utiliser un slug par défaut
+        if not slug or len(slug) < 2 or slug.isdigit():
+            slug = 'recipe-import'
+
+        # Connexion à la base
+        con = sqlite3.connect(DB_PATH)
+        cur = con.cursor()
+
+        try:
+            # Vérifier que le slug n'existe pas déjà
+            cur.execute("SELECT id FROM recipe WHERE slug = ?", (slug,))
+            if cur.fetchone():
+                # Ajouter un suffixe numérique
+                counter = 1
+                while True:
+                    test_slug = f"{slug}-{counter}"
+                    cur.execute("SELECT id FROM recipe WHERE slug = ?", (test_slug,))
+                    if not cur.fetchone():
+                        slug = test_slug
+                        break
+                    counter += 1
+
+            # Récupérer la langue cible depuis les données
+            target_lang = data.get('target_lang', lang)
+
+            # Créer la recette
+            servings = data.get('servings', 4)
+            country = data.get('country', '')
+            user_id = request.session.get('user_id')  # Récupérer l'utilisateur connecté
+
+            # Mapper recipe_type depuis le format texte vers le format DB
+            recipe_type_text = data.get('recipe_type', 'autre')
+            recipe_type_map = {
+                'apéritif': 'PERSO',
+                'entrée': 'PERSO',
+                'plat': 'PERSO',
+                'dessert': 'PERSO',
+                'autre': 'PERSO'
+            }
+            recipe_type = recipe_type_map.get(recipe_type_text.lower(), 'PERSO')
+
+            cur.execute(
+                """INSERT INTO recipe
+                   (slug, country, servings_default, user_id)
+                   VALUES (?, ?, ?, ?)""",
+                (slug, country, servings, user_id)
+            )
+            recipe_id = cur.lastrowid
+
+            # Ajouter la traduction de la recette dans la langue cible
+            description = data.get('description', '')
+            cur.execute(
+                """INSERT INTO recipe_translation
+                   (recipe_id, lang, name, recipe_type, description)
+                   VALUES (?, ?, ?, ?, ?)""",
+                (recipe_id, target_lang, recipe_name, recipe_type, description)
+            )
+
+            # Ajouter les ingrédients
+            for position, ing in enumerate(data.get('ingredients', []), 1):
+                quantity_float = ing.get('quantity')
+                if quantity_float is not None:
+                    try:
+                        quantity_float = float(quantity_float)
+                    except (ValueError, TypeError):
+                        quantity_float = None
+
+                # Insérer recipe_ingredient
+                cur.execute(
+                    "INSERT INTO recipe_ingredient (recipe_id, position, quantity) VALUES (?, ?, ?)",
+                    (recipe_id, position, quantity_float)
+                )
+                recipe_ingredient_id = cur.lastrowid
+
+                # Insérer la traduction de l'ingrédient
+                cur.execute(
+                    """INSERT INTO recipe_ingredient_translation
+                       (recipe_ingredient_id, lang, name, unit, notes)
+                       VALUES (?, ?, ?, ?, ?)""",
+                    (recipe_ingredient_id, target_lang, ing.get('name', ''),
+                     ing.get('unit') or None, ing.get('notes') or None)
+                )
+
+            # Ajouter les étapes
+            for position, step_text in enumerate(data.get('steps', []), 1):
+                # Insérer step
+                cur.execute(
+                    "INSERT INTO step (recipe_id, position) VALUES (?, ?)",
+                    (recipe_id, position)
+                )
+                step_id = cur.lastrowid
+
+                # Insérer la traduction de l'étape
+                cur.execute(
+                    "INSERT INTO step_translation (step_id, lang, text) VALUES (?, ?, ?)",
+                    (step_id, target_lang, step_text)
                 )
 
             con.commit()

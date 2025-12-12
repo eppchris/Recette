@@ -251,6 +251,73 @@ async def event_update(
     )
 
 
+@router.get("/events/{event_id}/copy", response_class=HTMLResponse)
+async def event_copy_form(request: Request, event_id: int, lang: str = "fr"):
+    """
+    Formulaire de copie d'un événement
+    Pré-remplit tous les champs avec les données de l'événement source
+    """
+    # Récupérer l'événement source
+    source_event = db.get_event_by_id(event_id)
+    if not source_event:
+        raise HTTPException(status_code=404, detail="Événement non trouvé")
+
+    # Récupérer la liste des types d'événements
+    event_types = db.list_event_types()
+
+    # Récupérer les recettes de l'événement source
+    source_recipes = db.get_event_recipes(event_id, lang)
+
+    return templates.TemplateResponse(
+        "event_copy_form.html",
+        {
+            "request": request,
+            "lang": lang,
+            "source_event": source_event,
+            "event_types": event_types,
+            "source_recipes": source_recipes
+        }
+    )
+
+
+@router.post("/events/copy")
+async def event_copy_create(
+    request: Request,
+    lang: str = Form("fr"),
+    source_event_id: int = Form(...),
+    event_type_id: int = Form(...),
+    name: str = Form(...),
+    date_debut: str = Form(...),
+    date_fin: str = Form(...),
+    location: str = Form(""),
+    attendees: int = Form(...),
+    notes: str = Form("")
+):
+    """
+    Crée une copie d'un événement existant avec de nouvelles valeurs
+    """
+    user_id = request.session.get('user_id')
+
+    # Créer la copie de l'événement
+    new_event_id = db.copy_event(
+        event_id=source_event_id,
+        new_name=name,
+        new_event_type_id=event_type_id,
+        new_date_debut=date_debut,
+        new_date_fin=date_fin,
+        new_location=location if location else None,
+        new_attendees=attendees if attendees else None,
+        new_notes=notes if notes else None,
+        user_id=user_id
+    )
+
+    # Rediriger vers la page de détail du nouvel événement
+    return RedirectResponse(
+        url=f"/events/{new_event_id}?lang={lang}",
+        status_code=303
+    )
+
+
 @router.post("/events/{event_id}/delete")
 async def event_delete(request: Request, event_id: int, lang: str = Form("fr")):
     """

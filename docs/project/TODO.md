@@ -2,20 +2,16 @@
 
 ## 📋 Vue d'ensemble
 
-### V1.7 (Prochaine version)
-- [ ] Aide: Ajouter bouton retour
-- [ ] Aide: Rendre modifiable par admin (🔥 priorité)
+### Backlog
+- [ x] Aide: Ajouter bouton retour
+- [ x] Aide: Rendre modifiable par admin (🔥 priorité)
 - [ ] Aide: Mise à jour automatique avec versions
-
-### V1.8+
-- [ ] Recettes composées (recette comme ingrédient) - 🔵 À SPÉCIFIER
+- [ X] Revoir les performance de la liste des recettes qui commence à être lente.
+- [ ] Mettre dans les événements, les personnes participant à un événement 
+- [ ] Recettes composées (recette comme ingrédient)
 - [ ] Images dans les étapes de recette
 - [ ] Clarifier système de versioning
-
-### V2.0
 - [ ] Scan ticket de caisse pour prix - 🔵 À SPÉCIFIER
-
-### Backlog
 - [ ] Harmoniser navigation (boutons retour, icônes, cohérence UI)
 - [ ] Export PDF planification
 - [ ] Notifications événements

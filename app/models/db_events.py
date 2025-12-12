@@ -395,6 +395,9 @@ def get_event_recipes_with_ingredients(event_id: int, lang: str):
     Récupère toutes les recettes d'un événement avec leurs ingrédients
     Pour générer la liste de courses
 
+    OPTIMISATION: Une seule requête avec JOIN au lieu de N+1 queries
+    Gain: 91% de réduction (11 requêtes → 1 requête pour 10 recettes)
+
     Args:
         event_id: ID de l'événement
         lang: Code de langue ('fr' ou 'jp')
@@ -403,45 +406,63 @@ def get_event_recipes_with_ingredients(event_id: int, lang: str):
         Liste des recettes avec ingrédients détaillés et multiplicateur
     """
     with get_db() as con:
-        # Récupérer les recettes
-        recipes_sql = """
+        # Une seule requête avec tous les JOINs
+        sql = """
             SELECT
-                r.id,
-                r.slug,
-                COALESCE(rt.name, r.slug) AS name,
-                er.servings_multiplier
+                r.id AS recipe_id,
+                r.slug AS recipe_slug,
+                COALESCE(rt.name, r.slug) AS recipe_name,
+                er.servings_multiplier,
+                er.position AS recipe_position,
+                ri.id AS ingredient_id,
+                ri.position AS ingredient_position,
+                ri.quantity,
+                COALESCE(rit.name, '') AS ingredient_name,
+                COALESCE(rit.unit, '') AS unit,
+                COALESCE(rit.notes, '') AS notes
             FROM event_recipe er
             JOIN recipe r ON r.id = er.recipe_id
             LEFT JOIN recipe_translation rt ON rt.recipe_id = r.id AND rt.lang = ?
+            LEFT JOIN recipe_ingredient ri ON ri.recipe_id = r.id
+            LEFT JOIN recipe_ingredient_translation rit
+                ON rit.recipe_ingredient_id = ri.id AND rit.lang = ?
             WHERE er.event_id = ?
-            ORDER BY er.position
+            ORDER BY er.position, ri.position
         """
-        recipes = con.execute(recipes_sql, (lang, event_id)).fetchall()
+        rows = con.execute(sql, (lang, lang, event_id)).fetchall()
 
-        # Pour chaque recette, récupérer les ingrédients
-        result = []
-        for recipe in recipes:
-            ingredients_sql = """
-                SELECT
-                    ri.quantity,
-                    COALESCE(rit.name, '') AS name,
-                    COALESCE(rit.unit, '') AS unit,
-                    COALESCE(rit.notes, '') AS notes
-                FROM recipe_ingredient ri
-                LEFT JOIN recipe_ingredient_translation rit
-                    ON rit.recipe_ingredient_id = ri.id AND rit.lang = ?
-                WHERE ri.recipe_id = ?
-                ORDER BY ri.position
-            """
-            ingredients = con.execute(ingredients_sql, (lang, recipe['id'])).fetchall()
+        # Post-traitement en Python pour restructurer les données
+        # Regrouper les ingrédients par recette
+        recipes_dict = {}
+        for row in rows:
+            recipe_id = row['recipe_id']
 
-            result.append({
-                'recipe_id': recipe['id'],
-                'recipe_slug': recipe['slug'],
-                'recipe_name': recipe['name'],
-                'servings_multiplier': recipe['servings_multiplier'],
-                'ingredients': [dict(ing) for ing in ingredients]
-            })
+            # Créer l'entrée de recette si elle n'existe pas
+            if recipe_id not in recipes_dict:
+                recipes_dict[recipe_id] = {
+                    'recipe_id': recipe_id,
+                    'recipe_slug': row['recipe_slug'],
+                    'recipe_name': row['recipe_name'],
+                    'servings_multiplier': row['servings_multiplier'],
+                    'recipe_position': row['recipe_position'],
+                    'ingredients': []
+                }
+
+            # Ajouter l'ingrédient s'il existe (peut être NULL si recette sans ingrédients)
+            if row['ingredient_id'] is not None:
+                recipes_dict[recipe_id]['ingredients'].append({
+                    'quantity': row['quantity'],
+                    'name': row['ingredient_name'],
+                    'unit': row['unit'],
+                    'notes': row['notes']
+                })
+
+        # Convertir le dictionnaire en liste triée par position
+        result = sorted(recipes_dict.values(), key=lambda x: x['recipe_position'])
+
+        # Retirer la clé recipe_position qui n'est plus nécessaire
+        for recipe in result:
+            del recipe['recipe_position']
 
         return result
 
@@ -475,6 +496,9 @@ def set_recipe_event_types(recipe_id: int, event_type_ids: list):
     """
     Définit les types d'événements d'une recette (remplace les anciens)
 
+    OPTIMISATION: Batch INSERT avec executemany() au lieu de boucle
+    Gain: 67% de réduction (6 requêtes → 2 requêtes pour 5 types)
+
     Args:
         recipe_id: ID de la recette
         event_type_ids: Liste des IDs de types d'événements
@@ -483,11 +507,13 @@ def set_recipe_event_types(recipe_id: int, event_type_ids: list):
         cursor = con.cursor()
         # Supprimer les anciennes associations
         cursor.execute("DELETE FROM recipe_event_type WHERE recipe_id = ?", (recipe_id,))
-        # Ajouter les nouvelles
-        for event_type_id in event_type_ids:
-            cursor.execute(
+
+        # Batch INSERT avec executemany() si liste non vide
+        if event_type_ids:
+            data = [(recipe_id, event_type_id) for event_type_id in event_type_ids]
+            cursor.executemany(
                 "INSERT INTO recipe_event_type (recipe_id, event_type_id) VALUES (?, ?)",
-                (recipe_id, event_type_id)
+                data
             )
         con.commit()
 
@@ -575,6 +601,9 @@ def save_recipe_planning(event_id: int, planning_data: list):
     """
     Sauvegarde l'organisation des recettes par jour
 
+    OPTIMISATION: Batch INSERT avec executemany() au lieu de boucle
+    Gain: 90% de réduction (21 requêtes → 2 requêtes pour 20 jours)
+
     Args:
         event_id: ID de l'événement
         planning_data: Liste de dicts avec 'recipe_id', 'event_date_id', 'position'
@@ -583,13 +612,18 @@ def save_recipe_planning(event_id: int, planning_data: list):
         cursor = con.cursor()
         # Supprimer l'ancienne planification
         cursor.execute("DELETE FROM event_recipe_planning WHERE event_id = ?", (event_id,))
-        # Ajouter la nouvelle planification
-        for item in planning_data:
-            cursor.execute(
+
+        # Batch INSERT avec executemany() si données non vides
+        if planning_data:
+            data = [
+                (event_id, item['recipe_id'], item['event_date_id'], item['position'])
+                for item in planning_data
+            ]
+            cursor.executemany(
                 """INSERT INTO event_recipe_planning
                    (event_id, recipe_id, event_date_id, position)
                    VALUES (?, ?, ?, ?)""",
-                (event_id, item['recipe_id'], item['event_date_id'], item['position'])
+                data
             )
         con.commit()
 
@@ -649,3 +683,147 @@ def get_recipe_planning(event_id: int, lang: str):
                 })
 
         return result
+
+
+def copy_event(event_id: int, new_name: str, new_event_type_id: int, new_date_debut: str,
+               new_date_fin: str, new_location: str = None, new_attendees: int = None,
+               new_notes: str = None, user_id: int = None):
+    """
+    Copie un événement existant avec toutes ses données
+
+    Args:
+        event_id: ID de l'événement source à copier
+        new_name: Nouveau nom pour la copie
+        new_event_type_id: Type d'événement
+        new_date_debut: Date de début
+        new_date_fin: Date de fin (peut être égale à date_debut pour 1 jour)
+        new_location: Lieu
+        new_attendees: Nombre de convives
+        new_notes: Notes
+        user_id: ID de l'utilisateur créateur
+
+    Returns:
+        ID du nouvel événement créé, ou None en cas d'erreur
+
+    Copie:
+        - Informations de base de l'événement (avec nouvelles valeurs)
+        - Toutes les recettes avec leurs quantités (servings_multiplier)
+        - Budget prévu et devise (pas les dépenses effectuées)
+        - Organisation/planning uniquement si même nombre de jours
+    """
+    with get_db() as conn:
+        cursor = conn.cursor()
+
+        # 1. Récupérer l'événement source
+        cursor.execute("""
+            SELECT event_type_id, event_date, location, attendees, notes,
+                   budget_planned, currency, user_id, date_debut, date_fin, nombre_jours
+            FROM event
+            WHERE id = ?
+        """, (event_id,))
+
+        source_event = cursor.fetchone()
+        if not source_event:
+            return None
+
+        source_event = dict(source_event)
+
+        # Calculer le nouveau nombre de jours
+        from datetime import datetime, timedelta
+        date_debut_obj = datetime.strptime(new_date_debut, '%Y-%m-%d')
+        date_fin_obj = datetime.strptime(new_date_fin, '%Y-%m-%d')
+        new_nombre_jours = (date_fin_obj - date_debut_obj).days + 1
+
+        # 2. Créer le nouvel événement
+        cursor.execute("""
+            INSERT INTO event (
+                event_type_id, name, event_date, location, attendees, notes,
+                budget_planned, currency, user_id, date_debut, date_fin, nombre_jours
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (
+            new_event_type_id,
+            new_name,
+            new_date_debut,  # event_date = date_debut
+            new_location or source_event['location'],
+            new_attendees or source_event['attendees'],
+            new_notes or source_event['notes'],
+            source_event['budget_planned'],  # Copier budget prévu
+            source_event['currency'],  # Copier devise
+            user_id or source_event['user_id'],
+            new_date_debut,
+            new_date_fin,
+            new_nombre_jours
+        ))
+
+        new_event_id = cursor.lastrowid
+
+        # 3. Copier toutes les recettes avec leurs quantités
+        cursor.execute("""
+            SELECT recipe_id, servings_multiplier, position
+            FROM event_recipe
+            WHERE event_id = ?
+        """, (event_id,))
+
+        recipes = cursor.fetchall()
+        for recipe in recipes:
+            cursor.execute("""
+                INSERT INTO event_recipe (event_id, recipe_id, servings_multiplier, position)
+                VALUES (?, ?, ?, ?)
+            """, (new_event_id, recipe['recipe_id'], recipe['servings_multiplier'], recipe['position']))
+
+        # 4. Créer les nouvelles dates (toutes sélectionnées par défaut)
+        current_date = date_debut_obj
+        while current_date <= date_fin_obj:
+            cursor.execute("""
+                INSERT INTO event_date (event_id, date, is_selected)
+                VALUES (?, ?, 1)
+            """, (new_event_id, current_date.strftime('%Y-%m-%d')))
+
+            current_date += timedelta(days=1)
+
+        # 5. Copier l'organisation/planning UNIQUEMENT si même nombre de jours
+        if new_nombre_jours == source_event['nombre_jours']:
+            # Récupérer UNIQUEMENT les dates SÉLECTIONNÉES sources (is_selected = 1)
+            cursor.execute("""
+                SELECT id, date
+                FROM event_date
+                WHERE event_id = ? AND is_selected = 1
+                ORDER BY date
+            """, (event_id,))
+            source_dates = list(cursor.fetchall())
+
+            # Récupérer les nouvelles dates (toutes sélectionnées par défaut)
+            cursor.execute("""
+                SELECT id, date
+                FROM event_date
+                WHERE event_id = ?
+                ORDER BY date
+            """, (new_event_id,))
+            new_dates = list(cursor.fetchall())
+
+            # Mapper les anciennes dates sélectionnées vers les nouvelles (par index)
+            date_mapping = {}
+            for i, source_date in enumerate(source_dates):
+                if i < len(new_dates):
+                    date_mapping[source_date['id']] = new_dates[i]['id']
+
+            # Copier la planification
+            cursor.execute("""
+                SELECT recipe_id, event_date_id, position
+                FROM event_recipe_planning
+                WHERE event_id = ?
+            """, (event_id,))
+
+            planning_entries = cursor.fetchall()
+            for entry in planning_entries:
+                old_date_id = entry['event_date_id']
+                new_date_id = date_mapping.get(old_date_id)
+
+                if new_date_id:
+                    cursor.execute("""
+                        INSERT INTO event_recipe_planning (event_id, recipe_id, event_date_id, position)
+                        VALUES (?, ?, ?, ?)
+                    """, (new_event_id, entry['recipe_id'], new_date_id, entry['position']))
+
+        conn.commit()
+        return new_event_id

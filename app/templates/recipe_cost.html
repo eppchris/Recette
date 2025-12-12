@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html lang="{{ lang }}">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ 'Coût -' if lang == 'fr' else 'コスト -' }} {{ recipe.name }} - Recette</title>
+
+    <!-- Favicons -->
+    <link rel="icon" type="image/x-icon" href="/static/favicon.ico?v=2">
+    <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-32x32.png?v=2">
+    <link rel="icon" type="image/png" sizes="16x16" href="/static/favicon-16x16.png?v=2">
+    <link rel="apple-touch-icon" sizes="64x64" href="/static/favicon-64x64.png?v=2">
+
+    <script src="/static/css/tailwind.min.js"></script>
+    <script defer src="/static/css/alpine.min.js"></script>
+    <style>
+        [x-cloak] { display: none !important; }
+    </style>
+</head>
+{% set currency = '€' if lang == 'fr' else '¥' %}
+<body class="bg-gray-50" x-data="recipeCost()" x-init="init()">
+    <script>
+        function recipeCost() {
+            return {
+                darkMode: false,
+                showIngredients: true,
+                ingredients: {{ ingredients|tojson|safe }},
+                catalogModal: {
+                    isOpen: false,
+                    loading: false,
+                    ingredientName: '',
+                    data: {
+                        id: null,
+                        ingredient_name_fr: '',
+                        ingredient_name_jp: '',
+                        unit_fr: 'g',
+                        unit_jp: 'g',
+                        price_eur: null,
+                        price_jpy: null,
+                        qty: 1.0,
+                        updated_at: null
+                    },
+
+                    async open(ingredientName) {
+                        this.isOpen = true;
+                        this.loading = true;
+                        this.ingredientName = ingredientName;
+
+                        try {
+                            const response = await fetch(`/api/ingredient-catalog-info?ingredient_name=${encodeURIComponent(ingredientName)}&lang={{ lang }}`);
+                            const data = await response.json();
+                            this.data = data;
+                        } catch (error) {
+                            console.error('Erreur:', error);
+                            alert('{{ 'Erreur lors du chargement' if lang == 'fr' else 'エラーが発生しました' }}');
+                        } finally {
+                            this.loading = false;
+                        }
+                    },
+
+                    async save() {
+                        this.loading = true;
+                        try {
+                            const formData = new FormData();
+                            if (this.data.id) formData.append('ingredient_id', this.data.id);
+                            formData.append('ingredient_name_fr', this.data.ingredient_name_fr || '');
+                            formData.append('ingredient_name_jp', this.data.ingredient_name_jp || '');
+                            formData.append('unit_fr', this.data.unit_fr || 'g');
+                            formData.append('unit_jp', this.data.unit_jp || 'g');
+                            formData.append('price_eur', this.data.price_eur || '');
+                            formData.append('price_jpy', this.data.price_jpy || '');
+                            formData.append('qty', this.data.qty || 1.0);
+
+                            const response = await fetch('/api/ingredient-catalog-update', {
+                                method: 'POST',
+                                body: formData
+                            });
+
+                            if (response.ok) {
+                                alert('{{ 'Prix enregistré avec succès!' if lang == 'fr' else '価格が保存されました！' }}');
+                                this.close();
+                                window.location.reload();
+                            } else {
+                                alert('{{ 'Erreur lors de l\'enregistrement' if lang == 'fr' else 'エラーが発生しました' }}');
+                            }
+                        } catch (error) {
+                            console.error('Erreur:', error);
+                            alert('{{ 'Erreur lors de l\'enregistrement' if lang == 'fr' else 'エラーが発生しました' }}');
+                        } finally {
+                            this.loading = false;
+                        }
+                    },
+
+                    close() {
+                        this.isOpen = false;
+                    }
+                },
+
+                init() {
+                    console.log('Recipe cost initialized');
+                    console.log('Ingredients:', this.ingredients);
+                },
+
+                // Helper pour convertir en nombre de façon sûre (renvoie null si absent)
+                _toNumber(val) {
+                    if (val === null || val === undefined) return null;
+                    if (typeof val === 'number') return Number.isFinite(val) ? val : null;
+                    const str = String(val).trim();
+                    if (str === '' || str === '-') return null;
+                    const num = parseFloat(str.replace(',', '.'));
+                    return Number.isFinite(num) ? num : null;
+                },
+
+                // Helper pour formater un prix
+                formatPrice(val, decimals = 2) {
+                    const num = this._toNumber(val);
+                    if (num === null) return '-';
+                    return num.toFixed(decimals) + ' ' + '{{ currency }}';
+                },
+
+                // Helper pour formater une quantité
+                formatQty(val, decimals = 2) {
+                    const num = this._toNumber(val);
+                    if (num === null) return '-';
+                    return num.toFixed(decimals);
+                },
+
+                calculateIngredientsPlanned() {
+                    return this.ingredients.reduce((sum, ing) => {
+                        const n = this._toNumber(ing.planned_total);
+                        return sum + (n !== null ? n : 0);
+                    }, 0);
+                }
+            }
+        }
+    </script>
+    <div :class="darkMode ? 'dark bg-gray-900' : 'bg-gray-50'" class="min-h-screen">
+        <!-- Header -->
+        <header class="bg-white dark:bg-gray-800 shadow-sm border-b border-gray-200 dark:border-gray-700">
+            <div class="max-w-7xl mx-auto px-4 py-4 flex justify-between items-center">
+                <div class="flex items-center gap-4">
+                    <a href="/recipe/{{ slug }}?lang={{ lang }}" class="text-blue-600 dark:text-blue-400 hover:underline">
+                        ← {{ 'Retour' if lang == 'fr' else '戻る' }}
+                    </a>
+                    <h1 class="text-2xl font-bold text-gray-900 dark:text-white">
+                        💰 {{ 'Coût' if lang == 'fr' else 'コスト' }} - {{ recipe.name }}
+                    </h1>
+                </div>
+
+                <div class="flex items-center gap-4">
+                    <!-- Sélecteur de langue -->
+                    <div class="flex gap-2">
+                        <a href="?lang=fr&servings={{ servings }}"
+                           class="px-3 py-1.5 rounded-lg {{ 'bg-blue-500 text-white' if lang == 'fr' else 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600' }}">
+                            FR
+                        </a>
+                        <a href="?lang=jp&servings={{ servings }}"
+                           class="px-3 py-1.5 rounded-lg {{ 'bg-blue-500 text-white' if lang == 'jp' else 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600' }}">
+                            JP
+                        </a>
+                    </div>
+
+                    <!-- Toggle mode sombre -->
+                    <button @click="darkMode = !darkMode"
+                            class="p-2 rounded-lg bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600">
+                        <span x-show="!darkMode">🌙</span>
+                        <span x-show="darkMode">☀️</span>
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        <!-- Contenu principal -->
+        <main class="max-w-7xl mx-auto px-4 py-8">
+            <!-- Résumé budgétaire -->
+            <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6 mb-6">
+                <h2 class="text-xl font-bold text-gray-900 dark:text-white mb-4">
+                    {{ 'Résumé du coût' if lang == 'fr' else 'コスト概要' }}
+                </h2>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div class="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+                        <div class="text-sm text-gray-600 dark:text-gray-400 mb-1">
+                            {{ 'Coût total estimé' if lang == 'fr' else '推定総コスト' }}
+                        </div>
+                        <div class="text-2xl font-bold text-blue-600 dark:text-blue-400" x-text="calculateIngredientsPlanned().toFixed(2) + ' {{ currency }}'">
+                        </div>
+                    </div>
+                    <div class="p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                        <div class="text-sm text-gray-600 dark:text-gray-400 mb-1">
+                            {{ 'Coût par personne' if lang == 'fr' else '一人当たりのコスト' }}
+                        </div>
+                        <div class="text-2xl font-bold text-gray-900 dark:text-white" x-text="(calculateIngredientsPlanned() / {{ servings }}).toFixed(2) + ' {{ currency }}'">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="mt-4 text-sm text-gray-600 dark:text-gray-400">
+                    {{ 'Pour' if lang == 'fr' else '' }} {{ servings }} {{ 'personnes' if lang == 'fr' else '人分' }}
+                    {% if servings != original_servings %}
+                        ({{ 'original:' if lang == 'fr' else '元:' }} {{ original_servings }})
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Section Ingrédients -->
+            <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6 mb-6">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-xl font-bold text-gray-900 dark:text-white">
+                        🍅 {{ 'Détail des ingrédients' if lang == 'fr' else '食材の詳細' }}
+                    </h2>
+                    <button @click="showIngredients = !showIngredients"
+                            class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                        <span x-show="!showIngredients">{{ 'Afficher détail' if lang == 'fr' else '詳細表示' }}</span>
+                        <span x-show="showIngredients">{{ 'Masquer détail' if lang == 'fr' else '詳細非表示' }}</span>
+                    </button>
+                </div>
+
+                <!-- Ligne de résumé toujours visible -->
+                <div class="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4 mb-4">
+                    <div class="flex justify-between items-center">
+                        <div class="font-medium text-gray-900 dark:text-white">
+                            {{ 'Ingrédients' if lang == 'fr' else '食材' }}
+                        </div>
+                        <div class="text-center">
+                            <div class="text-xs text-gray-600 dark:text-gray-400 mb-1">{{ 'Coût estimé' if lang == 'fr' else '推定コスト' }}</div>
+                            <div class="text-xl font-bold text-blue-600 dark:text-blue-400"
+                                 x-text="calculateIngredientsPlanned().toFixed(2) + ' {{ currency }}'">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div x-show="showIngredients" x-transition>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-sm">
+                            <thead class="bg-gray-50 dark:bg-gray-700">
+                                <tr>
+                                    <th class="px-3 py-2 text-left text-xs font-medium text-gray-700 dark:text-gray-300">
+                                        {{ 'Ingrédient' if lang == 'fr' else '食材' }}
+                                    </th>
+                                    <th colspan="3" class="px-3 py-2 text-center text-xs font-medium text-gray-700 dark:text-gray-300 border-l border-gray-300 dark:border-gray-600">
+                                        {{ 'Catalogue (Prix de référence)' if lang == 'fr' else 'カタログ（参考価格）' }}
+                                    </th>
+                                    <th colspan="2" class="px-3 py-2 text-center text-xs font-medium text-gray-700 dark:text-gray-300 border-l border-gray-300 dark:border-gray-600">
+                                        {{ 'Recette (Besoin)' if lang == 'fr' else 'レシピ（必要）' }}
+                                    </th>
+                                    <th colspan="2" class="px-3 py-2 text-center text-xs font-medium text-gray-700 dark:text-gray-300 border-l border-gray-300 dark:border-gray-600">
+                                        {{ 'Coût Estimé' if lang == 'fr' else '推定コスト' }}
+                                    </th>
+                                </tr>
+                                <tr class="bg-gray-100 dark:bg-gray-600">
+                                    <th class="px-3 py-2"></th>
+                                    <th class="px-2 py-2 text-right text-xs font-medium text-gray-700 dark:text-gray-300 border-l border-gray-300 dark:border-gray-600">
+                                        {{ 'Qté' if lang == 'fr' else '量' }}
+                                    </th>
+                                    <th class="px-2 py-2 text-left text-xs font-medium text-gray-700 dark:text-gray-300">
+                                        {{ 'Unité' if lang == 'fr' else '単位' }}
+                                    </th>
+                                    <th class="px-2 py-2 text-right text-xs font-medium text-gray-700 dark:text-gray-300">
+                                        {{ 'Prix' if lang == 'fr' else '価格' }}
+                                    </th>
+                                    <th class="px-2 py-2 text-right text-xs font-medium text-gray-700 dark:text-gray-300 border-l border-gray-300 dark:border-gray-600">
+                                        {{ 'Qté' if lang == 'fr' else '量' }}
+                                    </th>
+                                    <th class="px-2 py-2 text-left text-xs font-medium text-gray-700 dark:text-gray-300">
+                                        {{ 'Unité' if lang == 'fr' else '単位' }}
+                                    </th>
+                                    <th class="px-2 py-2 text-right text-xs font-medium text-gray-700 dark:text-gray-300 border-l border-gray-300 dark:border-gray-600">
+                                        {{ 'Prix unit.' if lang == 'fr' else '単価' }}
+                                    </th>
+                                    <th class="px-2 py-2 text-right text-xs font-medium text-gray-700 dark:text-gray-300">
+                                        {{ 'Total' if lang == 'fr' else '合計' }}
+                                    </th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-gray-200 dark:divide-gray-600">
+                                <template x-for="(ing, index) in ingredients" :key="index">
+                                    <tr class="hover:bg-gray-50 dark:hover:bg-gray-700">
+                                        <td class="px-3 py-2 text-gray-900 dark:text-white font-medium">
+                                            <button type="button"
+                                                    @click.prevent.stop="catalogModal.open(ing.name)"
+                                                    class="text-blue-600 dark:text-blue-400 hover:underline text-left"
+                                                    x-text="ing.name">
+                                            </button>
+                                        </td>
+                                        <!-- Catalogue -->
+                                        <td class="px-2 py-2 text-right text-gray-600 dark:text-gray-400 border-l border-gray-200 dark:border-gray-700" x-text="formatQty(ing.catalog_quantity)"></td>
+                                        <td class="px-2 py-2 text-left text-gray-600 dark:text-gray-400" x-text="ing.catalog_unit || '-'"></td>
+                                        <td class="px-2 py-2 text-right text-gray-600 dark:text-gray-400" x-text="formatPrice(ing.catalog_price)"></td>
+                                        <!-- Recette -->
+                                        <td class="px-2 py-2 text-right text-gray-600 dark:text-gray-400 border-l border-gray-200 dark:border-gray-700" x-text="formatQty(ing.recipe_quantity)"></td>
+                                        <td class="px-2 py-2 text-left text-gray-600 dark:text-gray-400" x-text="ing.recipe_unit || '-'"></td>
+                                        <!-- Coût Estimé -->
+                                        <td class="px-2 py-2 text-right text-gray-600 dark:text-gray-400 border-l border-gray-200 dark:border-gray-700" x-text="formatPrice(ing.planned_unit_price, 4)"></td>
+                                        <td class="px-2 py-2 text-right font-medium text-gray-900 dark:text-white"
+                                            x-text="formatPrice(ing.planned_total)">
+                                        </td>
+                                    </tr>
+                                </template>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Info message -->
+                <div class="mt-4 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+                    <div class="flex items-start space-x-2">
+                        <svg class="w-5 h-5 text-blue-600 dark:text-blue-400 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"/>
+                        </svg>
+                        <div class="text-sm text-blue-800 dark:text-blue-300">
+                            {% if lang == 'fr' %}
+                            <p class="font-medium">À propos du calcul des coûts :</p>
+                            <ul class="mt-1 space-y-1 list-disc list-inside">
+                                <li>Les prix sont issus du catalogue de prix des ingrédients</li>
+                                <li>Les quantités sont ajustées en fonction du nombre de personnes ({{ servings }})</li>
+                                <li>Les ingrédients sans prix de référence apparaissent avec un tiret (-)</li>
+                                <li>Pour ajouter des prix, utilisez la page de budget d'un événement</li>
+                            </ul>
+                            {% else %}
+                            <p class="font-medium">コスト計算について：</p>
+                            <ul class="mt-1 space-y-1 list-disc list-inside">
+                                <li>価格は食材価格カタログから取得されます</li>
+                                <li>量は人数（{{ servings }}人）に応じて調整されます</li>
+                                <li>参考価格のない食材はダッシュ（-）で表示されます</li>
+                                <li>価格を追加するには、イベント予算ページを使用してください</li>
+                            </ul>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Modale de gestion du catalogue -->
+    <div x-show="catalogModal.isOpen"
+         x-cloak
+         class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50"
+         @click.self="catalogModal.close()">
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-2xl w-full mx-4 p-6">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-xl font-bold text-gray-900 dark:text-white">
+                    {{ 'Catalogue de prix' if lang == 'fr' else '価格カタログ' }}
+                </h3>
+                <button @click="catalogModal.close()"
+                        class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                    </svg>
+                </button>
+            </div>
+
+            <div x-show="catalogModal.loading" class="text-center py-8">
+                <p class="text-gray-600 dark:text-gray-400">{{ 'Chargement...' if lang == 'fr' else '読み込み中...' }}</p>
+            </div>
+
+            <div x-show="!catalogModal.loading" class="space-y-4">
+                <!-- Nom FR -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        {{ 'Nom (FR)' if lang == 'fr' else '名前 (FR)' }}
+                    </label>
+                    <input type="text"
+                           x-model="catalogModal.data.ingredient_name_fr"
+                           class="w-full px-3 py-2 border border-gray-300 rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                </div>
+
+                <!-- Nom JP -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        {{ 'Nom (JP)' if lang == 'fr' else '名前 (JP)' }}
+                    </label>
+                    <input type="text"
+                           x-model="catalogModal.data.ingredient_name_jp"
+                           class="w-full px-3 py-2 border border-gray-300 rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                </div>
+
+                <!-- Unités -->
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            {{ 'Unité (FR)' if lang == 'fr' else '単位 (FR)' }}
+                        </label>
+                        <input type="text"
+                               x-model="catalogModal.data.unit_fr"
+                               class="w-full px-3 py-2 border border-gray-300 rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            {{ 'Unité (JP)' if lang == 'fr' else '単位 (JP)' }}
+                        </label>
+                        <input type="text"
+                               x-model="catalogModal.data.unit_jp"
+                               class="w-full px-3 py-2 border border-gray-300 rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                    </div>
+                </div>
+
+                <!-- Prix et quantité -->
+                <div class="grid grid-cols-3 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            {{ 'Prix (EUR)' if lang == 'fr' else '価格 (EUR)' }}
+                        </label>
+                        <input type="number"
+                               step="0.01"
+                               x-model="catalogModal.data.price_eur"
+                               class="w-full px-3 py-2 border border-gray-300 rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            {{ 'Prix (JPY)' if lang == 'fr' else '価格 (JPY)' }}
+                        </label>
+                        <input type="number"
+                               step="1"
+                               x-model="catalogModal.data.price_jpy"
+                               class="w-full px-3 py-2 border border-gray-300 rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            {{ 'Quantité' if lang == 'fr' else '量' }}
+                        </label>
+                        <input type="number"
+                               step="0.01"
+                               x-model="catalogModal.data.qty"
+                               class="w-full px-3 py-2 border border-gray-300 rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                    </div>
+                </div>
+
+                <!-- Dernière mise à jour -->
+                <div x-show="catalogModal.data.updated_at" class="text-sm text-gray-500 dark:text-gray-400">
+                    {{ 'Dernière mise à jour:' if lang == 'fr' else '最終更新:' }}
+                    <span x-text="catalogModal.data.updated_at"></span>
+                </div>
+
+                <!-- Boutons -->
+                <div class="flex gap-3 pt-4">
+                    <button @click="catalogModal.save()"
+                            class="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                        {{ 'Enregistrer' if lang == 'fr' else '保存' }}
+                    </button>
+                    <button @click="catalogModal.close()"
+                            class="px-4 py-2 bg-gray-400 text-white rounded-lg hover:bg-gray-500">
+                        {{ 'Annuler' if lang == 'fr' else 'キャンセル' }}
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

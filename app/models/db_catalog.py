@@ -447,7 +447,7 @@ def calculate_ingredient_price(ingredient_name: str, quantity: float, recipe_uni
         - 'recipe_unit': Unité originale de la recette
         Ou None si l'ingrédient n'est pas trouvé
     """
-    from .db_conversions import convert_unit
+    from .db_conversions import convert_unit, get_specific_conversion
 
     # Récupérer le prix du catalogue
     price_info = get_ingredient_price_for_currency(ingredient_name, currency)
@@ -475,7 +475,41 @@ def calculate_ingredient_price(ingredient_name: str, quantity: float, recipe_uni
             'recipe_unit': recipe_unit
         }
 
-    # Essayer de convertir l'unité de la recette vers l'unité du catalogue
+    # PRIORITÉ 1: Chercher une conversion spécifique pour cet ingrédient
+    # Exemple: dashi 30g (catalogue) → 1000ml (conversion spécifique)
+    # On cherche la conversion: catalog_unit → recipe_unit
+    specific_conv = get_specific_conversion(ingredient_name, catalog_unit)
+
+    if specific_conv and specific_conv['to_unit'].lower() == recipe_unit.lower():
+        # Conversion spécifique trouvée !
+        # Le facteur indique combien de "to_unit" on obtient avec 1 "from_unit"
+        # Ex: 30g de dashi → 1000ml, donc factor = 1000/30 = 33.33
+        factor = specific_conv['factor']
+
+        # On doit convertir quantity (en recipe_unit) vers catalog_unit
+        # Ex: 250ml → combien de g ? 250 / 33.33 = 7.5g
+        converted_quantity = quantity / factor
+
+        # Prix dans l'unité de la recette
+        # Si unit_price = 5.01€/30g = 0.167€/g
+        # Et factor = 33.33 ml/g
+        # Alors recipe_unit_price = 0.167 / 33.33 = 0.005€/ml
+        recipe_unit_price = unit_price / factor
+
+        return {
+            'total_price': quantity * recipe_unit_price,
+            'unit_price': recipe_unit_price,
+            'catalog_unit': catalog_unit,
+            'catalog_qty': catalog_qty,
+            'catalog_price': catalog_price,
+            'converted_quantity': converted_quantity,  # Quantité nécessaire dans l'unité du catalogue
+            'recipe_quantity': quantity,
+            'recipe_unit': recipe_unit,
+            'specific_conversion_used': True,
+            'conversion_factor': factor
+        }
+
+    # PRIORITÉ 2: Essayer conversion standard (unit_conversion)
     converted_quantity = convert_unit(quantity, recipe_unit, catalog_unit)
 
     if converted_quantity is not None:

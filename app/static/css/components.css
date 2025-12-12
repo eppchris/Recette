@@ -1,0 +1,257 @@
+/**
+ * Composants UI réutilisables pour l'application Recette
+ *
+ * Ces classes Tailwind personnalisées harmonisent l'interface
+ * et facilitent la maintenance du code.
+ */
+
+@layer components {
+  /* === BOUTONS === */
+
+  /* Bouton primaire principal */
+  .btn-primary {
+    @apply px-4 py-2
+           bg-blue-600 hover:bg-blue-700
+           text-white font-semibold
+           rounded-lg
+           transition-colors duration-150
+           disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+
+  /* Bouton secondaire */
+  .btn-secondary {
+    @apply px-4 py-2
+           bg-gray-200 dark:bg-gray-700
+           text-gray-900 dark:text-white
+           hover:bg-gray-300 dark:hover:bg-gray-600
+           rounded-lg
+           transition-colors duration-150
+           disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+
+  /* Bouton danger (suppression) */
+  .btn-danger {
+    @apply px-4 py-2
+           bg-red-600 hover:bg-red-700
+           text-white font-semibold
+           rounded-lg
+           transition-colors duration-150
+           disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+
+  /* Bouton succès/validation */
+  .btn-success {
+    @apply px-4 py-2
+           bg-green-600 hover:bg-green-700
+           text-white font-semibold
+           rounded-lg
+           transition-colors duration-150
+           disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+
+  /* Bouton retour standardisé */
+  .btn-back {
+    @apply inline-flex items-center gap-2
+           px-3 py-2
+           text-blue-600 dark:text-blue-400
+           hover:bg-blue-50 dark:hover:bg-blue-900/20
+           rounded-lg
+           transition-colors duration-150;
+  }
+
+  /* Variantes de taille pour les boutons */
+  .btn-sm {
+    @apply px-3 py-1.5 text-sm;
+  }
+
+  .btn-lg {
+    @apply px-6 py-3 text-lg;
+  }
+
+  /* === CARTES ET CONTENEURS === */
+
+  /* Carte standard */
+  .card {
+    @apply bg-white dark:bg-gray-800
+           rounded-lg shadow
+           border border-gray-200 dark:border-gray-700
+           p-6;
+  }
+
+  /* Carte sans padding (pour contenu personnalisé) */
+  .card-no-padding {
+    @apply bg-white dark:bg-gray-800
+           rounded-lg shadow
+           border border-gray-200 dark:border-gray-700;
+  }
+
+  /* Card d'information (bleue) */
+  .card-info {
+    @apply bg-blue-50 dark:bg-blue-900/30
+           border border-blue-200 dark:border-blue-700
+           rounded-lg p-4;
+  }
+
+  /* Card de succès (verte) */
+  .card-success {
+    @apply bg-green-50 dark:bg-green-900/30
+           border border-green-200 dark:border-green-700
+           rounded-lg p-4;
+  }
+
+  /* Card d'avertissement (jaune) */
+  .card-warning {
+    @apply bg-yellow-50 dark:bg-yellow-900/30
+           border border-yellow-200 dark:border-yellow-700
+           rounded-lg p-4;
+  }
+
+  /* Card d'erreur (rouge) */
+  .card-error {
+    @apply bg-red-50 dark:bg-red-900/30
+           border border-red-200 dark:border-red-700
+           rounded-lg p-4;
+  }
+
+  /* === FORMULAIRES === */
+
+  /* Input standard */
+  .input {
+    @apply w-full px-4 py-2
+           border border-gray-300 dark:border-gray-600
+           rounded-lg
+           focus:ring-2 focus:ring-blue-500 focus:border-transparent
+           dark:bg-gray-700 dark:text-white
+           transition-colors duration-150;
+  }
+
+  /* Input petit */
+  .input-sm {
+    @apply px-3 py-1.5 text-sm;
+  }
+
+  /* Select standard */
+  .select {
+    @apply w-full px-4 py-2
+           border border-gray-300 dark:border-gray-600
+           rounded-lg
+           focus:ring-2 focus:ring-blue-500 focus:border-transparent
+           bg-white dark:bg-gray-700 dark:text-white
+           transition-colors duration-150;
+  }
+
+  /* Label de formulaire */
+  .label {
+    @apply block text-sm font-medium
+           text-gray-700 dark:text-gray-300
+           mb-2;
+  }
+
+  /* === ICÔNES === */
+
+  /* Tailles standardisées pour icônes emoji */
+  .icon-header {
+    @apply text-2xl;
+  }
+
+  .icon-button {
+    @apply text-lg;
+  }
+
+  .icon-nav {
+    @apply text-xl;
+  }
+
+  .icon-empty {
+    @apply text-6xl;
+  }
+
+  /* === BADGES === */
+
+  .badge {
+    @apply inline-block px-3 py-1
+           text-sm font-medium rounded-full;
+  }
+
+  .badge-blue {
+    @apply bg-blue-100 dark:bg-blue-900
+           text-blue-800 dark:text-blue-300;
+  }
+
+  .badge-green {
+    @apply bg-green-100 dark:bg-green-900
+           text-green-800 dark:text-green-300;
+  }
+
+  .badge-red {
+    @apply bg-red-100 dark:bg-red-900
+           text-red-800 dark:text-red-300;
+  }
+
+  .badge-purple {
+    @apply bg-purple-100 dark:bg-purple-900
+           text-purple-800 dark:text-purple-300;
+  }
+
+  /* === BREADCRUMBS === */
+
+  .breadcrumb {
+    @apply text-sm text-gray-600 dark:text-gray-400;
+  }
+
+  .breadcrumb-link {
+    @apply hover:text-gray-900 dark:hover:text-gray-100
+           transition-colors duration-150;
+  }
+
+  .breadcrumb-separator {
+    @apply mx-2;
+  }
+
+  .breadcrumb-current {
+    @apply text-gray-900 dark:text-gray-100;
+  }
+
+  /* === MODALES === */
+
+  .modal-overlay {
+    @apply fixed inset-0
+           bg-black/50
+           flex items-center justify-center
+           z-50;
+  }
+
+  .modal-content {
+    @apply bg-white dark:bg-gray-800
+           rounded-lg shadow-xl
+           border border-gray-200 dark:border-gray-700
+           p-6
+           max-w-md w-full mx-4;
+  }
+
+  .modal-content-lg {
+    @apply max-w-2xl;
+  }
+
+  .modal-content-xl {
+    @apply max-w-4xl;
+  }
+
+  /* === SPACING HELPERS === */
+
+  .section-spacing {
+    @apply mb-6;
+  }
+
+  .list-spacing {
+    @apply space-y-3;
+  }
+
+  .form-spacing {
+    @apply space-y-4;
+  }
+
+  .grid-spacing {
+    @apply gap-6;
+  }
+}

@@ -1,9 +1,27 @@
 <!DOCTYPE html>
-<html lang="{{ 'jp' if lang=='jp' else 'fr' }}" x-data="{ darkMode: false, sidebarOpen: true, recipesOpen: true, gestionOpen: false, parametrageOpen: false }" :class="{ 'dark': darkMode }">
+<html lang="{{ 'jp' if lang=='jp' else 'fr' }}" x-data="{
+  darkMode: localStorage.getItem('darkMode') === 'true' || false,
+  sidebarOpen: true,
+  mobileMenuOpen: false,
+  recipesOpen: true,
+  gestionOpen: false,
+  parametrageOpen: false,
+  toggleDarkMode() {
+    this.darkMode = !this.darkMode;
+    localStorage.setItem('darkMode', this.darkMode);
+  }
+}" :class="{ 'dark': darkMode }">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{{ S('recipes') }}</title>
+
+  <!-- Favicons -->
+  <link rel="icon" type="image/x-icon" href="/static/favicon.ico?v=2">
+  <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-32x32.png?v=2">
+  <link rel="icon" type="image/png" sizes="16x16" href="/static/favicon-16x16.png?v=2">
+  <link rel="apple-touch-icon" sizes="64x64" href="/static/favicon-64x64.png?v=2">
+
   <script src="/static/css/tailwind.min.js"></script>
   <script defer src="/static/css/alpine.min.js"></script>
   <script>
@@ -13,14 +31,34 @@
   </script>
   <style>
     [x-cloak] { display: none !important; }
+    /* Prevent body scroll when mobile menu is open */
+    body.menu-open { overflow: hidden; }
   </style>
 </head>
-<body class="bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100 transition-colors duration-200">
+<body class="bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100 transition-colors duration-200" :class="{ 'menu-open': mobileMenuOpen }">
   
+  <!-- Mobile Menu Overlay -->
+  <div
+    x-show="mobileMenuOpen"
+    x-cloak
+    @click="mobileMenuOpen = false"
+    class="fixed inset-0 bg-black bg-opacity-50 z-40 md:hidden"
+    x-transition:enter="transition-opacity ease-out duration-300"
+    x-transition:enter-start="opacity-0"
+    x-transition:enter-end="opacity-100"
+    x-transition:leave="transition-opacity ease-in duration-200"
+    x-transition:leave-start="opacity-100"
+    x-transition:leave-end="opacity-0"
+  ></div>
+
   <!-- Sidebar -->
-  <aside 
-    :class="sidebarOpen ? 'w-64' : 'w-20'" 
-    class="fixed left-0 top-0 h-screen bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 transition-all duration-300 z-50"
+  <aside
+    class="fixed left-0 top-0 h-screen bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 transition-all duration-300 z-50
+           w-64"
+    :class="[
+      mobileMenuOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0',
+      sidebarOpen ? 'md:w-64' : 'md:w-20'
+    ]"
   >
     <!-- Header -->
     <div class="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
@@ -29,10 +67,10 @@
         <span class="font-bold text-lg">Recette App</span>
       </div>
       <span x-show="!sidebarOpen" class="text-2xl mx-auto">🍳</span>
-      <button 
+      <button
         @click="sidebarOpen = !sidebarOpen"
-        class="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition"
-        :class="!sidebarOpen && 'hidden'"
+        class="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition hidden md:block"
+        :class="!sidebarOpen && 'md:hidden'"
       >
         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 19l-7-7 7-7m8 14l-7-7 7-7"/>
@@ -174,7 +212,7 @@
 
       <!-- Toggle mode sombre -->
       <button
-        @click="darkMode = !darkMode"
+        @click="toggleDarkMode()"
         class="w-full flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition"
       >
         <span class="text-xl" x-text="darkMode ? '☀️' : '🌙'"></span>
@@ -210,17 +248,43 @@
     </button>
   </aside>
 
-  <!-- Main Content -->
-  <main 
-    :class="sidebarOpen ? 'ml-64' : 'ml-20'" 
-    class="min-h-screen transition-all duration-300 p-6"
-  >
-    <!-- Breadcrumb -->
-    <div class="mb-6 text-sm text-gray-600 dark:text-gray-400">
-      <span>{{ S('recipes') }}</span>
-      <span class="mx-2">›</span>
-      <span class="text-gray-900 dark:text-gray-100">{% block breadcrumb %}{{ S('all') }}{% endblock %}</span>
+  <!-- Mobile Header (Hamburger button) -->
+  <div class="md:hidden fixed top-0 left-0 right-0 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 p-4 z-30 flex items-center gap-3">
+    <button
+      @click="mobileMenuOpen = !mobileMenuOpen"
+      class="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition"
+    >
+      <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/>
+      </svg>
+    </button>
+    <div class="flex items-center gap-2">
+      <span class="text-2xl">🍳</span>
+      <span class="font-bold text-lg">Recette App</span>
     </div>
+  </div>
+
+  <!-- Main Content -->
+  <main
+    class="min-h-screen transition-all duration-300
+           p-3 sm:p-6
+           pt-20 md:pt-6
+           ml-0"
+    :class="{ 'md:ml-64': sidebarOpen, 'md:ml-20': !sidebarOpen }"
+  >
+    <!-- Breadcrumb dynamique -->
+    {% block breadcrumb_section %}
+    <nav class="mb-6 text-sm text-gray-600 dark:text-gray-400" aria-label="Breadcrumb">
+      {% block breadcrumb %}
+      {# Par défaut: Recettes › Toutes #}
+      <a href="/recipes?lang={{ lang }}" class="hover:text-gray-900 dark:hover:text-gray-100 transition-colors">
+        {{ S('recipes') }}
+      </a>
+      <span class="mx-2">›</span>
+      <span class="text-gray-900 dark:text-gray-100">{{ S('all') }}</span>
+      {% endblock %}
+    </nav>
+    {% endblock %}
 
     <!-- Contenu de la page -->
     <div class="max-w-7xl">
@@ -228,5 +292,8 @@
     </div>
   </main>
 
+  <!-- Script de monitoring de performance -->
+  <!-- NOTE: Désactivé car nécessite table client_performance_log -->
+  <!-- <script src="/static/js/performance_monitor.js"></script> -->
 </body>
 </html>

@@ -140,6 +140,7 @@ def get_recipe_by_slug(slug: str, lang: str):
                 r.thumbnail_url,
                 COALESCE(rt.name, r.slug) AS name,
                 rt.recipe_type AS type,
+                rt.description,
                 r.user_id,
                 u.username AS creator_username,
                 u.display_name AS creator_display_name
@@ -274,11 +275,18 @@ def update_recipe_complete(recipe_id: int, lang: str, data: dict):
         data: Dictionnaire contenant recipe_type, servings_default, ingredients, steps
     """
     with get_db() as con:
-        # Mettre à jour le type de recette (traduction)
+        # Mettre à jour le type de recette et la description (traduction)
         if 'recipe_type' in data and data['recipe_type'] is not None:
             con.execute(
                 "UPDATE recipe_translation SET recipe_type = ? WHERE recipe_id = ? AND lang = ?",
                 (data['recipe_type'], recipe_id, lang)
+            )
+
+        # Mettre à jour la description
+        if 'description' in data:
+            con.execute(
+                "UPDATE recipe_translation SET description = ? WHERE recipe_id = ? AND lang = ?",
+                (data.get('description', ''), recipe_id, lang)
             )
 
         # Mettre à jour le nombre de personnes par défaut
@@ -296,29 +304,63 @@ def update_recipe_complete(recipe_id: int, lang: str, data: dict):
             )
 
         # Mettre à jour les ingrédients
-        for ing in data.get('ingredients', []):
-            # Mettre à jour la quantité (indépendante de la langue)
-            if 'quantity' in ing:
+        for order, ing in enumerate(data.get('ingredients', []), start=1):
+            if ing.get('id'):
+                # Mettre à jour un ingrédient existant
+                # Mettre à jour la quantité et la position (indépendants de la langue)
                 con.execute(
-                    "UPDATE recipe_ingredient SET quantity = ? WHERE id = ?",
-                    (ing['quantity'], ing['id'])
+                    "UPDATE recipe_ingredient SET quantity = ?, position = ? WHERE id = ?",
+                    (ing.get('quantity'), order, ing['id'])
                 )
 
-            # Mettre à jour la traduction (nom, unité, notes)
-            if 'name' in ing or 'unit' in ing:
+                # Mettre à jour la traduction (nom, unité, notes)
                 con.execute(
                     """UPDATE recipe_ingredient_translation
                        SET name = ?, unit = ?, notes = ?
                        WHERE recipe_ingredient_id = ? AND lang = ?""",
                     (ing.get('name', ''), ing.get('unit', ''), ing.get('notes', ''), ing['id'], lang)
                 )
+            else:
+                # Insérer un nouvel ingrédient
+                cur = con.execute(
+                    "INSERT INTO recipe_ingredient (recipe_id, quantity, position) VALUES (?, ?, ?)",
+                    (recipe_id, ing.get('quantity'), order)
+                )
+                new_ing_id = cur.lastrowid
+
+                # Insérer la traduction
+                con.execute(
+                    """INSERT INTO recipe_ingredient_translation
+                       (recipe_ingredient_id, lang, name, unit, notes)
+                       VALUES (?, ?, ?, ?, ?)""",
+                    (new_ing_id, lang, ing.get('name', ''), ing.get('unit', ''), ing.get('notes', ''))
+                )
 
         # Mettre à jour les étapes
-        for step in data.get('steps', []):
-            if 'text' in step:
+        for order, step in enumerate(data.get('steps', []), start=1):
+            if step.get('id'):
+                # Mettre à jour une étape existante
+                con.execute(
+                    "UPDATE step SET position = ? WHERE id = ?",
+                    (order, step['id'])
+                )
+
                 con.execute(
                     "UPDATE step_translation SET text = ? WHERE step_id = ? AND lang = ?",
-                    (step['text'], step['id'], lang)
+                    (step.get('text', ''), step['id'], lang)
+                )
+            else:
+                # Insérer une nouvelle étape
+                cur = con.execute(
+                    "INSERT INTO step (recipe_id, position) VALUES (?, ?)",
+                    (recipe_id, order)
+                )
+                new_step_id = cur.lastrowid
+
+                # Insérer la traduction
+                con.execute(
+                    "INSERT INTO step_translation (step_id, lang, text) VALUES (?, ?, ?)",
+                    (new_step_id, lang, step.get('text', ''))
                 )
 
 
@@ -540,3 +582,96 @@ def search_recipes_by_filters(search_text: str = None, category_ids: list = None
 
         cursor.execute(query, params)
         return [dict(row) for row in cursor.fetchall()]
+
+def calculate_recipe_cost(slug: str, lang: str, servings: int = None):
+    """
+    Calcule le coût d'une recette avec prix du catalogue
+
+    Args:
+        slug: Identifiant de la recette
+        lang: Langue
+        servings: Nombre de personnes (si None, utilise servings_default)
+
+    Returns:
+        Dict contenant les ingrédients avec prix et le total
+    """
+    from app.services.ingredient_aggregator import get_ingredient_aggregator
+    from .db_catalog import calculate_ingredient_price
+
+    result = get_recipe_by_slug(slug, lang)
+    if not result:
+        return None
+
+    recipe, ingredients, _ = result
+    target_servings = servings or recipe['servings']
+    original_servings = recipe['servings']
+
+    # Calculer le ratio de conversion
+    ratio = target_servings / original_servings if original_servings > 0 else 1
+
+    # Déterminer la devise selon la langue
+    currency = 'EUR' if lang == 'fr' else 'JPY'
+
+    aggregator = get_ingredient_aggregator()
+    ingredients_with_cost = []
+    total_cost = 0
+
+    for ing in ingredients:
+        # Quantité ajustée selon le nombre de personnes
+        adjusted_quantity = (ing['quantity'] or 0) * ratio
+
+        # Normaliser le nom pour recherche dans le catalogue
+        normalized_name = aggregator.normalize_ingredient_name(ing['name'])
+
+        # Calculer le coût avec conversion d'unités
+        cost_result = calculate_ingredient_price(
+            ingredient_name=ing['name'],
+            quantity=adjusted_quantity,
+            recipe_unit=ing['unit'],
+            currency=currency
+        )
+
+        # Extraire les données du résultat
+        if cost_result:
+            catalog_quantity = cost_result.get('catalog_qty', 1.0)
+            catalog_unit = cost_result.get('catalog_unit', ing['unit'])
+            catalog_price = cost_result.get('catalog_price', 0)
+            planned_unit_price = cost_result.get('unit_price', 0)
+            planned_total = cost_result.get('total_price', 0)
+        else:
+            # Pas de prix dans le catalogue
+            catalog_quantity = None
+            catalog_unit = ing['unit']
+            catalog_price = None
+            planned_unit_price = 0
+            planned_total = 0
+
+        total_cost += planned_total
+
+        ingredients_with_cost.append({
+            'name': ing['name'],
+            'normalized_name': normalized_name,
+            # Catalogue (Prix de référence)
+            'catalog_quantity': catalog_quantity,
+            'catalog_unit': catalog_unit,
+            'catalog_price': catalog_price,
+            # Recette (Besoin)
+            'recipe_quantity': adjusted_quantity,
+            'recipe_unit': ing['unit'],
+            # Coût Estimé
+            'planned_unit_price': planned_unit_price,
+            'planned_total': planned_total,
+            'notes': ing.get('notes', '')
+        })
+
+    # Debug: afficher les données avant de les retourner
+    print(f"DEBUG calculate_recipe_cost - Premier ingrédient: {ingredients_with_cost[0] if ingredients_with_cost else 'Aucun'}")
+
+    return {
+        'recipe': recipe,
+        'servings': target_servings,
+        'original_servings': original_servings,
+        'ingredients': ingredients_with_cost,
+        'total_planned': total_cost,
+        'currency': currency
+    }

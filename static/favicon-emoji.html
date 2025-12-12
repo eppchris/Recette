@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Générateur Favicon Emoji</title>
+    <style>
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            text-align: center;
+        }
+        canvas {
+            border: 1px solid #ddd;
+            margin: 20px;
+        }
+        button {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            font-size: 16px;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        button:hover {
+            background: #45a049;
+        }
+    </style>
+</head>
+<body>
+    <h1>Générateur de Favicon - Chef 👨‍🍳</h1>
+    <p>Cliquez sur "Générer" pour créer le favicon.ico</p>
+
+    <canvas id="canvas" width="64" height="64"></canvas>
+    <br>
+    <button onclick="generateFavicon()">Générer favicon.ico</button>
+    <br><br>
+    <a id="download" style="display:none;">Télécharger favicon.ico</a>
+
+    <script>
+        function generateFavicon() {
+            const canvas = document.getElementById('canvas');
+            const ctx = canvas.getContext('2d');
+
+            // Fond blanc
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(0, 0, 64, 64);
+
+            // Écrire l'emoji chef
+            ctx.font = '48px Arial';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('👨‍🍳', 32, 32);
+
+            // Créer le lien de téléchargement
+            canvas.toBlob(function(blob) {
+                const url = URL.createObjectURL(blob);
+                const link = document.getElementById('download');
+                link.href = url;
+                link.download = 'favicon.ico';
+                link.style.display = 'inline';
+                link.textContent = 'Télécharger favicon.ico';
+                link.click();
+            });
+        }
+
+        // Générer automatiquement au chargement
+        window.onload = function() {
+            setTimeout(generateFavicon, 500);
+        };
+    </script>
+</body>
+</html>

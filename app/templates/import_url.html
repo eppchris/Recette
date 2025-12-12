@@ -1,0 +1,393 @@
+{% extends 'base.html' %}
+
+{% block breadcrumb %}{{ 'Import URL' if lang == 'fr' else 'URLインポート' }}{% endblock %}
+
+{% block content %}
+
+<div x-data="urlImporter()" x-init="init()">
+  <div class="flex justify-between items-center mb-6">
+    <h1 class="text-2xl font-bold">
+      🌐 {{ 'Import de recette depuis URL' if lang == 'fr' else 'URLからレシピをインポート' }}
+    </h1>
+    <a href="/recipes?lang={{ lang }}" class="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600">
+      {{ 'Retour' if lang == 'fr' else '戻る' }}
+    </a>
+  </div>
+
+  <!-- Messages -->
+  <div x-show="message"
+       :class="messageType === 'error' ? 'bg-red-100 border-red-400 text-red-700' : 'bg-green-100 border-green-400 text-green-700'"
+       class="border px-4 py-3 rounded mb-4">
+    <span x-text="message"></span>
+  </div>
+
+  <!-- Étape 1 : Saisie de l'URL -->
+  <div x-show="step === 1" class="bg-white p-6 rounded-lg shadow">
+    <h2 class="text-xl font-semibold mb-4">
+      {{ 'Étape 1 : Entrer l\'URL de la recette' if lang == 'fr' else 'ステップ1：レシピのURLを入力' }}
+    </h2>
+
+    <form @submit.prevent="analyzeURL()">
+      <div class="mb-4">
+        <label class="block font-semibold mb-2">
+          {{ 'URL de la recette' if lang == 'fr' else 'レシピのURL' }} *
+        </label>
+        <input
+          type="url"
+          x-model="url"
+          required
+          placeholder="https://..."
+          class="w-full px-4 py-3 border rounded-lg text-lg"
+          :disabled="analyzing">
+      </div>
+
+      <div class="mb-4">
+        <label class="block font-semibold mb-2">
+          {{ 'Langue cible' if lang == 'fr' else '対象言語' }}
+        </label>
+        <select x-model="targetLang" class="w-full px-4 py-2 border rounded-lg">
+          <option value="fr">{{ 'Français' if lang == 'fr' else 'フランス語' }}</option>
+          <option value="jp">{{ 'Japonais' if lang == 'fr' else '日本語' }}</option>
+        </select>
+        <p class="text-sm text-gray-600 mt-1">
+          {{ 'La recette sera traduite dans la langue choisie si nécessaire' if lang == 'fr' else '必要に応じて選択した言語に翻訳されます' }}
+        </p>
+      </div>
+
+      <button
+        type="submit"
+        :disabled="!url || analyzing"
+        class="w-full px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed">
+        <span x-show="!analyzing">
+          {{ '🔍 Analyser l\'URL' if lang == 'fr' else '🔍 URLを分析' }}
+        </span>
+        <span x-show="analyzing">
+          {{ '⏳ Analyse en cours...' if lang == 'fr' else '⏳ 分析中...' }}
+        </span>
+      </button>
+    </form>
+
+    <div class="mt-6 p-4 bg-blue-50 rounded-lg text-sm">
+      <p class="font-semibold mb-2">{{ 'ℹ️ Comment ça marche ?' if lang == 'fr' else 'ℹ️ 使い方' }}</p>
+      <ul class="list-disc list-inside space-y-1 text-gray-700">
+        <li>{{ 'L\'IA va extraire automatiquement le nom, les ingrédients et les étapes' if lang == 'fr' else 'AIが自動的に名前、材料、手順を抽出します' }}</li>
+        <li>{{ 'La recette sera traduite dans la langue cible si nécessaire' if lang == 'fr' else '必要に応じて対象言語に翻訳されます' }}</li>
+        <li>{{ 'Vous pourrez vérifier et modifier les informations extraites' if lang == 'fr' else '抽出された情報を確認・修正できます' }}</li>
+      </ul>
+      <p class="mt-3 font-semibold">{{ 'Exemples d\'URLs compatibles:' if lang == 'fr' else '対応するURLの例:' }}</p>
+      <ul class="list-disc list-inside text-gray-700">
+        <li>Marmiton, 750g, Cuisine AZ</li>
+        <li>AllRecipes, Food Network, BBC Good Food</li>
+        <li>Cookpad, Kurashiru (クラシル)</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- Étape 2 : Vérification et édition -->
+  <div x-show="step === 2" class="bg-white p-6 rounded-lg shadow">
+    <h2 class="text-xl font-semibold mb-4">
+      {{ 'Étape 2 : Vérifier et compléter' if lang == 'fr' else 'ステップ2：確認と補完' }}
+    </h2>
+
+    <form @submit.prevent="saveRecipe()">
+      <!-- Nom de la recette -->
+      <div class="mb-4">
+        <label class="block font-semibold mb-2">
+          {{ 'Nom de la recette' if lang == 'fr' else 'レシピ名' }} *
+        </label>
+        <input
+          type="text"
+          x-model="recipeData.name"
+          required
+          class="w-full px-4 py-2 border rounded-lg">
+      </div>
+
+      <!-- Description -->
+      <div class="mb-4">
+        <label class="block font-semibold mb-2">
+          {{ 'Description' if lang == 'fr' else '説明' }}
+        </label>
+        <textarea
+          x-model="recipeData.description"
+          rows="2"
+          class="w-full px-4 py-2 border rounded-lg"></textarea>
+      </div>
+
+      <!-- Nombre de personnes, Temps de préparation et Temps de cuisson -->
+      <div class="grid grid-cols-3 gap-4 mb-4">
+        <div>
+          <label class="block font-semibold mb-2">
+            {{ 'Personnes' if lang == 'fr' else '人数' }}
+          </label>
+          <input
+            type="number"
+            x-model.number="recipeData.servings"
+            min="1"
+            class="w-full px-4 py-2 border rounded-lg">
+        </div>
+        <div>
+          <label class="block font-semibold mb-2">
+            {{ 'Préparation (min)' if lang == 'fr' else '準備時間（分）' }}
+          </label>
+          <input
+            type="number"
+            x-model.number="recipeData.prep_time"
+            min="0"
+            class="w-full px-4 py-2 border rounded-lg">
+        </div>
+        <div>
+          <label class="block font-semibold mb-2">
+            {{ 'Cuisson (min)' if lang == 'fr' else '調理時間（分）' }}
+          </label>
+          <input
+            type="number"
+            x-model.number="recipeData.cook_time"
+            min="0"
+            class="w-full px-4 py-2 border rounded-lg">
+        </div>
+      </div>
+
+      <!-- Type et Pays -->
+      <div class="grid grid-cols-2 gap-4 mb-4">
+        <div>
+          <label class="block font-semibold mb-2">
+            {{ 'Type de plat' if lang == 'fr' else '料理の種類' }}
+          </label>
+          <select x-model="recipeData.recipe_type" class="w-full px-4 py-2 border rounded-lg">
+            <option value="apéritif">{{ 'Apéritif' if lang == 'fr' else '前菜' }}</option>
+            <option value="entrée">{{ 'Entrée' if lang == 'fr' else 'オードブル' }}</option>
+            <option value="plat">{{ 'Plat' if lang == 'fr' else 'メイン' }}</option>
+            <option value="dessert">{{ 'Dessert' if lang == 'fr' else 'デザート' }}</option>
+            <option value="autre">{{ 'Autre' if lang == 'fr' else 'その他' }}</option>
+          </select>
+        </div>
+        <div>
+          <label class="block font-semibold mb-2">
+            {{ 'Pays d\'origine' if lang == 'fr' else '原産国' }}
+          </label>
+          <input
+            type="text"
+            x-model="recipeData.country"
+            class="w-full px-4 py-2 border rounded-lg">
+        </div>
+      </div>
+
+      <!-- Ingrédients -->
+      <div class="mb-6">
+        <h3 class="font-semibold mb-3">{{ 'Ingrédients' if lang == 'fr' else '材料' }}</h3>
+        <template x-for="(ingredient, index) in recipeData.ingredients" :key="index">
+          <div class="grid grid-cols-12 gap-2 mb-2">
+            <input
+              type="text"
+              x-model="ingredient.name"
+              placeholder="{{ 'Nom' if lang == 'fr' else '名前' }}"
+              class="col-span-5 px-3 py-2 border rounded">
+            <input
+              type="number"
+              x-model.number="ingredient.quantity"
+              step="any"
+              placeholder="{{ 'Quantité' if lang == 'fr' else '量' }}"
+              class="col-span-2 px-3 py-2 border rounded">
+            <input
+              type="text"
+              x-model="ingredient.unit"
+              placeholder="{{ 'Unité' if lang == 'fr' else '単位' }}"
+              class="col-span-2 px-3 py-2 border rounded">
+            <input
+              type="text"
+              x-model="ingredient.notes"
+              placeholder="{{ 'Notes' if lang == 'fr' else '備考' }}"
+              class="col-span-2 px-3 py-2 border rounded">
+            <button
+              type="button"
+              @click="removeIngredient(index)"
+              class="col-span-1 px-2 py-2 bg-red-500 text-white rounded hover:bg-red-600">
+              ✕
+            </button>
+          </div>
+        </template>
+        <button
+          type="button"
+          @click="addIngredient()"
+          class="mt-2 px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700">
+          + {{ 'Ajouter un ingrédient' if lang == 'fr' else '材料を追加' }}
+        </button>
+      </div>
+
+      <!-- Étapes -->
+      <div class="mb-6">
+        <h3 class="font-semibold mb-3">{{ 'Étapes de préparation' if lang == 'fr' else '調理手順' }}</h3>
+        <template x-for="(step, index) in recipeData.steps" :key="index">
+          <div class="flex gap-2 mb-2">
+            <span class="px-3 py-2 bg-gray-100 rounded font-semibold" x-text="index + 1"></span>
+            <textarea
+              x-model="recipeData.steps[index]"
+              rows="2"
+              class="flex-1 px-3 py-2 border rounded"></textarea>
+            <button
+              type="button"
+              @click="removeStep(index)"
+              class="px-3 py-2 bg-red-500 text-white rounded hover:bg-red-600">
+              ✕
+            </button>
+          </div>
+        </template>
+        <button
+          type="button"
+          @click="addStep()"
+          class="mt-2 px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700">
+          + {{ 'Ajouter une étape' if lang == 'fr' else '手順を追加' }}
+        </button>
+      </div>
+
+      <!-- Source URL (lecture seule) -->
+      <div class="mb-4">
+        <label class="block font-semibold mb-2">
+          {{ 'URL source' if lang == 'fr' else 'ソースURL' }}
+        </label>
+        <input
+          type="url"
+          x-model="recipeData.source_url"
+          readonly
+          class="w-full px-4 py-2 border rounded-lg bg-gray-100">
+      </div>
+
+      <!-- Boutons d'action -->
+      <div class="flex gap-4">
+        <button
+          type="button"
+          @click="step = 1; recipeData = null"
+          class="px-6 py-3 bg-gray-500 text-white rounded-lg hover:bg-gray-600">
+          {{ '← Retour' if lang == 'fr' else '← 戻る' }}
+        </button>
+        <button
+          type="submit"
+          :disabled="saving"
+          class="flex-1 px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-400">
+          <span x-show="!saving">
+            {{ '✓ Sauvegarder la recette' if lang == 'fr' else '✓ レシピを保存' }}
+          </span>
+          <span x-show="saving">
+            {{ 'Sauvegarde...' if lang == 'fr' else '保存中...' }}
+          </span>
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+function urlImporter() {
+  return {
+    step: 1,
+    url: '',
+    targetLang: '{{ lang }}',
+    analyzing: false,
+    saving: false,
+    message: '',
+    messageType: 'info',
+    recipeData: null,
+    lang: '{{ lang }}',
+
+    init() {
+      // Rien de spécial à initialiser pour l'URL
+    },
+
+    async analyzeURL() {
+      if (!this.url) return;
+
+      this.analyzing = true;
+      this.message = '';
+
+      try {
+        const formData = new FormData();
+        formData.append('url', this.url);
+        formData.append('target_lang', this.targetLang);
+
+        const response = await fetch('/api/import-url/analyze', {
+          method: 'POST',
+          body: formData
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+          this.recipeData = data.recipe;
+          // S'assurer que les valeurs par défaut sont présentes
+          this.recipeData.servings = this.recipeData.servings || 4;
+          this.recipeData.prep_time = this.recipeData.prep_time || 0;
+          this.recipeData.cook_time = this.recipeData.cook_time || 0;
+          this.recipeData.recipe_type = this.recipeData.recipe_type || 'plat';
+          this.recipeData.country = this.recipeData.country || '';
+          this.recipeData.description = this.recipeData.description || '';
+          this.recipeData.target_lang = this.targetLang;
+          this.step = 2;
+        } else {
+          this.message = data.error || 'Erreur lors de l\'analyse de l\'URL';
+          this.messageType = 'error';
+        }
+      } catch (error) {
+        console.error('Erreur:', error);
+        this.message = 'Erreur lors de la communication avec le serveur';
+        this.messageType = 'error';
+      } finally {
+        this.analyzing = false;
+      }
+    },
+
+    addIngredient() {
+      this.recipeData.ingredients.push({
+        name: '',
+        quantity: null,
+        unit: '',
+        notes: ''
+      });
+    },
+
+    removeIngredient(index) {
+      this.recipeData.ingredients.splice(index, 1);
+    },
+
+    addStep() {
+      this.recipeData.steps.push('');
+    },
+
+    removeStep(index) {
+      this.recipeData.steps.splice(index, 1);
+    },
+
+    async saveRecipe() {
+      this.saving = true;
+      this.message = '';
+
+      try {
+        const response = await fetch(`/api/import-url/save?lang=${this.lang}`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(this.recipeData)
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+          // Rediriger vers la recette créée
+          window.location.href = `/recipe/${data.slug}?lang=${this.lang}`;
+        } else {
+          this.message = data.error || 'Erreur lors de la sauvegarde';
+          this.messageType = 'error';
+        }
+      } catch (error) {
+        console.error('Erreur:', error);
+        this.message = 'Erreur lors de la sauvegarde';
+        this.messageType = 'error';
+      } finally {
+        this.saving = false;
+      }
+    }
+  };
+}
+</script>
+
+{% endblock %}

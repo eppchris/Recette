@@ -1,9 +1,21 @@
 <!DOCTYPE html>
-<html lang="{{ 'jp' if lang=='jp' else 'fr' }}" x-data="{ darkMode: false }" :class="{ 'dark': darkMode }">
+<html lang="{{ 'jp' if lang=='jp' else 'fr' }}" x-data="{
+  darkMode: localStorage.getItem('darkMode') === 'true' || false,
+  toggleDarkMode() {
+    this.darkMode = !this.darkMode;
+    localStorage.setItem('darkMode', this.darkMode);
+  }
+}" :class="{ 'dark': darkMode }">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{% if lang == 'fr' %}Profil{% else %}プロフィール{% endif %} - Recette App</title>
+
+    <!-- Favicons -->
+    <link rel="icon" type="image/x-icon" href="/static/favicon.ico?v=2">
+    <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-32x32.png?v=2">
+    <link rel="icon" type="image/png" sizes="16x16" href="/static/favicon-16x16.png?v=2">
+    <link rel="apple-touch-icon" sizes="64x64" href="/static/favicon-64x64.png?v=2">
   <script src="/static/css/tailwind.min.js"></script>
   <script defer src="/static/css/alpine.min.js"></script>
   <script>
@@ -32,6 +44,18 @@
 
   <div class="min-h-screen flex items-center justify-center p-6">
     <div class="w-full max-w-2xl">
+
+      <!-- Bouton retour -->
+      <div class="mb-4">
+        <a href="/recipes?lang={{ lang }}"
+           class="inline-flex items-center gap-2 px-3 py-2
+                  text-blue-600 dark:text-blue-400
+                  hover:bg-blue-50 dark:hover:bg-blue-900/20
+                  rounded-lg transition-colors duration-150">
+          <span class="text-lg">←</span>
+          <span class="font-medium">{{ 'Retour aux recettes' if lang == 'fr' else 'レシピに戻る' }}</span>
+        </a>
+      </div>
 
       <!-- Card de profil -->
       <div class="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-8">
