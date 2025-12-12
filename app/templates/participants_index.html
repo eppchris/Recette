@@ -1,0 +1,303 @@
+{% extends 'base.html' %}
+
+{% block breadcrumb %}
+<a href="/recipes?lang={{ lang }}" class="hover:text-gray-900 dark:hover:text-gray-100 transition-colors">
+  {{ 'Recettes' if lang == 'fr' else 'レシピ' }}
+</a>
+<span class="mx-2">›</span>
+<span class="text-gray-900 dark:text-gray-100">{{ 'Participants' if lang == 'fr' else '参加者' }}</span>
+{% endblock %}
+
+{% block content %}
+<div x-data="{
+    showParticipantModal: false,
+    showGroupModal: false,
+    deleteModal: false,
+    itemToDelete: null,
+    deleteType: '',
+    editMode: false,
+    currentParticipant: {},
+    currentGroup: {},
+
+    openParticipantModal(participant = null) {
+        if (participant) {
+            this.editMode = true;
+            this.currentParticipant = { ...participant };
+        } else {
+            this.editMode = false;
+            this.currentParticipant = { nom: '', prenom: '', role: '', telephone: '', email: '', adresse: '' };
+        }
+        this.showParticipantModal = true;
+    },
+
+    openGroupModal(group = null) {
+        if (group) {
+            this.editMode = true;
+            this.currentGroup = { ...group };
+        } else {
+            this.editMode = false;
+            this.currentGroup = { nom: '', description: '' };
+        }
+        this.showGroupModal = true;
+    },
+
+    openDeleteModal(id, name, type) {
+        this.itemToDelete = { id, name };
+        this.deleteType = type;
+        this.deleteModal = true;
+    },
+
+    async confirmDelete() {
+        if (!this.itemToDelete) return;
+
+        const url = this.deleteType === 'participant'
+            ? `/participants/${this.itemToDelete.id}/delete?lang={{ lang }}`
+            : `/participants/groups/${this.itemToDelete.id}/delete?lang={{ lang }}`;
+
+        try {
+            const response = await fetch(url, { method: 'POST' });
+            if (response.ok) {
+                window.location.reload();
+            } else {
+                alert('{{ 'Erreur lors de la suppression' if lang == 'fr' else '削除エラー' }}');
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            alert('{{ 'Erreur lors de la suppression' if lang == 'fr' else '削除エラー' }}');
+        }
+    }
+}">
+    <!-- Header -->
+    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-6">
+        <h1 class="text-2xl font-bold">{{ 'Gestion des participants et groupes' if lang == 'fr' else '参加者とグループの管理' }}</h1>
+    </div>
+
+    <!-- Deux colonnes : Participants et Groupes -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+        <!-- Colonne Participants -->
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-xl font-semibold">{{ 'Participants' if lang == 'fr' else '参加者' }} ({{ participants|length }})</h2>
+                <button @click="openParticipantModal()"
+                        class="inline-flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors">
+                    <span class="text-lg">➕</span>
+                    <span>{{ 'Nouveau' if lang == 'fr' else '新規' }}</span>
+                </button>
+            </div>
+
+            {% if participants %}
+            <div class="space-y-2">
+                {% for participant in participants %}
+                <div class="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors">
+                    <div class="flex-1">
+                        <div class="font-medium">{{ participant.nom }}{% if participant.prenom %} {{ participant.prenom }}{% endif %}</div>
+                        {% if participant.role %}
+                        <div class="text-sm text-gray-600 dark:text-gray-400">{{ participant.role }}</div>
+                        {% endif %}
+                    </div>
+                    <div class="flex gap-2">
+                        <a href="/participants/{{ participant.id }}?lang={{ lang }}"
+                           class="p-2 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded transition-colors"
+                           title="{{ 'Voir' if lang == 'fr' else '見る' }}">
+                            👁️
+                        </a>
+                        <button @click="openParticipantModal({{ participant|tojson }})"
+                                class="p-2 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600 rounded transition-colors"
+                                title="{{ 'Modifier' if lang == 'fr' else '編集' }}">
+                            ✏️
+                        </button>
+                        <button @click="openDeleteModal({{ participant.id }}, '{{ participant.nom }}', 'participant')"
+                                class="p-2 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors"
+                                title="{{ 'Supprimer' if lang == 'fr' else '削除' }}">
+                            🗑️
+                        </button>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="text-center text-gray-500 dark:text-gray-400 py-8">
+                {{ 'Aucun participant' if lang == 'fr' else '参加者がいません' }}
+            </p>
+            {% endif %}
+        </div>
+
+        <!-- Colonne Groupes -->
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-xl font-semibold">{{ 'Groupes' if lang == 'fr' else 'グループ' }} ({{ groups|length }})</h2>
+                <button @click="openGroupModal()"
+                        class="inline-flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors">
+                    <span class="text-lg">➕</span>
+                    <span>{{ 'Nouveau' if lang == 'fr' else '新規' }}</span>
+                </button>
+            </div>
+
+            {% if groups %}
+            <div class="space-y-2">
+                {% for group in groups %}
+                <div class="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors">
+                    <div class="flex-1">
+                        <div class="font-medium">{{ group.nom }}</div>
+                        <div class="text-sm text-gray-600 dark:text-gray-400">
+                            {{ group.member_count }} {{ 'membre(s)' if lang == 'fr' else 'メンバー' }}
+                        </div>
+                    </div>
+                    <div class="flex gap-2">
+                        <a href="/participants/groups/{{ group.id }}?lang={{ lang }}"
+                           class="p-2 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded transition-colors"
+                           title="{{ 'Voir' if lang == 'fr' else '見る' }}">
+                            👁️
+                        </a>
+                        <button @click="openGroupModal({{ group|tojson }})"
+                                class="p-2 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600 rounded transition-colors"
+                                title="{{ 'Modifier' if lang == 'fr' else '編集' }}">
+                            ✏️
+                        </button>
+                        <button @click="openDeleteModal({{ group.id }}, '{{ group.nom }}', 'group')"
+                                class="p-2 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors"
+                                title="{{ 'Supprimer' if lang == 'fr' else '削除' }}">
+                            🗑️
+                        </button>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="text-center text-gray-500 dark:text-gray-400 py-8">
+                {{ 'Aucun groupe' if lang == 'fr' else 'グループがありません' }}
+            </p>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Modal Participant -->
+    <div x-show="showParticipantModal"
+         x-cloak
+         class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50"
+         @click.self="showParticipantModal = false">
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full p-6">
+            <h3 class="text-xl font-semibold mb-4" x-text="editMode ? '{{ 'Modifier le participant' if lang == 'fr' else '参加者を編集' }}' : '{{ 'Nouveau participant' if lang == 'fr' else '新しい参加者' }}'"></h3>
+
+            <form :action="editMode ? `/participants/${currentParticipant.id}/update` : '/participants/create'" method="POST">
+                <input type="hidden" name="lang" value="{{ lang }}">
+
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium mb-1">{{ 'Nom' if lang == 'fr' else '名前' }} *</label>
+                        <input type="text" name="nom" x-model="currentParticipant.nom" required
+                               class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700">
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-medium mb-1">{{ 'Prénom' if lang == 'fr' else '名' }}</label>
+                        <input type="text" name="prenom" x-model="currentParticipant.prenom"
+                               class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700">
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-medium mb-1">{{ 'Rôle' if lang == 'fr' else '役割' }}</label>
+                        <input type="text" name="role" x-model="currentParticipant.role"
+                               class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700">
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-medium mb-1">{{ 'Téléphone' if lang == 'fr' else '電話' }}</label>
+                        <input type="tel" name="telephone" x-model="currentParticipant.telephone"
+                               class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700">
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-medium mb-1">{{ 'Email' if lang == 'fr' else 'メール' }}</label>
+                        <input type="email" name="email" x-model="currentParticipant.email"
+                               class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700">
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-medium mb-1">{{ 'Adresse' if lang == 'fr' else '住所' }}</label>
+                        <textarea name="adresse" x-model="currentParticipant.adresse" rows="2"
+                                  class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700"></textarea>
+                    </div>
+                </div>
+
+                <div class="flex gap-3 mt-6">
+                    <button type="submit"
+                            class="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
+                        {{ 'Enregistrer' if lang == 'fr' else '保存' }}
+                    </button>
+                    <button type="button" @click="showParticipantModal = false"
+                            class="flex-1 px-4 py-2 bg-gray-200 dark:bg-gray-600 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-500 transition-colors">
+                        {{ 'Annuler' if lang == 'fr' else 'キャンセル' }}
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal Groupe -->
+    <div x-show="showGroupModal"
+         x-cloak
+         class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50"
+         @click.self="showGroupModal = false">
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full p-6">
+            <h3 class="text-xl font-semibold mb-4" x-text="editMode ? '{{ 'Modifier le groupe' if lang == 'fr' else 'グループを編集' }}' : '{{ 'Nouveau groupe' if lang == 'fr' else '新しいグループ' }}'"></h3>
+
+            <form :action="editMode ? `/participants/groups/${currentGroup.id}/update` : '/participants/groups/create'" method="POST">
+                <input type="hidden" name="lang" value="{{ lang }}">
+
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium mb-1">{{ 'Nom du groupe' if lang == 'fr' else 'グループ名' }} *</label>
+                        <input type="text" name="nom" x-model="currentGroup.nom" required
+                               class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700">
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-medium mb-1">{{ 'Description' if lang == 'fr' else '説明' }}</label>
+                        <textarea name="description" x-model="currentGroup.description" rows="3"
+                                  class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700"></textarea>
+                    </div>
+                </div>
+
+                <div class="flex gap-3 mt-6">
+                    <button type="submit"
+                            class="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
+                        {{ 'Enregistrer' if lang == 'fr' else '保存' }}
+                    </button>
+                    <button type="button" @click="showGroupModal = false"
+                            class="flex-1 px-4 py-2 bg-gray-200 dark:bg-gray-600 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-500 transition-colors">
+                        {{ 'Annuler' if lang == 'fr' else 'キャンセル' }}
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal Confirmation Suppression -->
+    <div x-show="deleteModal"
+         x-cloak
+         class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50"
+         @click.self="deleteModal = false">
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full p-6">
+            <h3 class="text-xl font-semibold mb-4">{{ 'Confirmer la suppression' if lang == 'fr' else '削除の確認' }}</h3>
+
+            <p class="mb-6">
+                {{ 'Êtes-vous sûr de vouloir supprimer' if lang == 'fr' else '本当に削除しますか' }}
+                <strong x-text="itemToDelete?.name"></strong> ?
+            </p>
+
+            <div class="flex gap-3">
+                <button @click="confirmDelete()"
+                        class="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors">
+                    {{ 'Supprimer' if lang == 'fr' else '削除' }}
+                </button>
+                <button @click="deleteModal = false"
+                        class="flex-1 px-4 py-2 bg-gray-200 dark:bg-gray-600 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-500 transition-colors">
+                    {{ 'Annuler' if lang == 'fr' else 'キャンセル' }}
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

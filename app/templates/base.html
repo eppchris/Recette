@@ -4,6 +4,7 @@
   sidebarOpen: true,
   mobileMenuOpen: false,
   recipesOpen: true,
+  eventsOpen: false,
   gestionOpen: false,
   parametrageOpen: false,
   toggleDarkMode() {
@@ -105,14 +106,25 @@
 
       <!-- Section Événements -->
       <div>
-        <a
-          href="/events?lang={{ lang }}"
-          class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition group"
-          :class="'{{ request.path }}'.includes('/event') && 'bg-blue-50 dark:bg-blue-900 text-blue-600 dark:text-blue-300'"
+        <button
+          @click="eventsOpen = !eventsOpen"
+          class="w-full flex items-center justify-between gap-3 px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition group"
+          :class="('{{ request.path }}'.includes('/event') || '{{ request.path }}'.includes('/participant')) && 'bg-blue-50 dark:bg-blue-900 text-blue-600 dark:text-blue-300'"
         >
-          <span class="text-xl">📅</span>
-          <span x-show="sidebarOpen" x-transition class="font-medium">{{ S('menu_events') }}</span>
-        </a>
+          <div class="flex items-center gap-3">
+            <span class="text-xl">📅</span>
+            <span x-show="sidebarOpen" x-transition class="font-medium">{{ S('menu_events') }}</span>
+          </div>
+          <span x-show="sidebarOpen" x-transition class="text-gray-400" x-text="eventsOpen ? '▼' : '▶'"></span>
+        </button>
+        <div x-show="sidebarOpen && eventsOpen" x-transition class="ml-11 mt-1 space-y-1">
+          <a href="/events?lang={{ lang }}" class="block px-3 py-1.5 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 rounded">
+            {{ 'Liste des événements' if lang == 'fr' else 'イベント一覧' }}
+          </a>
+          <a href="/participants?lang={{ lang }}" class="block px-3 py-1.5 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 rounded">
+            {{ 'Participants' if lang == 'fr' else '参加者' }}
+          </a>
+        </div>
       </div>
 
       <!-- Section Gestion -->

@@ -170,6 +170,29 @@ from .db_users import (
     activate_user,
 )
 
+# Import des fonctions de gestion des participants
+from .db_participants import (
+    list_participants,
+    get_participant_by_id,
+    create_participant,
+    update_participant,
+    delete_participant,
+    list_groups,
+    get_group_by_id,
+    create_group,
+    update_group,
+    delete_group,
+    get_group_members,
+    get_participant_groups,
+    add_participant_to_group,
+    remove_participant_from_group,
+    get_event_participants,
+    add_participant_to_event,
+    add_group_to_event,
+    remove_participant_from_event,
+    get_participant_events,
+)
+
 __all__ = [
     # Core
     'get_db',
@@ -312,6 +335,27 @@ __all__ = [
     'update_user_password',
     'deactivate_user',
     'activate_user',
+
+    # Participants
+    'list_participants',
+    'get_participant_by_id',
+    'create_participant',
+    'update_participant',
+    'delete_participant',
+    'list_groups',
+    'get_group_by_id',
+    'create_group',
+    'update_group',
+    'delete_group',
+    'get_group_members',
+    'get_participant_groups',
+    'add_participant_to_group',
+    'remove_participant_from_group',
+    'get_event_participants',
+    'add_participant_to_event',
+    'add_group_to_event',
+    'remove_participant_from_event',
+    'get_participant_events',
 ]
 
 # Créer un objet 'db' pour compatibilité avec l'ancien code (permet d'utiliser db.fonction())
@@ -457,4 +501,25 @@ db = SimpleNamespace(
     update_user_password=update_user_password,
     deactivate_user=deactivate_user,
     activate_user=activate_user,
+
+    # Participants
+    list_participants=list_participants,
+    get_participant_by_id=get_participant_by_id,
+    create_participant=create_participant,
+    update_participant=update_participant,
+    delete_participant=delete_participant,
+    list_groups=list_groups,
+    get_group_by_id=get_group_by_id,
+    create_group=create_group,
+    update_group=update_group,
+    delete_group=delete_group,
+    get_group_members=get_group_members,
+    get_participant_groups=get_participant_groups,
+    add_participant_to_group=add_participant_to_group,
+    remove_participant_from_group=remove_participant_from_group,
+    get_event_participants=get_event_participants,
+    add_participant_to_event=add_participant_to_event,
+    add_group_to_event=add_group_to_event,
+    remove_participant_from_event=remove_participant_from_event,
+    get_participant_events=get_participant_events,
 )
