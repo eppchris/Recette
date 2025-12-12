@@ -354,6 +354,52 @@ def remove_participant_from_group(participant_id: int, group_id: int):
         return True
 
 
+def set_participant_groups(participant_id: int, group_ids: list):
+    """
+    Définit les groupes d'un participant (remplace les anciens)
+
+    Args:
+        participant_id: ID du participant
+        group_ids: Liste des IDs de groupes
+    """
+    with get_db() as con:
+        cursor = con.cursor()
+        # Supprimer les anciennes associations
+        cursor.execute("DELETE FROM participant_group_member WHERE participant_id = ?", (participant_id,))
+
+        # Ajouter les nouvelles associations
+        if group_ids:
+            for group_id in group_ids:
+                cursor.execute(
+                    "INSERT INTO participant_group_member (participant_id, group_id) VALUES (?, ?)",
+                    (participant_id, group_id)
+                )
+        con.commit()
+
+
+def set_group_members(group_id: int, participant_ids: list):
+    """
+    Définit les membres d'un groupe (remplace les anciens)
+
+    Args:
+        group_id: ID du groupe
+        participant_ids: Liste des IDs de participants
+    """
+    with get_db() as con:
+        cursor = con.cursor()
+        # Supprimer les anciennes associations
+        cursor.execute("DELETE FROM participant_group_member WHERE group_id = ?", (group_id,))
+
+        # Ajouter les nouvelles associations
+        if participant_ids:
+            for participant_id in participant_ids:
+                cursor.execute(
+                    "INSERT INTO participant_group_member (participant_id, group_id) VALUES (?, ?)",
+                    (participant_id, group_id)
+                )
+        con.commit()
+
+
 # ============================================================================
 # Gestion de la liaison événement ↔ participants
 # ============================================================================

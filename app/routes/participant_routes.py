@@ -70,10 +70,11 @@ async def participant_create(
     role: str = Form(""),
     telephone: str = Form(""),
     email: str = Form(""),
-    adresse: str = Form("")
+    adresse: str = Form(""),
+    group_ids: list = Form([])
 ):
     """
-    Crée un nouveau participant
+    Crée un nouveau participant avec ses groupes
     """
     participant_id = db.create_participant(
         nom=nom,
@@ -83,6 +84,11 @@ async def participant_create(
         email=email if email else None,
         adresse=adresse if adresse else None
     )
+
+    # Associer aux groupes si fournis
+    if group_ids and any(group_ids):
+        group_ids_int = [int(gid) for gid in group_ids if gid]
+        db.set_participant_groups(participant_id, group_ids_int)
 
     return RedirectResponse(
         url=f"/participants?lang={lang}",
@@ -100,10 +106,11 @@ async def participant_update(
     role: str = Form(""),
     telephone: str = Form(""),
     email: str = Form(""),
-    adresse: str = Form("")
+    adresse: str = Form(""),
+    group_ids: list = Form([])
 ):
     """
-    Met à jour un participant existant
+    Met à jour un participant existant avec ses groupes
     """
     success = db.update_participant(
         participant_id=participant_id,
@@ -117,6 +124,10 @@ async def participant_update(
 
     if not success:
         raise HTTPException(status_code=404, detail="Participant non trouvé")
+
+    # Mettre à jour les groupes
+    group_ids_int = [int(gid) for gid in group_ids if gid]
+    db.set_participant_groups(participant_id, group_ids_int)
 
     return RedirectResponse(
         url=f"/participants?lang={lang}",
@@ -174,15 +185,21 @@ async def group_create(
     request: Request,
     lang: str = Form("fr"),
     nom: str = Form(...),
-    description: str = Form("")
+    description: str = Form(""),
+    participant_ids: list = Form([])
 ):
     """
-    Crée un nouveau groupe
+    Crée un nouveau groupe avec ses membres
     """
     group_id = db.create_group(
         nom=nom,
         description=description if description else None
     )
+
+    # Associer les participants si fournis
+    if participant_ids and any(participant_ids):
+        participant_ids_int = [int(pid) for pid in participant_ids if pid]
+        db.set_group_members(group_id, participant_ids_int)
 
     return RedirectResponse(
         url=f"/participants?lang={lang}",
@@ -196,10 +213,11 @@ async def group_update(
     group_id: int,
     lang: str = Form("fr"),
     nom: str = Form(...),
-    description: str = Form("")
+    description: str = Form(""),
+    participant_ids: list = Form([])
 ):
     """
-    Met à jour un groupe existant
+    Met à jour un groupe existant avec ses membres
     """
     success = db.update_group(
         group_id=group_id,
@@ -209,6 +227,10 @@ async def group_update(
 
     if not success:
         raise HTTPException(status_code=404, detail="Groupe non trouvé")
+
+    # Mettre à jour les membres
+    participant_ids_int = [int(pid) for pid in participant_ids if pid]
+    db.set_group_members(group_id, participant_ids_int)
 
     return RedirectResponse(
         url=f"/participants?lang={lang}",
