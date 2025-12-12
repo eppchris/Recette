@@ -19,8 +19,17 @@ async def participants_index(request: Request, lang: str = "fr"):
     Page principale de gestion des participants et des groupes
     Affiche les deux listes côte à côte
     """
-    participants = db.list_participants()
-    groups = db.list_groups()
+    # Récupérer l'utilisateur courant depuis la session
+    current_user = request.session.get('user')
+    if not current_user:
+        return RedirectResponse(url=f"/login?lang={lang}", status_code=303)
+
+    user_id = current_user['id']
+    is_admin = (current_user.get('username') == 'admin')
+
+    # Filtrer par user_id sauf pour admin
+    participants = db.list_participants(user_id=user_id, is_admin=is_admin)
+    groups = db.list_groups(user_id=user_id, is_admin=is_admin)
 
     # Enrichir les participants avec leurs groupes
     for participant in participants:
@@ -86,8 +95,14 @@ async def participant_create(
     """
     Crée un nouveau participant avec ses groupes
     """
+    # Récupérer l'utilisateur courant
+    current_user = request.session.get('user')
+    if not current_user:
+        return RedirectResponse(url=f"/login?lang={lang}", status_code=303)
+
     participant_id = db.create_participant(
         nom=nom,
+        user_id=current_user['id'],
         prenom=prenom if prenom else None,
         role=role if role else None,
         telephone=telephone if telephone else None,
@@ -201,8 +216,14 @@ async def group_create(
     """
     Crée un nouveau groupe avec ses membres
     """
+    # Récupérer l'utilisateur courant
+    current_user = request.session.get('user')
+    if not current_user:
+        return RedirectResponse(url=f"/login?lang={lang}", status_code=303)
+
     group_id = db.create_group(
         nom=nom,
+        user_id=current_user['id'],
         description=description if description else None
     )
 

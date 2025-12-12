@@ -8,20 +8,35 @@ from .db_core import get_db
 # Gestion des participants
 # ============================================================================
 
-def list_participants():
+def list_participants(user_id=None, is_admin=False):
     """
-    Liste tous les participants triés par nom
+    Liste les participants triés par nom
+
+    Args:
+        user_id: ID de l'utilisateur (None = tous)
+        is_admin: True si l'utilisateur est admin (voit tout)
 
     Returns:
         Liste des participants avec leurs informations
     """
     with get_db() as con:
-        sql = """
-            SELECT id, nom, prenom, role, telephone, email, adresse, created_at, updated_at
-            FROM participant
-            ORDER BY nom, prenom
-        """
-        rows = con.execute(sql).fetchall()
+        if is_admin or user_id is None:
+            # Admin ou pas de filtre : voir tous les participants
+            sql = """
+                SELECT id, nom, prenom, role, telephone, email, adresse, user_id, created_at, updated_at
+                FROM participant
+                ORDER BY nom, prenom
+            """
+            rows = con.execute(sql).fetchall()
+        else:
+            # Utilisateur normal : voir uniquement ses participants
+            sql = """
+                SELECT id, nom, prenom, role, telephone, email, adresse, user_id, created_at, updated_at
+                FROM participant
+                WHERE user_id = ?
+                ORDER BY nom, prenom
+            """
+            rows = con.execute(sql, (user_id,)).fetchall()
         return [dict(row) for row in rows]
 
 
@@ -45,13 +60,14 @@ def get_participant_by_id(participant_id: int):
         return dict(result) if result else None
 
 
-def create_participant(nom: str, prenom: str = None, role: str = None,
+def create_participant(nom: str, user_id: int, prenom: str = None, role: str = None,
                       telephone: str = None, email: str = None, adresse: str = None):
     """
     Crée un nouveau participant
 
     Args:
         nom: Nom du participant (obligatoire)
+        user_id: ID de l'utilisateur propriétaire (obligatoire)
         prenom: Prénom (optionnel)
         role: Rôle texte libre (optionnel)
         telephone: Téléphone (optionnel)
@@ -63,10 +79,10 @@ def create_participant(nom: str, prenom: str = None, role: str = None,
     """
     with get_db() as con:
         sql = """
-            INSERT INTO participant (nom, prenom, role, telephone, email, adresse)
-            VALUES (?, ?, ?, ?, ?, ?)
+            INSERT INTO participant (nom, prenom, role, telephone, email, adresse, user_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
         """
-        cursor = con.execute(sql, (nom, prenom, role, telephone, email, adresse))
+        cursor = con.execute(sql, (nom, prenom, role, telephone, email, adresse, user_id))
         return cursor.lastrowid
 
 
@@ -128,28 +144,53 @@ def delete_participant(participant_id: int):
 # Gestion des groupes
 # ============================================================================
 
-def list_groups():
+def list_groups(user_id=None, is_admin=False):
     """
-    Liste tous les groupes avec le nombre de participants
+    Liste les groupes avec le nombre de participants
+
+    Args:
+        user_id: ID de l'utilisateur (None = tous)
+        is_admin: True si l'utilisateur est admin (voit tout)
 
     Returns:
         Liste des groupes avec le nombre de membres
     """
     with get_db() as con:
-        sql = """
-            SELECT
-                pg.id,
-                pg.nom,
-                pg.description,
-                pg.created_at,
-                pg.updated_at,
-                COUNT(pgm.participant_id) as member_count
-            FROM participant_group pg
-            LEFT JOIN participant_group_member pgm ON pgm.group_id = pg.id
-            GROUP BY pg.id, pg.nom, pg.description, pg.created_at, pg.updated_at
-            ORDER BY pg.nom
-        """
-        rows = con.execute(sql).fetchall()
+        if is_admin or user_id is None:
+            # Admin ou pas de filtre : voir tous les groupes
+            sql = """
+                SELECT
+                    pg.id,
+                    pg.nom,
+                    pg.description,
+                    pg.user_id,
+                    pg.created_at,
+                    pg.updated_at,
+                    COUNT(pgm.participant_id) as member_count
+                FROM participant_group pg
+                LEFT JOIN participant_group_member pgm ON pgm.group_id = pg.id
+                GROUP BY pg.id, pg.nom, pg.description, pg.user_id, pg.created_at, pg.updated_at
+                ORDER BY pg.nom
+            """
+            rows = con.execute(sql).fetchall()
+        else:
+            # Utilisateur normal : voir uniquement ses groupes
+            sql = """
+                SELECT
+                    pg.id,
+                    pg.nom,
+                    pg.description,
+                    pg.user_id,
+                    pg.created_at,
+                    pg.updated_at,
+                    COUNT(pgm.participant_id) as member_count
+                FROM participant_group pg
+                LEFT JOIN participant_group_member pgm ON pgm.group_id = pg.id
+                WHERE pg.user_id = ?
+                GROUP BY pg.id, pg.nom, pg.description, pg.user_id, pg.created_at, pg.updated_at
+                ORDER BY pg.nom
+            """
+            rows = con.execute(sql, (user_id,)).fetchall()
         return [dict(row) for row in rows]
 
 
@@ -181,12 +222,13 @@ def get_group_by_id(group_id: int):
         return dict(result) if result else None
 
 
-def create_group(nom: str, description: str = None):
+def create_group(nom: str, user_id: int, description: str = None):
     """
     Crée un nouveau groupe
 
     Args:
-        nom: Nom du groupe (obligatoire et unique)
+        nom: Nom du groupe (obligatoire)
+        user_id: ID de l'utilisateur propriétaire (obligatoire)
         description: Description optionnelle
 
     Returns:
@@ -194,10 +236,10 @@ def create_group(nom: str, description: str = None):
     """
     with get_db() as con:
         sql = """
-            INSERT INTO participant_group (nom, description)
-            VALUES (?, ?)
+            INSERT INTO participant_group (nom, description, user_id)
+            VALUES (?, ?, ?)
         """
-        cursor = con.execute(sql, (nom, description))
+        cursor = con.execute(sql, (nom, description, user_id))
         return cursor.lastrowid
 
 
