@@ -78,7 +78,7 @@ def update_participant(participant_id: int, nom: str = None, prenom: str = None,
 
     Args:
         participant_id: ID du participant à mettre à jour
-        nom: Nom (optionnel)
+        nom: Nom (obligatoire si fourni)
         prenom: Prénom (optionnel)
         role: Rôle (optionnel)
         telephone: Téléphone (optionnel)
@@ -96,37 +96,14 @@ def update_participant(participant_id: int, nom: str = None, prenom: str = None,
         if not cursor.fetchone():
             return False
 
-        # Construire la requête UPDATE dynamiquement
-        updates = []
-        params = []
-
-        if nom is not None:
-            updates.append("nom = ?")
-            params.append(nom)
-        if prenom is not None:
-            updates.append("prenom = ?")
-            params.append(prenom)
-        if role is not None:
-            updates.append("role = ?")
-            params.append(role)
-        if telephone is not None:
-            updates.append("telephone = ?")
-            params.append(telephone)
-        if email is not None:
-            updates.append("email = ?")
-            params.append(email)
-        if adresse is not None:
-            updates.append("adresse = ?")
-            params.append(adresse)
-
-        if not updates:
-            return False
-
-        updates.append("updated_at = CURRENT_TIMESTAMP")
-        params.append(participant_id)
-        query = f"UPDATE participant SET {', '.join(updates)} WHERE id = ?"
-
-        cursor.execute(query, params)
+        # Mise à jour complète (tous les champs)
+        sql = """
+            UPDATE participant
+            SET nom = ?, prenom = ?, role = ?, telephone = ?, email = ?, adresse = ?,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+        """
+        cursor.execute(sql, (nom, prenom, role, telephone, email, adresse, participant_id))
         con.commit()
         return True
 
@@ -230,7 +207,7 @@ def update_group(group_id: int, nom: str = None, description: str = None):
 
     Args:
         group_id: ID du groupe à mettre à jour
-        nom: Nom (optionnel)
+        nom: Nom (obligatoire si fourni)
         description: Description (optionnel)
 
     Returns:
@@ -244,25 +221,13 @@ def update_group(group_id: int, nom: str = None, description: str = None):
         if not cursor.fetchone():
             return False
 
-        # Construire la requête UPDATE dynamiquement
-        updates = []
-        params = []
-
-        if nom is not None:
-            updates.append("nom = ?")
-            params.append(nom)
-        if description is not None:
-            updates.append("description = ?")
-            params.append(description)
-
-        if not updates:
-            return False
-
-        updates.append("updated_at = CURRENT_TIMESTAMP")
-        params.append(group_id)
-        query = f"UPDATE participant_group SET {', '.join(updates)} WHERE id = ?"
-
-        cursor.execute(query, params)
+        # Mise à jour complète (tous les champs)
+        sql = """
+            UPDATE participant_group
+            SET nom = ?, description = ?, updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+        """
+        cursor.execute(sql, (nom, description, group_id))
         con.commit()
         return True
 
