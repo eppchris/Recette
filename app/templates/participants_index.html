@@ -12,20 +12,38 @@
 <div x-data="{
     showParticipantModal: false,
     showGroupModal: false,
+    showGroupSelector: false,
+    showParticipantSelector: false,
     deleteModal: false,
     itemToDelete: null,
     deleteType: '',
     editMode: false,
     currentParticipant: {},
     currentGroup: {},
+    selectedParticipantGroups: [],
+    selectedGroupParticipants: [],
+    availableGroups: {{ all_groups|tojson }},
+    availableParticipants: {{ all_participants|tojson }},
+
+    getGroupName(groupId) {
+        const group = this.availableGroups.find(g => g.id === groupId);
+        return group ? group.nom : '';
+    },
+
+    getParticipantName(participantId) {
+        const p = this.availableParticipants.find(x => x.id === participantId);
+        return p ? (p.nom + (p.prenom ? ' ' + p.prenom : '')) : '';
+    },
 
     openParticipantModal(participant = null) {
         if (participant) {
             this.editMode = true;
             this.currentParticipant = { ...participant };
+            this.selectedParticipantGroups = participant.group_ids || [];
         } else {
             this.editMode = false;
             this.currentParticipant = { nom: '', prenom: '', role: '', telephone: '', email: '', adresse: '' };
+            this.selectedParticipantGroups = [];
         }
         this.showParticipantModal = true;
     },
@@ -34,11 +52,41 @@
         if (group) {
             this.editMode = true;
             this.currentGroup = { ...group };
+            this.selectedGroupParticipants = group.member_ids || [];
         } else {
             this.editMode = false;
             this.currentGroup = { nom: '', description: '' };
+            this.selectedGroupParticipants = [];
         }
         this.showGroupModal = true;
+    },
+
+    openGroupSelector() {
+        this.showGroupSelector = true;
+    },
+
+    openParticipantSelector() {
+        this.showParticipantSelector = true;
+    },
+
+    addGroupToParticipant(groupId) {
+        if (!this.selectedParticipantGroups.includes(groupId)) {
+            this.selectedParticipantGroups.push(groupId);
+        }
+    },
+
+    removeGroupFromParticipant(groupId) {
+        this.selectedParticipantGroups = this.selectedParticipantGroups.filter(id => id !== groupId);
+    },
+
+    addParticipantToGroup(participantId) {
+        if (!this.selectedGroupParticipants.includes(participantId)) {
+            this.selectedGroupParticipants.push(participantId);
+        }
+    },
+
+    removeParticipantFromGroup(participantId) {
+        this.selectedGroupParticipants = this.selectedGroupParticipants.filter(id => id !== participantId);
     },
 
     openDeleteModal(id, name, type) {
@@ -109,7 +157,8 @@
                                 role: '{{ participant.role or '' }}',
                                 telephone: '{{ participant.telephone or '' }}',
                                 email: '{{ participant.email or '' }}',
-                                adresse: '{{ participant.adresse or '' }}'
+                                adresse: '{{ participant.adresse or '' }}',
+                                group_ids: {{ participant.group_ids|tojson }}
                             })"
                                 class="p-2 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600 rounded transition-colors"
                                 title="{{ 'Modifier' if lang == 'fr' else '編集' }}">
@@ -161,7 +210,8 @@
                         <button @click="openGroupModal({
                                 id: {{ group.id }},
                                 nom: '{{ group.nom }}',
-                                description: '{{ group.description or '' }}'
+                                description: '{{ group.description or '' }}',
+                                member_ids: {{ group.member_ids|tojson }}
                             })"
                                 class="p-2 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600 rounded transition-colors"
                                 title="{{ 'Modifier' if lang == 'fr' else '編集' }}">
@@ -234,15 +284,28 @@
 
                     <div>
                         <label class="block text-sm font-medium mb-1">{{ 'Groupes' if lang == 'fr' else 'グループ' }}</label>
-                        <select name="group_ids" multiple size="3"
-                                class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700">
-                            {% for group in all_groups %}
-                            <option value="{{ group.id }}">{{ group.nom }}</option>
-                            {% endfor %}
-                        </select>
-                        <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                            {{ 'Maintenez Ctrl/Cmd pour sélectionner plusieurs' if lang == 'fr' else 'Ctrl/Cmdを押しながら複数選択' }}
-                        </p>
+                        <div class="flex items-center gap-2">
+                            <div class="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700 min-h-[40px]">
+                                <template x-if="selectedParticipantGroups.length === 0">
+                                    <span class="text-gray-400 text-sm">{{ 'Aucun groupe' if lang == 'fr' else 'グループなし' }}</span>
+                                </template>
+                                <div class="flex flex-wrap gap-1">
+                                    <template x-for="groupId in selectedParticipantGroups" :key="groupId">
+                                        <span class="inline-flex items-center px-2 py-1 bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 rounded text-sm">
+                                            <span x-text="getGroupName(groupId)"></span>
+                                        </span>
+                                    </template>
+                                </div>
+                            </div>
+                            <button type="button" @click="openGroupSelector()"
+                                    class="px-3 py-2 bg-gray-200 dark:bg-gray-600 hover:bg-gray-300 dark:hover:bg-gray-500 rounded-lg transition-colors text-sm">
+                                {{ 'Modifier' if lang == 'fr' else '編集' }}
+                            </button>
+                        </div>
+                        <!-- Hidden inputs pour le formulaire -->
+                        <template x-for="groupId in selectedParticipantGroups" :key="groupId">
+                            <input type="hidden" name="group_ids" :value="groupId">
+                        </template>
                     </div>
                 </div>
 
@@ -286,15 +349,28 @@
 
                     <div>
                         <label class="block text-sm font-medium mb-1">{{ 'Participants' if lang == 'fr' else '参加者' }}</label>
-                        <select name="participant_ids" multiple size="4"
-                                class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700">
-                            {% for participant in all_participants %}
-                            <option value="{{ participant.id }}">{{ participant.nom }}{% if participant.prenom %} {{ participant.prenom }}{% endif %}</option>
-                            {% endfor %}
-                        </select>
-                        <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                            {{ 'Maintenez Ctrl/Cmd pour sélectionner plusieurs' if lang == 'fr' else 'Ctrl/Cmdを押しながら複数選択' }}
-                        </p>
+                        <div class="flex items-center gap-2">
+                            <div class="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700 min-h-[40px]">
+                                <template x-if="selectedGroupParticipants.length === 0">
+                                    <span class="text-gray-400 text-sm">{{ 'Aucun participant' if lang == 'fr' else '参加者なし' }}</span>
+                                </template>
+                                <div class="flex flex-wrap gap-1">
+                                    <template x-for="participantId in selectedGroupParticipants" :key="participantId">
+                                        <span class="inline-flex items-center px-2 py-1 bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 rounded text-sm">
+                                            <span x-text="getParticipantName(participantId)"></span>
+                                        </span>
+                                    </template>
+                                </div>
+                            </div>
+                            <button type="button" @click="openParticipantSelector()"
+                                    class="px-3 py-2 bg-gray-200 dark:bg-gray-600 hover:bg-gray-300 dark:hover:bg-gray-500 rounded-lg transition-colors text-sm">
+                                {{ 'Modifier' if lang == 'fr' else '編集' }}
+                            </button>
+                        </div>
+                        <!-- Hidden inputs pour le formulaire -->
+                        <template x-for="participantId in selectedGroupParticipants" :key="participantId">
+                            <input type="hidden" name="participant_ids" :value="participantId">
+                        </template>
                     </div>
                 </div>
 
@@ -333,6 +409,106 @@
                 <button @click="deleteModal = false"
                         class="flex-1 px-4 py-2 bg-gray-200 dark:bg-gray-600 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-500 transition-colors">
                     {{ 'Annuler' if lang == 'fr' else 'キャンセル' }}
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Sélecteur de Groupes (Dual-List) -->
+    <div x-show="showGroupSelector"
+         x-cloak
+         class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50"
+         @click.self="showGroupSelector = false">
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-3xl w-full p-6">
+            <h3 class="text-xl font-semibold mb-4">{{ 'Sélectionner les groupes' if lang == 'fr' else 'グループを選択' }}</h3>
+
+            <div class="grid grid-cols-3 gap-4">
+                <!-- Liste des groupes disponibles -->
+                <div class="col-span-1">
+                    <h4 class="text-sm font-medium mb-2">{{ 'Disponibles' if lang == 'fr' else '利用可能' }}</h4>
+                    <div class="border border-gray-300 dark:border-gray-600 rounded-lg h-64 overflow-y-auto p-2 space-y-1">
+                        <template x-for="group in availableGroups.filter(g => !selectedParticipantGroups.includes(g.id))" :key="group.id">
+                            <div @click="addGroupToParticipant(group.id)"
+                                 class="px-3 py-2 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded cursor-pointer transition-colors"
+                                 x-text="group.nom"></div>
+                        </template>
+                    </div>
+                </div>
+
+                <!-- Boutons de transfert -->
+                <div class="col-span-1 flex flex-col justify-center items-center gap-4">
+                    <p class="text-xs text-gray-500 dark:text-gray-400 text-center">
+                        {{ 'Cliquez pour déplacer' if lang == 'fr' else 'クリックして移動' }}
+                    </p>
+                </div>
+
+                <!-- Liste des groupes sélectionnés -->
+                <div class="col-span-1">
+                    <h4 class="text-sm font-medium mb-2">{{ 'Sélectionnés' if lang == 'fr' else '選択済み' }}</h4>
+                    <div class="border border-gray-300 dark:border-gray-600 rounded-lg h-64 overflow-y-auto p-2 space-y-1">
+                        <template x-for="groupId in selectedParticipantGroups" :key="groupId">
+                            <div @click="removeGroupFromParticipant(groupId)"
+                                 class="px-3 py-2 hover:bg-red-50 dark:hover:bg-red-900/20 rounded cursor-pointer transition-colors"
+                                 x-text="getGroupName(groupId)"></div>
+                        </template>
+                    </div>
+                </div>
+            </div>
+
+            <div class="flex gap-3 mt-6">
+                <button type="button" @click="showGroupSelector = false"
+                        class="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
+                    {{ 'OK' if lang == 'fr' else 'OK' }}
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Sélecteur de Participants (Dual-List) -->
+    <div x-show="showParticipantSelector"
+         x-cloak
+         class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50"
+         @click.self="showParticipantSelector = false">
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-3xl w-full p-6">
+            <h3 class="text-xl font-semibold mb-4">{{ 'Sélectionner les participants' if lang == 'fr' else '参加者を選択' }}</h3>
+
+            <div class="grid grid-cols-3 gap-4">
+                <!-- Liste des participants disponibles -->
+                <div class="col-span-1">
+                    <h4 class="text-sm font-medium mb-2">{{ 'Disponibles' if lang == 'fr' else '利用可能' }}</h4>
+                    <div class="border border-gray-300 dark:border-gray-600 rounded-lg h-64 overflow-y-auto p-2 space-y-1">
+                        <template x-for="participant in availableParticipants.filter(p => !selectedGroupParticipants.includes(p.id))" :key="participant.id">
+                            <div @click="addParticipantToGroup(participant.id)"
+                                 class="px-3 py-2 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded cursor-pointer transition-colors"
+                                 x-text="participant.nom + (participant.prenom ? ' ' + participant.prenom : '')"></div>
+                        </template>
+                    </div>
+                </div>
+
+                <!-- Boutons de transfert -->
+                <div class="col-span-1 flex flex-col justify-center items-center gap-4">
+                    <p class="text-xs text-gray-500 dark:text-gray-400 text-center">
+                        {{ 'Cliquez pour déplacer' if lang == 'fr' else 'クリックして移動' }}
+                    </p>
+                </div>
+
+                <!-- Liste des participants sélectionnés -->
+                <div class="col-span-1">
+                    <h4 class="text-sm font-medium mb-2">{{ 'Sélectionnés' if lang == 'fr' else '選択済み' }}</h4>
+                    <div class="border border-gray-300 dark:border-gray-600 rounded-lg h-64 overflow-y-auto p-2 space-y-1">
+                        <template x-for="participantId in selectedGroupParticipants" :key="participantId">
+                            <div @click="removeParticipantFromGroup(participantId)"
+                                 class="px-3 py-2 hover:bg-red-50 dark:hover:bg-red-900/20 rounded cursor-pointer transition-colors"
+                                 x-text="getParticipantName(participantId)"></div>
+                        </template>
+                    </div>
+                </div>
+            </div>
+
+            <div class="flex gap-3 mt-6">
+                <button type="button" @click="showParticipantSelector = false"
+                        class="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
+                    {{ 'OK' if lang == 'fr' else 'OK' }}
                 </button>
             </div>
         </div>
