@@ -12,14 +12,71 @@
     <link rel="apple-touch-icon" sizes="64x64" href="/static/favicon-64x64.png?v=2">
     <script src="/static/css/tailwind.min.js"></script>
     <script defer src="/static/css/alpine.min.js"></script>
+    <style>
+        [x-cloak] { display: none !important; }
+    </style>
 </head>
+<script>
+    window.participantsData = {
+        participants: {{ all_participants|tojson }},
+        groups: {{ all_groups|tojson }},
+        eventParticipants: {{ event_participants|tojson }}
+    };
+    window.modalOpen = {{ 'true' if request.query_params.get('modal') == 'open' else 'false' }};
+</script>
 <body class="bg-gray-50" x-data="{
     darkMode: localStorage.getItem('darkMode') === 'true' || false,
     showAddRecipe: false,
     selectedRecipe: '',
+    showParticipantsModal: window.modalOpen || false,
+    eventParticipants: window.participantsData.eventParticipants || [],
+    allParticipants: window.participantsData.participants || [],
+    allGroups: window.participantsData.groups || [],
     toggleDarkMode() {
         this.darkMode = !this.darkMode;
         localStorage.setItem('darkMode', this.darkMode);
+    },
+    async addParticipant(participantId) {
+        const response = await fetch('/api/events/{{ event.id }}/participants/add', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+            body: 'participant_id=' + participantId
+        });
+        if (response.ok) {
+            // Mettre à jour les listes localement
+            const participant = this.allParticipants.find(p => p.id == participantId);
+            if (participant) {
+                this.eventParticipants.push({...participant, group_name: null});
+                this.allParticipants = this.allParticipants.filter(p => p.id != participantId);
+            }
+        }
+    },
+    async addGroup(groupId) {
+        const response = await fetch('/api/events/{{ event.id }}/participants/add-group', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+            body: 'group_id=' + groupId
+        });
+        if (response.ok) {
+            // Recharger la page avec la modal ouverte
+            window.location.href = '?lang={{ lang }}&modal=open';
+        }
+    },
+    async removeParticipant(participantId) {
+        const response = await fetch('/api/events/{{ event.id }}/participants/' + participantId + '/remove', {
+            method: 'POST'
+        });
+        if (response.ok) {
+            // Mettre à jour les listes localement
+            const participant = this.eventParticipants.find(p => p.id == participantId);
+            if (participant && !participant.group_name) {  // Seulement si ajouté individuellement
+                this.eventParticipants = this.eventParticipants.filter(p => p.id != participantId);
+                this.allParticipants.push(participant);
+            } else {
+                // Pour les groupes, recharger avec modal ouverte
+                window.location.href = '?lang={{ lang }}&modal=open';
+            }
+        }
     }
 }">
     <div :class="darkMode ? 'dark bg-gray-900' : 'bg-gray-50'" class="min-h-screen">
@@ -109,6 +166,11 @@
                         <span>{{ 'Organisation' if lang == 'fr' else '企画' }}</span>
                     </a>
                     {% endif %}
+                    <button @click="showParticipantsModal = true"
+                            class="inline-flex items-center gap-2 px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-medium">
+                        <span>👥</span>
+                        <span>{{ 'Participants' if lang == 'fr' else '参加者' }} (<span x-text="eventParticipants.length"></span>)</span>
+                    </button>
                     <a href="/events/{{ event.id }}/edit?lang={{ lang }}"
                        class="inline-flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium">
                         <span>✏️</span>
@@ -216,6 +278,108 @@
                 {% endif %}
             </div>
         </main>
+
+        <!-- Modal Gestion des Participants -->
+        <div x-show="showParticipantsModal"
+             x-cloak
+             class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50"
+             @click.self="showParticipantsModal = false">
+            <div class="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto p-6">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-xl font-semibold text-gray-900 dark:text-white">
+                        {{ 'Gestion des participants' if lang == 'fr' else '参加者管理' }}
+                    </h3>
+                    <button @click="showParticipantsModal = false"
+                            class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
+                        ✕
+                    </button>
+                </div>
+
+                <!-- Disposition en colonnes -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <!-- Colonne gauche : Ajouts -->
+                    <div class="min-h-[400px]">
+                        <!-- Ajouter un participant individuel -->
+                        <div class="mb-6">
+                            <h4 class="font-medium text-gray-900 dark:text-white mb-3">
+                                {{ 'Ajouter un participant' if lang == 'fr' else '参加者を追加' }}
+                            </h4>
+                            <div class="grid grid-cols-1 gap-2 max-h-60 overflow-y-auto">
+                                <template x-for="participant in allParticipants" :key="participant.id">
+                                    <button @click="addParticipant(participant.id)"
+                                            class="p-3 text-left bg-gray-50 dark:bg-gray-700 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors">
+                                        <div class="font-medium text-gray-900 dark:text-white" x-text="participant.nom + (participant.prenom ? ' ' + participant.prenom : '')"></div>
+                                        <div class="text-sm text-gray-500 dark:text-gray-400" x-show="participant.role" x-text="participant.role"></div>
+                                    </button>
+                                </template>
+                                <template x-if="allParticipants.length === 0">
+                                    <p class="text-gray-500 dark:text-gray-400 text-center py-4">
+                                        {{ 'Aucun participant disponible' if lang == 'fr' else '利用可能な参加者なし' }}
+                                    </p>
+                                </template>
+                            </div>
+                        </div>
+
+                        <!-- Ajouter un groupe -->
+                        <div>
+                            <h4 class="font-medium text-gray-900 dark:text-white mb-3">
+                                {{ 'Ajouter tous les membres d\'un groupe' if lang == 'fr' else 'グループの全メンバーを追加' }}
+                            </h4>
+                            <div class="grid grid-cols-1 gap-2 max-h-60 overflow-y-auto">
+                                <template x-for="group in allGroups" :key="group.id">
+                                    <button @click="addGroup(group.id)"
+                                            class="p-3 text-left bg-gray-50 dark:bg-gray-700 hover:bg-green-50 dark:hover:bg-green-900/20 rounded-lg transition-colors">
+                                        <div class="font-medium text-gray-900 dark:text-white" x-text="group.nom"></div>
+                                        <div class="text-sm text-gray-500 dark:text-gray-400" x-text="group.member_count + ' {{ 'membre(s)' if lang == 'fr' else 'メンバー' }}'"></div>
+                                    </button>
+                                </template>
+                                <template x-if="allGroups.length === 0">
+                                    <p class="text-gray-500 dark:text-gray-400 text-center py-4">
+                                        {{ 'Aucun groupe disponible' if lang == 'fr' else '利用可能なグループなし' }}
+                                    </p>
+                                </template>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Colonne droite : Gestion des participants -->
+                    <div class="min-h-[400px]">
+                        <!-- Liste des participants actuels -->
+                        <div>
+                            <h4 class="font-medium text-gray-900 dark:text-white mb-3">
+                                {{ 'Participants inscrits' if lang == 'fr' else '登録済み参加者' }} (<span x-text="eventParticipants.length"></span>)
+                            </h4>
+                            <div class="space-y-2 max-h-60 overflow-y-auto">
+                                <template x-if="eventParticipants.length === 0">
+                                    <p class="text-gray-500 dark:text-gray-400 text-center py-4">
+                                        {{ 'Aucun participant' if lang == 'fr' else '参加者なし' }}
+                                    </p>
+                                </template>
+                                <template x-for="participant in eventParticipants" :key="participant.id">
+                                    <div @click="removeParticipant(participant.id)"
+                                         class="cursor-pointer flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors">
+                                        <div>
+                                            <div class="font-medium text-gray-900 dark:text-white" x-text="participant.nom + (participant.prenom ? ' ' + participant.prenom : '')"></div>
+                                            <div class="text-sm text-gray-500 dark:text-gray-400">
+                                                <span x-show="participant.group_name" x-text="'{{ 'via groupe:' if lang == 'fr' else 'グループ経由:' }} ' + participant.group_name"></span>
+                                                <span x-show="!participant.group_name">{{ 'Ajouté individuellement' if lang == 'fr' else '個別に追加' }}</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </template>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="mt-6 flex justify-end">
+                    <button @click="showParticipantsModal = false"
+                            class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                        {{ 'Fermer' if lang == 'fr' else '閉じる' }}
+                    </button>
+                </div>
+            </div>
+        </div>
     </div>
 </body>
 </html>

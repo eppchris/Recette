@@ -104,7 +104,7 @@ Si l'utilisateur n'est pas authentifié (`request.session.get("authenticated") =
 
 ### Templates
 
-#### [app/templates/login.html](../app/templates/login.html)
+#### [app/templates/recette_connexion.html](../app/templates/recette_connexion.html)
 - Design moderne avec Tailwind CSS
 - Mode sombre/clair
 - Support FR/JP

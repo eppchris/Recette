@@ -19,7 +19,7 @@ async def login_form(request: Request, lang: str = Query("fr")):
         return RedirectResponse(url=f"/recipes?lang={lang}", status_code=303)
 
     return templates.TemplateResponse(
-        "login.html",
+        "recette_connexion.html",
         {"request": request, "lang": lang, "error": None}
     )
 
@@ -49,7 +49,7 @@ async def login_post(
         # Authentification échouée
         error = "Nom d'utilisateur ou mot de passe incorrect" if lang == "fr" else "ユーザー名またはパスワードが間違っています"
         return templates.TemplateResponse(
-            "login.html",
+            "recette_connexion.html",
             {"request": request, "lang": lang, "error": error}
         )
 

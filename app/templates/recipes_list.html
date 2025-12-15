@@ -28,9 +28,20 @@
   showTags: false,
   deleteModal: false,
   recipeToDelete: null,
+  creatorId: {{ creator_id or 'null' }},
 
-  async init() {
-    await this.loadCategoriesTagsAndEventTypes();
+  init() {
+    // Initialiser les filtres depuis l'URL
+    const urlParams = new URLSearchParams(window.location.search);
+    this.selectedCategories = urlParams.get('categories') ? urlParams.get('categories').split(',').map(id => parseInt(id)) : [];
+    this.selectedTags = urlParams.get('tags') ? urlParams.get('tags').split(',').map(id => parseInt(id)) : [];
+    this.selectedEventTypeId = urlParams.get('event_type') ? parseInt(urlParams.get('event_type')) : null;
+    this.search = urlParams.get('search') || '';
+    this.sortBy = urlParams.get('sort_by') || 'name';
+    this.sortOrder = urlParams.get('sort_order') || 'asc';
+    this.creatorId = urlParams.get('creator_id') ? parseInt(urlParams.get('creator_id')) : {{ creator_id or 'null' }};
+
+    this.loadCategoriesTagsAndEventTypes();
   },
 
   async loadCategoriesTagsAndEventTypes() {
@@ -46,6 +57,35 @@
     } catch (error) {
       console.error('Erreur chargement catégories/tags/event types:', error);
     }
+  },
+
+  updateURL() {
+    const params = new URLSearchParams();
+    if (this.selectedCategories.length > 0) {
+      params.set('categories', this.selectedCategories.join(','));
+    }
+    if (this.selectedTags.length > 0) {
+      params.set('tags', this.selectedTags.join(','));
+    }
+    if (this.selectedEventTypeId) {
+      params.set('event_type', this.selectedEventTypeId);
+    }
+    if (this.search) {
+      params.set('search', this.search);
+    }
+    if (this.creatorId) {
+      params.set('creator_id', this.creatorId);
+    }
+    if (this.sortBy !== 'name') {
+      params.set('sort_by', this.sortBy);
+    }
+    if (this.sortOrder !== 'asc') {
+      params.set('sort_order', this.sortOrder);
+    }
+    params.set('lang', this.lang);
+
+    const newURL = `${window.location.pathname}?${params.toString()}`;
+    window.history.replaceState({}, '', newURL);
   },
 
   async searchByIngredients() {
@@ -124,6 +164,7 @@
     } else {
       this.selectedCategories.push(categoryId);
     }
+    this.updateURL();
   },
 
   toggleTag(tagId) {
@@ -133,12 +174,14 @@
     } else {
       this.selectedTags.push(tagId);
     }
+    this.updateURL();
   },
 
   clearFilters() {
     this.selectedCategories = [];
     this.selectedTags = [];
     this.selectedEventTypeId = null;
+    this.updateURL();
   },
 
   getCategoryName(catId) {
@@ -146,9 +189,60 @@
     return cat ? (this.lang === 'jp' ? cat.name_jp : cat.name_fr) : '';
   },
 
-  getTagName(tagId) {
-    const tag = this.tags.find(t => t.id === tagId);
-    return tag ? (this.lang === 'jp' ? tag.name_jp : tag.name_fr) : '';
+  changeCreator(creatorId) {
+    const params = new URLSearchParams();
+    params.set('lang', this.lang);
+    if (creatorId) {
+      params.set('creator_id', creatorId);
+    }
+    if (this.selectedCategories.length > 0) {
+      params.set('categories', this.selectedCategories.join(','));
+    }
+    if (this.selectedTags.length > 0) {
+      params.set('tags', this.selectedTags.join(','));
+    }
+    if (this.selectedEventTypeId) {
+      params.set('event_type', this.selectedEventTypeId);
+    }
+    if (this.search) {
+      params.set('search', this.search);
+    }
+    if (this.sortBy !== 'name') {
+      params.set('sort_by', this.sortBy);
+    }
+    if (this.sortOrder !== 'asc') {
+      params.set('sort_order', this.sortOrder);
+    }
+
+    window.location.href = `/recipes?${params.toString()}`;
+  },
+
+  getRecipeURL(recipeSlug) {
+    const params = new URLSearchParams();
+    if (this.selectedCategories.length > 0) {
+      params.set('categories', this.selectedCategories.join(','));
+    }
+    if (this.selectedTags.length > 0) {
+      params.set('tags', this.selectedTags.join(','));
+    }
+    if (this.selectedEventTypeId) {
+      params.set('event_type', this.selectedEventTypeId);
+    }
+    if (this.search) {
+      params.set('search', this.search);
+    }
+    if (this.creatorId) {
+      params.set('creator_id', this.creatorId);
+    }
+    if (this.sortBy !== 'name') {
+      params.set('sort_by', this.sortBy);
+    }
+    if (this.sortOrder !== 'asc') {
+      params.set('sort_order', this.sortOrder);
+    }
+    params.set('lang', this.lang);
+
+    return `/recipe/${recipeSlug}?${params.toString()}`;
   },
 
   getTagColor(tagId) {
@@ -168,6 +262,7 @@
       this.sortBy = column;
       this.sortOrder = 'asc';
     }
+    this.updateURL();
   },
 
   confirmDelete(recipe) {
@@ -251,13 +346,14 @@
     <input
       type="text"
       x-model="search"
+      @input="updateURL()"
       placeholder="🔍 {{ 'Rechercher une recette...' if lang == 'fr' else 'レシピを検索...' }}"
       class="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
     >
 
     <!-- Filtre par créateur -->
     <select
-      onchange="window.location.href = '/recipes?lang={{ lang }}&creator_id=' + this.value"
+      @change="changeCreator($event.target.value)"
       class="w-full sm:w-auto px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 dark:text-white"
     >
       <option value="">{{ 'Tous les créateurs' if lang == 'fr' else 'すべての作成者' }}</option>
@@ -310,14 +406,14 @@
   <!-- Filtres rapides par type d'événement -->
   <div class="mb-4 flex gap-2 flex-wrap">
     <button
-      @click="selectedEventTypeId = null"
+      @click="selectedEventTypeId = null; updateURL()"
       :class="selectedEventTypeId === null ? 'bg-gray-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'"
       class="px-4 py-2 rounded-lg font-medium transition-colors">
       {{ 'Toutes' if lang == 'fr' else 'すべて' }}
     </button>
     <template x-for="eventType in eventTypes" :key="eventType.id">
       <button
-        @click="selectedEventTypeId = eventType.id"
+        @click="selectedEventTypeId = eventType.id; updateURL()"
         :class="selectedEventTypeId === eventType.id ? 'bg-purple-600 text-white' : 'bg-purple-100 text-purple-700 hover:bg-purple-200'"
         class="px-4 py-2 rounded-lg font-medium transition-colors"
         x-text="lang === 'jp' ? eventType.name_jp : eventType.name_fr">
@@ -430,7 +526,7 @@
     <template x-for="r in filteredRecipes" :key="r.id">
       <div class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden hover:shadow-lg transition-shadow">
         <!-- Image -->
-        <a :href="`/recipe/${r.slug}?lang={{ lang }}`" class="block relative pb-[75%] overflow-hidden bg-gray-100">
+        <a :href="getRecipeURL(r.slug)" class="block relative pb-[75%] overflow-hidden bg-gray-100">
           <img
             :src="r.thumbnail_url || '/static/images/recipe-placeholder.jpg'"
             :alt="r.name"
@@ -440,7 +536,7 @@
 
         <!-- Contenu -->
         <div class="p-4">
-          <a :href="`/recipe/${r.slug}?lang={{ lang }}`" class="block">
+          <a :href="getRecipeURL(r.slug)" class="block">
             <h3 class="font-semibold text-lg mb-2 hover:text-blue-600 transition" x-text="r.name"></h3>
           </a>
 

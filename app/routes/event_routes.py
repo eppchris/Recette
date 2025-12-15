@@ -131,6 +131,21 @@ async def event_detail(request: Request, event_id: int, lang: str = "fr"):
     shopping_list_items = db.get_shopping_list_items(event_id)
     has_shopping_list = len(shopping_list_items) > 0
 
+    # Récupérer les participants et groupes (avec gestion d'erreur si tables non migrées)
+    user_id = request.session.get('user_id')
+    username = request.session.get('username')
+    is_admin = (username == 'admin')
+
+    try:
+        event_participants = db.get_event_participants(event_id)
+        all_participants = db.list_participants(user_id=user_id, is_admin=is_admin)
+        all_groups = db.list_groups(user_id=user_id, is_admin=is_admin)
+    except Exception:
+        # Tables participants pas encore migrées
+        event_participants = []
+        all_participants = []
+        all_groups = []
+
     return templates.TemplateResponse(
         "event_detail.html",
         {
@@ -139,7 +154,10 @@ async def event_detail(request: Request, event_id: int, lang: str = "fr"):
             "event": event,
             "recipes": recipes,
             "all_recipes": all_recipes,
-            "has_shopping_list": has_shopping_list
+            "has_shopping_list": has_shopping_list,
+            "event_participants": event_participants,
+            "all_participants": all_participants,
+            "all_groups": all_groups
         }
     )
 

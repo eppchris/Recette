@@ -26,7 +26,7 @@ REQUIRED_FILES=(
     "app/models/__init__.py"
     "app/models/db_users.py"
     "app/routes/auth_routes.py"
-    "app/templates/login.html"
+    "app/templates/recette_connexion.html"
     "app/templates/register.html"
     "migrations/add_user_system.sql"
 )

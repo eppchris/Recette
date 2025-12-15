@@ -158,7 +158,7 @@ Cette livraison introduit une nouvelle fonctionnalité majeure : **le calcul aut
 - `help.html`
 - `ingredient_catalog.html`
 - `ingredient_specific_conversions.html`
-- `login.html`
+- `recette_connexion.html`
 - `profile.html`
 - `register.html`
 - `shopping_list.html`

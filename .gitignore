@@ -16,8 +16,10 @@ venv/
 
 # Base de données (données locales uniquement)
 data/*.sqlite3
+data/*.db
 data/*.sqlite3-shm
 data/*.sqlite3-wal
+data/*.csv
 data/OLD/
 
 # Images uploadées par les utilisateurs
@@ -31,8 +33,11 @@ logs/
 # Scripts de déploiement spécifiques
 deploy/*.sh
 !deploy/deploy_synology.sh
+!deploy/deploy_synology_V1_5.sh
 !deploy/deploy_synology_V1_6.sh
 !deploy/deploy_synology_V1_7.sh
+!deploy/deploy_synology_V2_0.sh
+!deploy/deploy_synology_V2_1.sh
 
 # Fichiers de service système
 *.service

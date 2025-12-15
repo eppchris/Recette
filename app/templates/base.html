@@ -183,7 +183,7 @@
     <!-- Footer Sidebar -->
     <div class="absolute bottom-0 left-0 right-0 p-4 border-t border-gray-200 dark:border-gray-700 space-y-2">
       <!-- User info -->
-      {% if request.session.get('authenticated') %}
+      {% if request.session.get('user_id') %}
       <a
         href="/profile?lang={{ lang }}"
         class="w-full flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition"

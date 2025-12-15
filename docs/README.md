@@ -2,19 +2,18 @@
 
 Documentation complète du projet Recette.
 
+## 🚀 Démarrage rapide (DEV)
+```bash
+source venv/bin/activate && python run.py
+```
+
 ## 📁 Structure de la documentation
 
 ```
 docs/
-├── project/              # Documentation du projet
-│   ├── TODO.md          # Liste des tâches et évolutions futures
-│   └── DEPLOYMENT_CHECKLIST.md  # Checklist de déploiement
-│
 ├── deployment/           # Notes de déploiement
 │   ├── DEPLOYMENT.md    # Guide général de déploiement
-│   ├── NOTES_DEPLOIEMENT_V1_3.md
-│   ├── NOTES_DEPLOIEMENT_V1_4.md
-│   ├── NOTES_DEPLOIEMENT_V1_5.md
+│   ├── NOTES_DEPLOIEMENT.md
 │   └── README.md
 │
 ├── help/                 # Documentation de l'aide en ligne
@@ -23,37 +22,14 @@ docs/
 └── [fichiers techniques]
 ```
 
-## 📋 Documentation projet
-
-### [TODO.md](project/TODO.md)
-Liste structurée de toutes les tâches et évolutions futures:
-- Amélioration aide en ligne
-- Nouvelles fonctionnalités recettes
-- Évolutions budget
-- Backlog des idées
-
-### [DEPLOYMENT_CHECKLIST.md](project/DEPLOYMENT_CHECKLIST.md)
-Checklist complète pour chaque déploiement:
-- Étapes avant/pendant/après développement
-- Préparation du déploiement
-- Tests post-déploiement
-- Procédure de rollback
-
-## 🚀 Documentation déploiement
-
-### [DEPLOYMENT.md](deployment/DEPLOYMENT.md)
-Guide général de déploiement sur Synology.
-
-### Notes de déploiement par version
-- [V1.3](deployment/NOTES_DEPLOIEMENT_V1_3.md) - Base de données intégrée
-- [V1.4](deployment/NOTES_DEPLOIEMENT_V1_4.md) - Catalogue des prix
-- [V1.5](deployment/NOTES_DEPLOIEMENT_V1_5.md) - Système d'authentification
-
-## 📖 Documentation fonctionnelle
+## 📋 Documentation par fonctionnalité
 
 ### Système d'authentification
 - [AUTH_SYSTEM.md](AUTH_SYSTEM.md) - Documentation complète du système d'authentification
 - [AUTH_SETUP.md](AUTH_SETUP.md) - Configuration initiale
+
+### Gestion des événements et participants
+- [PARTICIPANTS_GROUPS_SYSTEM.md](PARTICIPANTS_GROUPS_SYSTEM.md) - Système de gestion des participants et groupes (V1.6+)
 
 ### Gestion des données
 - [BUDGET_IMPLEMENTATION.md](BUDGET_IMPLEMENTATION.md) - Système de budget
@@ -78,9 +54,10 @@ Guide général de déploiement sur Synology.
 - [PROJECT_STRUCTURE.md](PROJECT_STRUCTURE.md) - Structure du projet
 - [REFACTORING_DB_MODULES.md](REFACTORING_DB_MODULES.md) - Refactoring des modules DB
 
-### Corrections et améliorations
-- [CORRECTION_FORMS.md](CORRECTION_FORMS.md) - Corrections formulaires
-- [NEXT_STEPS.md](NEXT_STEPS.md) - Prochaines étapes
+### Notes de version
+- [OPTIMISATION_SQL_V1.10.md](OPTIMISATION_SQL_V1.10.md) - Optimisations SQL
+- [RELEASE_NOTES_V1.9.md](RELEASE_NOTES_V1.9.md) - Notes de version 1.9
+- [LIVRAISON_V1.11_CALCUL_COUT_RECETTES.md](LIVRAISON_V1.11_CALCUL_COUT_RECETTES.md) - Calcul coûts recettes
 
 ## 🔧 Documentation pour développeurs
 
@@ -104,11 +81,11 @@ Voir [help/README.md](help/README.md) pour modifier la page d'aide.
 ## 🔄 Mise à jour de la documentation
 
 La documentation doit être mise à jour:
-1. **À chaque nouvelle fonctionnalité** → Mettre à jour le fichier concerné
-2. **À chaque déploiement** → Créer/mettre à jour NOTES_DEPLOIEMENT_V{X}_{Y}.md
+1. **À chaque nouvelle fonctionnalité** → Créer/mettre à jour le fichier concerné
+2. **À chaque déploiement** → Mettre à jour NOTES_DEPLOIEMENT.md
 3. **À chaque modification majeure** → Réviser la documentation technique
 
-Voir `project/DEPLOYMENT_CHECKLIST.md` pour le processus complet.
+Voir [.claude/project-rules.md](../.claude/project-rules.md) pour le processus complet.
 
 ---
 

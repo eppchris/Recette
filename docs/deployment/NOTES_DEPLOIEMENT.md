@@ -32,7 +32,7 @@ scp static/css/alpine.min.js synology:/var/services/homes/christianepp/Recette/s
 - `app/templates/ingredient_catalog.html`
 - `app/templates/events_list.html`
 - `app/templates/event_budget.html`
-- `app/templates/login.html`
+- `app/templates/recette_connexion.html`
 - `app/templates/shopping_list.html`
 - `app/templates/event_detail.html`
 - `app/templates/event_form.html`
