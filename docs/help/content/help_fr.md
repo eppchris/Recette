@@ -1,9 +1,10 @@
 # Guide d'utilisation - Recette App
 
-## 📖 Gestion des recettes
+## 📖 Gestion des recettes {#recipes}
 
 ### Consulter les recettes
 Accédez à la liste complète des recettes depuis le menu principal. Chaque recette affiche:
+
 - Le nom et l'image de la recette
 - Le nombre de portions par défaut
 - Le type de recette (PRO, MASTER, PERSO, etc.)
@@ -11,18 +12,21 @@ Accédez à la liste complète des recettes depuis le menu principal. Chaque rec
 
 ### Filtrer les recettes
 Plusieurs options de filtrage sont disponibles:
+
 - **Par type d'événement:** Cliquez sur les boutons (Apéritif, Plat, Dessert, etc.)
 - **Par créateur:** Utilisez le menu déroulant pour voir les recettes d'un utilisateur
 - **Par recherche textuelle:** Tapez le nom de la recette dans la barre de recherche
+- **Par Ingrédients** Tapez le nom de l'ingrédient et toutes les recettes utilisant l'ingrédient apparaitront
 
 ---
 
-## 🔍 Recherche par ingrédients
+## 🔍 Recherche par ingrédients {#search}
 
 ### Comment ça marche?
 Cette fonctionnalité vous permet de trouver des recettes contenant **TOUS** les ingrédients que vous spécifiez.
 
 ### Mode d'emploi
+
 1. Dans la page des recettes, trouvez le bloc vert "Recherche par ingrédients" 🥕
 2. Entrez les ingrédients séparés par des virgules: `tomate, basilic, mozzarella`
 3. Cliquez sur "Rechercher" ou appuyez sur Entrée
@@ -31,11 +35,16 @@ Cette fonctionnalité vous permet de trouver des recettes contenant **TOUS** les
 
 > **💡 Astuce:** Si vous ne trouvez pas de recettes, essayez avec moins d'ingrédients ou vérifiez l'orthographe.
 
+## 💰 Coût de la recette
+Cette fonction permet de vérifier le prix de revient de la recette.
+Via cette fonction, il est possible de mettre à jour les coût de chaque ingrédient, afin d'avoir un prix le plus prêt de la réalité.
+
 ---
 
-## 📅 Gestion des événements
+## 📅 Gestion des événements {#events}
 
 ### Créer un événement
+
 1. Cliquez sur "Nouvel événement" depuis la liste des événements
 2. Remplissez les informations: nom, type, date(s), lieu, nombre de convives
 3. Ajoutez des notes si nécessaire
@@ -43,6 +52,7 @@ Cette fonctionnalité vous permet de trouver des recettes contenant **TOUS** les
 
 ### Copier un événement
 Créez rapidement un nouvel événement à partir d'un événement existant:
+
 1. Dans la liste des événements, cliquez sur "Copier" à côté de l'événement à dupliquer
 2. Le formulaire se pré-remplit avec toutes les informations de l'événement source
 3. Modifiez le nom, les dates, le lieu et toute autre information nécessaire
@@ -62,6 +72,7 @@ Créez rapidement un nouvel événement à partir d'un événement existant:
 > **💡 Astuce:** Si vous avez désélectionné des jours dans l'événement source (ex: week-ends), seuls les jours sélectionnés seront pris en compte pour la copie de la planification.
 
 ### Ajouter des recettes à un événement
+
 1. Ouvrez l'événement
 2. Cliquez sur "Ajouter une recette"
 3. Sélectionnez la recette dans la liste
@@ -69,9 +80,10 @@ Créez rapidement un nouvel événement à partir d'un événement existant:
 
 ---
 
-## 📆 Événements multi-jours
+## 📆 Événements multi-jours {#multiday}
 
 ### Créer un événement sur plusieurs jours
+
 1. Lors de la création, sélectionnez une **date de début** et une **date de fin**
 2. Un calendrier s'affiche avec toutes les dates entre début et fin
 3. Les dates sont sélectionnées par défaut (en bleu)
@@ -87,16 +99,18 @@ Créez rapidement un nouvel événement à partir d'un événement existant:
 
 ---
 
-## 🗓️ Planification des recettes
+## 🗓️ Planification des recettes {#planning}
 
 ### Organisation (lecture seule)
 Visualisez la planification de vos recettes par jour:
+
 1. Ouvrez un événement multi-jours
 2. Cliquez sur "Organisation" dans le menu
 3. Voyez les recettes organisées par date
 
 ### Planification (drag & drop)
 Organisez vos recettes par jour avec le drag & drop:
+
 1. Cliquez sur "Planification" depuis l'organisation
 2. Vous voyez 2 colonnes:
    - **Gauche:** Recettes disponibles
@@ -113,15 +127,17 @@ Organisez vos recettes par jour avec le drag & drop:
 
 ---
 
-## 🛒 Liste de courses
+## 🛒 Liste de courses {#shopping}
 
 ### Génération automatique
 La liste de courses est générée automatiquement à partir des recettes de l'événement:
+
 - Les ingrédients sont regroupés et additionnés
 - Les unités sont converties automatiquement quand possible
 - La liste se met à jour si vous changez le nombre de convives
 
 ### Utilisation
+
 1. Ouvrez un événement
 2. Cliquez sur "Liste de courses"
 3. Cochez les articles achetés
@@ -129,9 +145,10 @@ La liste de courses est générée automatiquement à partir des recettes de l'�
 
 ---
 
-## 💰 Gestion du budget
+## 💰 Gestion du budget {#budget}
 
 ### Définir le budget
+
 1. Ouvrez un événement
 2. Cliquez sur "Budget"
 3. Définissez le budget prévu
@@ -139,6 +156,7 @@ La liste de courses est générée automatiquement à partir des recettes de l'�
 
 ### Ajouter des prix aux ingrédients
 Directement depuis la liste de courses:
+
 - Cliquez sur le bouton "💰" à côté d'un ingrédient
 - Entrez le prix unitaire et la quantité
 - Le total se calcule automatiquement
@@ -146,22 +164,25 @@ Directement depuis la liste de courses:
 
 ### Suivi des dépenses
 Ajoutez des dépenses par catégorie:
+
 - Ingrédients (calculé automatiquement)
 - Logistique, matériel, personnel, etc.
 - Visualisez le budget utilisé vs prévu
 
 ---
 
-## 📚 Catalogue des prix
+## 📚 Catalogue des prix {#catalog}
 
 ### À quoi sert le catalogue?
 Le catalogue conserve les prix des ingrédients pour:
+
 - Suggestions automatiques lors de nouveaux événements
 - Estimation rapide des budgets
 - Historique des prix dans différentes devises
 
 ### Gérer le catalogue
 Accédez au catalogue depuis le menu principal:
+
 - Ajouter de nouveaux ingrédients avec leurs prix
 - Modifier les prix existants
 - Définir des prix en € et en ¥
@@ -224,11 +245,15 @@ Certains ingrédients changent de forme entre achat et utilisation:
 Une fois les conversions configurées:
 
 1. **Ouvrez une recette**
-2. Cliquez sur l'onglet "**💰 Coût**" (si disponible) ou consultez le détail
+2. **Consultez le coût calculé automatiquement** dans la page de détail de la recette
+   - Le coût total de la recette s'affiche automatiquement
+   - Le coût par portion est calculé en fonction du nombre de personnes
+   - **Objectif principal** : vérifier que les montants par ingrédient sont corrects
 3. **Vérifiez la cohérence des montants**:
    - Le coût total doit être réaliste
    - Le coût par personne doit être cohérent
    - Les ingrédients avec conversions spécifiques doivent afficher le bon prix
+   - Si un montant semble incorrect, vérifiez le prix et l'unité dans le catalogue
 
 **Exemple de vérification (dashi):**
 - ✅ Recette : 250ml de dashi

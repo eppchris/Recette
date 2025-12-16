@@ -411,7 +411,7 @@ async def help_page(request: Request, lang: str = Query("fr")):
     if os.path.exists(help_file):
         with open(help_file, 'r', encoding='utf-8') as f:
             md_content = f.read()
-            help_content = markdown.markdown(md_content, extensions=['tables', 'fenced_code'])
+            help_content = markdown.markdown(md_content, extensions=['tables', 'fenced_code', 'toc', 'attr_list'])
     else:
         help_content = "Aide non disponible" if lang == "fr" else "ヘルプは利用できません"
 
