@@ -41,6 +41,60 @@ Via cette fonction, il est possible de mettre à jour les coût de chaque ingré
 
 ---
 
+## 👥 Gestion des participants et groupes {#participants}
+
+### Créer un participant
+
+1. Accédez à la page "Participants" depuis le menu principal
+2. Cliquez sur "➕ Nouveau participant"
+3. Remplissez les informations:
+
+   - **Nom** (obligatoire)
+   - **Prénom**
+   - **Rôle** (ex: Invité, Staff, Intervenant)
+   - **Téléphone**
+   - **Email**
+   - **Adresse**
+
+4. Cliquez sur "Enregistrer"
+
+### Créer un groupe de participants
+
+Les groupes permettent d'organiser vos participants (ex: "Famille Dupont", "Équipe Marketing"):
+
+1. Dans la page "Participants", cliquez sur "➕ Nouveau groupe"
+2. Entrez le nom du groupe (obligatoire)
+3. Ajoutez une description (optionnel)
+4. Cliquez sur "Enregistrer"
+
+### Ajouter des participants à un groupe
+
+Depuis la page de détail du groupe:
+
+1. **Cliquez sur le nom du groupe** pour accéder à sa page de détail
+2. **Section "Ajouter des participants"** (en haut):
+   - Cochez les participants que vous souhaitez ajouter au groupe
+   - Les participants déjà membres n'apparaissent pas dans cette liste
+3. **Section "Membres actuels"** (en bas):
+   - Liste de tous les membres du groupe
+   - Cliquez sur ❌ pour retirer un membre
+
+### Voir les groupes d'un participant
+
+Depuis la page de détail du participant:
+
+1. **Cliquez sur le nom du participant** pour accéder à sa page de détail
+2. **Section "Groupes"** affiche tous les groupes dont il est membre
+3. Vous pouvez retirer le participant d'un groupe en cliquant sur ❌
+
+> **💡 Astuce:** Un participant peut appartenir à plusieurs groupes simultanément.
+
+### Isolation multi-utilisateurs
+
+Chaque utilisateur voit uniquement ses propres participants et groupes. L'administrateur voit tous les participants et groupes de tous les utilisateurs.
+
+---
+
 ## 📅 Gestion des événements {#events}
 
 ### Créer un événement
@@ -77,6 +131,32 @@ Créez rapidement un nouvel événement à partir d'un événement existant:
 2. Cliquez sur "Ajouter une recette"
 3. Sélectionnez la recette dans la liste
 4. Ajustez le nombre de portions si nécessaire
+
+### Gérer les participants d'un événement
+
+Ajoutez et gérez les participants inscrits à votre événement:
+
+1. **Ouvrez un événement** depuis la liste des événements
+2. **Cliquez sur le bouton "Participants (X)"** en haut de la page
+3. Une **fenêtre modale** s'ouvre avec deux colonnes:
+
+   **Colonne de gauche - Ajouter des participants:**
+   - **Participants individuels:** Cochez la case à côté du nom pour ajouter une personne
+   - **Groupes entiers:** Cochez la case à côté du nom du groupe pour ajouter tous ses membres d'un coup
+   - Les participants/groupes déjà inscrits n'apparaissent pas dans cette liste
+
+   **Colonne de droite - Participants inscrits:**
+   - Liste de tous les participants déjà inscrits à l'événement
+   - **Indication de provenance:**
+     - Si ajouté individuellement: nom seul
+     - Si ajouté via un groupe: "via groupe: [Nom du groupe]"
+   - **Retirer un participant:** Cliquez sur la croix ❌ rouge à côté du nom
+
+4. **Sauvegarde automatique:** Les ajouts et retraits sont enregistrés immédiatement
+
+> **💡 Astuce:** Si vous retirez un participant qui a été ajouté via un groupe, la page se rechargera pour éviter les incohérences. Les participants ajoutés individuellement peuvent être retirés instantanément.
+
+> **📌 Note:** Vous devez d'abord créer vos participants et groupes depuis le menu "Participants" avant de pouvoir les ajouter à un événement.
 
 ---
 
