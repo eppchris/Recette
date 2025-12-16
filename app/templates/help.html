@@ -224,6 +224,12 @@
                 <!-- Table des matières -->
                 <aside class="md:col-span-1">
                     <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-4 sticky top-24">
+                        <!-- Lien Menu principal -->
+                        <a href="/recipes?lang={{ lang }}" class="flex items-center gap-2 px-4 py-3 mb-4 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition font-medium">
+                            <span>🏠</span>
+                            <span>{{ 'Menu principal' if lang == 'fr' else 'メインメニュー' }}</span>
+                        </a>
+
                         <h2 class="font-bold text-lg mb-4 text-gray-900 dark:text-white">
                             {{ 'Sommaire' if lang == 'fr' else '目次' }}
                         </h2>
