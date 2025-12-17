@@ -102,10 +102,15 @@ Titre: {title}"""
         try:
             # Format JSON pour une traduction structurée
             prompt = f"""Traduis ces ingrédients de recette du {lang_names[source_lang]} vers le {lang_names[target_lang]}.
-Pour chaque ingrédient, traduis le nom ('name') et les notes ('notes') si présentes.
-Réponds UNIQUEMENT avec un tableau JSON dans le même ordre.
-Format attendu: [{{"name": "nom traduit", "notes": "notes traduites"}}, ...]
-Si un ingrédient n'a pas de notes, ne mets pas la clé 'notes' dans la réponse.
+
+IMPORTANT: Réponds UNIQUEMENT avec un tableau JSON valide, sans texte avant ou après.
+Format EXACT requis: [{{"name": "traduction"}}, {{"name": "traduction", "notes": "notes si présentes"}}]
+
+Règles:
+1. Chaque objet doit avoir au minimum la clé "name" avec la traduction
+2. Ajoute la clé "notes" SEULEMENT si l'ingrédient original a des notes
+3. Assure-toi que tous les objets JSON sont complets avec guillemets et virgules
+4. Ne mets AUCUN texte explicatif, juste le JSON
 
 Ingrédients à traduire:
 {json.dumps(items_to_translate, ensure_ascii=False)}"""
@@ -130,35 +135,37 @@ Ingrédients à traduire:
             # Supprimer les caractères de contrôle invalides
             response_text = re.sub(r'[\x00-\x1f\x7f-\x9f]', '', response_text)
 
-            # Réparer les erreurs JSON courantes de l'API (plusieurs passes)
-            for _ in range(3):  # Plusieurs passes pour traiter les cas complexes
-                # 1. Ajouter virgules manquantes entre objets JSON
-                response_text = re.sub(r'\}(\s*)\{', r'},\1{', response_text)
-                # 2. Fixer les chaînes non terminées avant } ou ]
-                response_text = re.sub(r'([^",])(\}|\])', r'\1"\2', response_text)
-                # 3. Éviter de doubler les guillemets qui sont déjà présents
-                response_text = re.sub(r'""(\}|\])', r'"\1', response_text)
-                # 4. Fixer les virgules manquantes après }
-                response_text = re.sub(r'\}([^\s,\]])', r'},\1', response_text)
-
             try:
                 translated_items = json.loads(response_text)
             except json.JSONDecodeError as e:
-                print(f"Erreur JSON: {e}")
-                print(f"Réponse brute (après nettoyage): {response_text[:800]}")
-                # Dernière tentative : extraire manuellement les objets valides
-                try:
-                    # Trouver tous les objets qui semblent valides
-                    import ast
-                    # Essayer de parser manuellement en cherchant les patterns
-                    objects = re.findall(r'\{"name":\s*"([^"]+)"(?:,\s*"notes":\s*"([^"]*)")?\}', response_text)
-                    if objects:
-                        translated_items = [{"name": name, "notes": notes or ""} for name, notes in objects]
-                        print(f"Récupération manuelle réussie: {len(translated_items)} ingrédients extraits")
+                print(f"Erreur JSON initiale: {e}")
+                print(f"Réponse brute: {response_text[:800]}")
+
+                # Tentative de récupération manuelle par extraction de patterns
+                # Chercher tous les objets bien formés avec name et optionnellement notes
+                objects = re.findall(
+                    r'\{\s*"name"\s*:\s*"([^"]+)"(?:\s*,\s*"notes"\s*:\s*"([^"]*)")?\s*\}',
+                    response_text
+                )
+
+                if objects:
+                    translated_items = []
+                    for name, notes in objects:
+                        item = {"name": name}
+                        if notes:
+                            item["notes"] = notes
+                        translated_items.append(item)
+                    print(f"✓ Récupération manuelle: {len(translated_items)} ingrédients extraits")
+                else:
+                    # Si aucun objet valide trouvé, essayer une extraction plus permissive
+                    # Chercher des paires "name": "valeur" même si l'objet est incomplet
+                    names = re.findall(r'"name"\s*:\s*"([^"]+)"', response_text)
+                    if names:
+                        translated_items = [{"name": name} for name in names]
+                        print(f"✓ Récupération partielle: {len(translated_items)} noms extraits")
                     else:
-                        raise
-                except Exception:
-                    raise e
+                        # Échec total
+                        raise ValueError(f"Impossible de parser la réponse JSON. Erreur: {e}")
 
             # Combine les traductions avec les unités originales
             result = []
