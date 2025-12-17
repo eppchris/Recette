@@ -586,6 +586,7 @@ def search_recipes_by_filters(search_text: str = None, category_ids: list = None
 def calculate_recipe_cost(slug: str, lang: str, servings: int = None):
     """
     Calcule le coût d'une recette avec prix du catalogue
+    Utilise le nouveau système de calcul de coût (cost_calculator.py)
 
     Args:
         slug: Identifiant de la recette
@@ -596,7 +597,8 @@ def calculate_recipe_cost(slug: str, lang: str, servings: int = None):
         Dict contenant les ingrédients avec prix et le total
     """
     from app.services.ingredient_aggregator import get_ingredient_aggregator
-    from .db_catalog import calculate_ingredient_price
+    from app.services.cost_calculator import compute_estimated_cost_for_ingredient
+    from .db_core import get_db
 
     result = get_recipe_by_slug(slug, lang)
     if not result:
@@ -616,56 +618,55 @@ def calculate_recipe_cost(slug: str, lang: str, servings: int = None):
     ingredients_with_cost = []
     total_cost = 0
 
-    for ing in ingredients:
-        # Quantité ajustée selon le nombre de personnes
-        adjusted_quantity = (ing['quantity'] or 0) * ratio
+    with get_db() as conn:
+        for ing in ingredients:
+            # Quantité ajustée selon le nombre de personnes
+            adjusted_quantity = (ing['quantity'] or 0) * ratio
 
-        # Normaliser le nom pour recherche dans le catalogue
-        normalized_name = aggregator.normalize_ingredient_name(ing['name'])
+            # Normaliser le nom pour recherche dans le catalogue
+            normalized_name = aggregator.normalize_ingredient_name(ing['name'])
 
-        # Calculer le coût avec conversion d'unités
-        cost_result = calculate_ingredient_price(
-            ingredient_name=ing['name'],
-            quantity=adjusted_quantity,
-            recipe_unit=ing['unit'],
-            currency=currency
-        )
+            # Calculer le coût avec le nouveau système
+            cost_result = compute_estimated_cost_for_ingredient(
+                conn=conn,
+                ingredient_name_fr=ing['name'],
+                recipe_qty=adjusted_quantity,
+                recipe_unit=ing['unit'],
+                currency=currency
+            )
 
-        # Extraire les données du résultat
-        if cost_result:
-            catalog_quantity = cost_result.get('catalog_qty', 1.0)
-            catalog_unit = cost_result.get('catalog_unit', ing['unit'])
-            catalog_price = cost_result.get('catalog_price', 0)
-            planned_unit_price = cost_result.get('unit_price', 0)
-            planned_total = cost_result.get('total_price', 0)
-        else:
-            # Pas de prix dans le catalogue
-            catalog_quantity = None
-            catalog_unit = ing['unit']
-            catalog_price = None
-            planned_unit_price = 0
-            planned_total = 0
+            # Extraire les données du debug pour l'affichage
+            debug_info = cost_result.debug
+            catalog_quantity = debug_info.get('pack_qty')
+            catalog_unit = debug_info.get('ipc_unit', ing['unit'])
+            catalog_price = debug_info.get('pack_price')
 
-        total_cost += planned_total
+            # Calculer le prix unitaire dans l'unité de la recette si possible
+            if cost_result.status == "ok" and adjusted_quantity > 0:
+                planned_unit_price = cost_result.cost / adjusted_quantity
+            else:
+                planned_unit_price = 0
 
-        ingredients_with_cost.append({
-            'name': ing['name'],
-            'normalized_name': normalized_name,
-            # Catalogue (Prix de référence)
-            'catalog_quantity': catalog_quantity,
-            'catalog_unit': catalog_unit,
-            'catalog_price': catalog_price,
-            # Recette (Besoin)
-            'recipe_quantity': adjusted_quantity,
-            'recipe_unit': ing['unit'],
-            # Coût Estimé
-            'planned_unit_price': planned_unit_price,
-            'planned_total': planned_total,
-            'notes': ing.get('notes', '')
-        })
+            total_cost += cost_result.cost
 
-    # Debug: afficher les données avant de les retourner
-    print(f"DEBUG calculate_recipe_cost - Premier ingrédient: {ingredients_with_cost[0] if ingredients_with_cost else 'Aucun'}")
+            ingredients_with_cost.append({
+                'name': ing['name'],
+                'normalized_name': normalized_name,
+                # Catalogue (Prix de référence)
+                'catalog_quantity': catalog_quantity,
+                'catalog_unit': catalog_unit,
+                'catalog_price': catalog_price,
+                # Recette (Besoin)
+                'recipe_quantity': adjusted_quantity,
+                'recipe_unit': ing['unit'],
+                # Coût Estimé
+                'planned_unit_price': planned_unit_price,
+                'planned_total': cost_result.cost,
+                'notes': ing.get('notes', ''),
+                # Nouveaux champs pour le debug
+                'cost_status': cost_result.status,
+                'cost_debug': cost_result.debug
+            })
 
     return {
         'recipe': recipe,
