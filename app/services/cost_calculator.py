@@ -21,6 +21,7 @@ def compute_estimated_cost_for_ingredient(
     recipe_qty: float,
     recipe_unit: str,
     currency: str = "EUR",
+    lang: str = "fr",
 ) -> CostResult:
     """
     Calcule le coût estimé pour un ingrédient d'une recette.
@@ -253,6 +254,13 @@ def compute_estimated_cost_for_ingredient(
 
             # Créer la conversion spécifique avec facteur par défaut = 1.0
             try:
+                # Message selon la langue
+                date_str = __import__('datetime').datetime.now().strftime('%Y-%m-%d')
+                if lang == 'jp':
+                    note_msg = f"⚠️ 自動作成された変換 - 調整が必要！（作成日：{date_str}）"
+                else:
+                    note_msg = f"⚠️ Conversion automatique créée - À AJUSTER ! (créée le {date_str})"
+
                 cursor = conn.cursor()
                 cursor.execute("""
                     INSERT INTO ingredient_specific_conversions
@@ -263,7 +271,7 @@ def compute_estimated_cost_for_ingredient(
                     recipe_unit,
                     catalog_unit,
                     1.0,
-                    f"⚠️ Conversion automatique créée - À AJUSTER ! (créée le {__import__('datetime').datetime.now().strftime('%Y-%m-%d')})"
+                    note_msg
                 ))
                 conn.commit()
 

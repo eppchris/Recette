@@ -672,7 +672,8 @@ async def event_budget_view(request: Request, event_id: int, lang: str = "fr"):
                     ingredient_name_fr=item['ingredient_name'],
                     recipe_qty=quantity,
                     recipe_unit=unit,
-                    currency=currency
+                    currency=currency,
+                    lang=lang
                 )
 
                 # Extraire les données du résultat
@@ -983,7 +984,8 @@ async def sync_ingredient_prices_from_catalog(
                 ingredient_name_fr=ingredient_name,
                 recipe_qty=quantity,
                 recipe_unit=unit,
-                currency=currency
+                currency=currency,
+                lang=lang
             )
 
             if cost_result.status in ["ok", "isc_created"] and cost_result.cost > 0:

@@ -632,7 +632,8 @@ def calculate_recipe_cost(slug: str, lang: str, servings: int = None):
                 ingredient_name_fr=ing['name'],
                 recipe_qty=adjusted_quantity,
                 recipe_unit=ing['unit'],
-                currency=currency
+                currency=currency,
+                lang=lang
             )
 
             # Extraire les données du debug pour l'affichage
