@@ -333,11 +333,20 @@ VALUES ('carotte', 'pièce', 'kg', 0.06, '...');
 
 ## 📚 Références
 
-- Code source : `app/services/cost_calculator.py`
-- Tests : `test_carrot_cost.py`
+### Code source
+- Algorithme principal : `app/services/cost_calculator.py`
+- Tests : `test_carrot_cost.py`, `test_auto_isc_creation.py`
 - Migration : `migrations/add_standard_unit_conversions.sql`
-- Intégration : `app/models/db_recipes.py:calculate_recipe_cost()`
+
+### Intégration
+- **Recettes** : `app/models/db_recipes.py:calculate_recipe_cost()`
+  - Utilisé pour calculer le coût d'une recette
+- **Événements** : `app/routes/event_routes.py`
+  - `event_budget_view()` : Affichage du budget
+  - `sync_ingredient_prices_from_catalog()` : Synchronisation des prix
+
+**Les deux utilisent le même algorithme** `compute_estimated_cost_for_ingredient()` pour garantir la cohérence des calculs dans toute l'application.
 
 ---
 
-*Dernière mise à jour : 17 décembre 2024 - Version 2.2*
+*Dernière mise à jour : 18 décembre 2024 - Version 2.2*
