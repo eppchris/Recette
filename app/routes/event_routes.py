@@ -5,7 +5,9 @@ from typing import Optional
 from datetime import datetime
 
 from app.models import db
+from app.models.db_core import get_db
 from app.services.ingredient_aggregator import get_ingredient_aggregator
+from app.services.cost_calculator import compute_estimated_cost_for_ingredient
 from app.template_config import templates
 
 router = APIRouter()
@@ -656,29 +658,40 @@ async def event_budget_view(request: Request, event_id: int, lang: str = "fr"):
     # Enrichir chaque ingrédient avec son prix calculé pour la quantité demandée
     # Utiliser la langue de l'interface pour déterminer la devise à afficher
     currency = 'EUR' if lang == 'fr' else 'JPY'
-    for item in shopping_list:
-        # Calculer le prix réel pour la quantité demandée (needed_quantity)
-        quantity = item.get('needed_quantity') or item.get('total_quantity', 0)
-        unit = item.get('needed_unit') or item.get('unit', '')
 
-        if quantity > 0 and unit:
-            price_result = db.calculate_ingredient_price(
-                item['ingredient_name'],
-                quantity,
-                unit,
-                currency
-            )
-            if price_result:
-                item['total_price'] = price_result['total_price']
-                item['unit_price'] = price_result['unit_price']
-                item['catalog_unit'] = price_result['catalog_unit']
-                item['catalog_qty'] = price_result['catalog_qty']
-                item['catalog_price'] = price_result['catalog_price']
+    with get_db() as conn:
+        for item in shopping_list:
+            # Calculer le prix réel pour la quantité demandée (needed_quantity)
+            quantity = item.get('needed_quantity') or item.get('total_quantity', 0)
+            unit = item.get('needed_unit') or item.get('unit', '')
+
+            if quantity > 0 and unit:
+                # Utiliser le nouveau système de calcul de coût
+                cost_result = compute_estimated_cost_for_ingredient(
+                    conn=conn,
+                    ingredient_name_fr=item['ingredient_name'],
+                    recipe_qty=quantity,
+                    recipe_unit=unit,
+                    currency=currency
+                )
+
+                # Extraire les données du résultat
+                debug_info = cost_result.debug
+                item['total_price'] = cost_result.cost
+                item['catalog_unit'] = debug_info.get('ipc_unit', unit)
+                item['catalog_qty'] = debug_info.get('pack_qty')
+                item['catalog_price'] = debug_info.get('pack_price')
+                item['cost_status'] = cost_result.status
+
+                # Calculer le prix unitaire
+                if cost_result.status == "ok" and quantity > 0:
+                    item['unit_price'] = cost_result.cost / quantity
+                else:
+                    item['unit_price'] = 0
             else:
                 item['catalog_price'] = None
                 item['total_price'] = None
-        else:
-            item['catalog_price'] = None
+                item['cost_status'] = None
 
     return templates.TemplateResponse(
         "event_budget.html",
@@ -954,36 +967,40 @@ async def sync_ingredient_prices_from_catalog(
     updated_items = []
 
     # Pour chaque ingrédient, récupérer le prix actuel du catalogue
-    for item in shopping_list:
-        ingredient_name = item['ingredient_name']
-        quantity = item.get('needed_quantity') or item.get('purchase_quantity') or 0
-        unit = item.get('needed_unit') or item.get('purchase_unit', '')
+    with get_db() as conn:
+        for item in shopping_list:
+            ingredient_name = item['ingredient_name']
+            quantity = item.get('needed_quantity') or item.get('purchase_quantity') or 0
+            unit = item.get('needed_unit') or item.get('purchase_unit', '')
 
-        # Sauter si pas de quantité
-        if not quantity:
-            continue
+            # Sauter si pas de quantité
+            if not quantity:
+                continue
 
-        # Calculer le prix depuis le catalogue
-        price_result = db.calculate_ingredient_price(
-            ingredient_name,
-            quantity,
-            unit,
-            currency
-        )
+            # Utiliser le nouveau système de calcul de coût
+            cost_result = compute_estimated_cost_for_ingredient(
+                conn=conn,
+                ingredient_name_fr=ingredient_name,
+                recipe_qty=quantity,
+                recipe_unit=unit,
+                currency=currency
+            )
 
-        if price_result and price_result.get('unit_price') is not None:
-            unit_price = price_result['unit_price']
+            if cost_result.status in ["ok", "isc_created"] and cost_result.cost > 0:
+                # Calculer le prix unitaire
+                unit_price = cost_result.cost / quantity if quantity > 0 else 0
 
-            # Mettre à jour le prix prévu avec le prix du catalogue
-            db.update_shopping_list_item_prices(item['id'], unit_price, None)
+                # Mettre à jour le prix prévu avec le prix du catalogue
+                db.update_shopping_list_item_prices(item['id'], unit_price, None)
 
-            updated_count += 1
-            updated_items.append({
-                'id': item['id'],
-                'name': ingredient_name,
-                'unit_price': unit_price,
-                'total_price': price_result.get('total_price', 0)
-            })
+                updated_count += 1
+                updated_items.append({
+                    'id': item['id'],
+                    'name': ingredient_name,
+                    'unit_price': unit_price,
+                    'total_price': cost_result.cost,
+                    'cost_status': cost_result.status
+                })
 
     return JSONResponse(content={
         "success": True,
