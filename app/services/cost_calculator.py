@@ -229,8 +229,68 @@ def compute_estimated_cost_for_ingredient(
                     return CostResult(cost=cost, status=status, debug=debug)
 
     # -----------------------------
-    # 5) Aucune solution trouvée
+    # 5) Aucune solution : créer une ISC par défaut
     # -----------------------------
+    # Si on arrive ici, c'est qu'on a :
+    # - Un ingrédient dans le catalogue (IPC existe)
+    # - Une unité de recette différente de l'unité catalogue
+    # - Aucune conversion (ni UC ni ISC) trouvée
+    #
+    # Solution : créer une ISC avec facteur par défaut = 1.0
+    # L'utilisateur pourra ensuite l'ajuster
+
+    # Trouver une ligne IPC pour déterminer l'unité cible
+    if ipc_rows and category is not None:
+        # Prendre la première ligne IPC avec prix
+        target_ipc = None
+        for r in ipc_rows:
+            if r["price"] is not None:
+                target_ipc = r
+                break
+
+        if target_ipc is not None:
+            catalog_unit = target_ipc["unit_fr"]
+
+            # Créer la conversion spécifique avec facteur par défaut = 1.0
+            try:
+                cursor = conn.cursor()
+                cursor.execute("""
+                    INSERT INTO ingredient_specific_conversions
+                    (ingredient_name_fr, from_unit, to_unit, factor, notes)
+                    VALUES (?, ?, ?, ?, ?)
+                """, (
+                    ingredient_name_fr,
+                    recipe_unit,
+                    catalog_unit,
+                    1.0,
+                    f"⚠️ Conversion automatique créée - À AJUSTER ! (créée le {__import__('datetime').datetime.now().strftime('%Y-%m-%d')})"
+                ))
+                conn.commit()
+
+                debug["path"].append("isc_auto_created")
+                debug["auto_isc_from"] = recipe_unit
+                debug["auto_isc_to"] = catalog_unit
+                debug["auto_isc_factor"] = 1.0
+                debug["warning"] = f"Conversion automatique créée: {recipe_unit} → {catalog_unit} (factor=1.0). AJUSTER !"
+
+                # Maintenant calculer avec cette nouvelle conversion
+                converted_qty = recipe_qty * 1.0
+
+                debug["ipc_unit"] = catalog_unit
+                debug["ipc_id"] = target_ipc["id"]
+                debug["pack_qty"] = target_ipc["qty"]
+                debug["pack_price"] = target_ipc["price"]
+
+                cost, status = compute_cost(target_ipc, converted_qty)
+
+                # Status spécial pour indiquer qu'une conversion a été créée
+                return CostResult(cost=cost, status="isc_created", debug=debug)
+
+            except Exception as e:
+                debug["path"].append("isc_creation_failed")
+                debug["error"] = str(e)
+
+    # Si vraiment aucune solution (pas d'IPC non plus)
     debug["path"].append("no_solution")
     return CostResult(cost=0.0, status="missing_conversion", debug=debug)
 

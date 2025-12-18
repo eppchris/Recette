@@ -47,7 +47,12 @@ Le système de calcul de coût utilise un algorithme à **4 priorités** pour r�
    └─ 3b. Sinon: ISC → UC → target_unit2
       ✅ Si IPC existe pour target_unit2
 
-4. Aucune solution
+4. AUTO-CREATE ISC (Nouveau !)
+   ↓ Si IPC existe mais aucune conversion
+   ✅ Créer ISC automatiquement avec factor=1.0
+   ⚠️  L'utilisateur DOIT ajuster le facteur !
+
+5. Aucune solution
    ❌ Retourner status="missing_conversion"
 ```
 
@@ -71,6 +76,34 @@ Le système de calcul de coût utilise un algorithme à **4 priorités** pour r�
 - Coût : `0.30€`
 - Status : `"ok"`
 - Chemin : `["isc", "isc->ipc"]`
+
+### Exemple : Création automatique (Pomme de terre)
+
+**Scénario :** Première utilisation sans conversion existante
+
+**Données :**
+- Recette : `2 pièce`
+- ISC : ❌ N'existe pas
+- IPC : `kg = 3.50€` (qty=1.0, category=poids)
+
+**Résolution :**
+1. DIRECT ? Non (`pièce ≠ kg`)
+2. UC ? Non (pas de UC générique `pièce → ?`)
+3. ISC ? Non (aucune ISC trouvée)
+4. AUTO-CREATE ISC ? Oui !
+   - Création : `pièce → kg` (factor=1.0)
+   - Notes : `⚠️ Conversion automatique créée - À AJUSTER !`
+   - **Calcul avec factor=1.0 :** `2 × 1.0 = 2 kg → 2 × 3.50€ = 7.00€` ⚠️
+
+**Résultat :**
+- Coût : `7.00€` ⚠️ **INCORRECT** (facteur à ajuster)
+- Status : `"isc_created"`
+- Chemin : `["isc_auto_created"]`
+
+**Action requise :**
+- Aller dans l'interface de gestion des conversions
+- Modifier le facteur : `1.0 → 0.15` (1 pièce ≈ 150g)
+- Recalculer : `2 × 0.15 = 0.30 kg → 0.30 × 3.50€ = 1.05€` ✅
 
 ---
 
@@ -175,6 +208,7 @@ cost = qty_needed × unit_price
 | Status | Signification | Action utilisateur |
 |--------|---------------|-------------------|
 | `"ok"` | Calcul réussi | Aucune |
+| `"isc_created"` | Conversion créée automatiquement (factor=1.0) | **AJUSTER le facteur dans les conversions !** |
 | `"missing_data"` | Ingrédient absent du catalogue | Ajouter dans catalogue |
 | `"missing_conversion"` | Aucune conversion trouvée | Créer ISC ou UC |
 | `"missing_price"` | Prix NULL dans catalogue | Remplir le prix |
