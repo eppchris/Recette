@@ -407,6 +407,8 @@ def get_event_recipes_with_ingredients(event_id: int, lang: str):
     """
     with get_db() as con:
         # Une seule requête avec tous les JOINs
+        # IMPORTANT: On récupère TOUJOURS le nom français (ingredient_name_fr) car c'est la clé
+        # pour le catalogue des prix, même si on affiche le nom traduit (ingredient_name)
         sql = """
             SELECT
                 r.id AS recipe_id,
@@ -419,13 +421,16 @@ def get_event_recipes_with_ingredients(event_id: int, lang: str):
                 ri.quantity,
                 COALESCE(rit.name, '') AS ingredient_name,
                 COALESCE(rit.unit, '') AS unit,
-                COALESCE(rit.notes, '') AS notes
+                COALESCE(rit.notes, '') AS notes,
+                COALESCE(rit_fr.name, rit.name, '') AS ingredient_name_fr
             FROM event_recipe er
             JOIN recipe r ON r.id = er.recipe_id
             LEFT JOIN recipe_translation rt ON rt.recipe_id = r.id AND rt.lang = ?
             LEFT JOIN recipe_ingredient ri ON ri.recipe_id = r.id
             LEFT JOIN recipe_ingredient_translation rit
                 ON rit.recipe_ingredient_id = ri.id AND rit.lang = ?
+            LEFT JOIN recipe_ingredient_translation rit_fr
+                ON rit_fr.recipe_ingredient_id = ri.id AND rit_fr.lang = 'fr'
             WHERE er.event_id = ?
             ORDER BY er.position, ri.position
         """
@@ -453,6 +458,7 @@ def get_event_recipes_with_ingredients(event_id: int, lang: str):
                 recipes_dict[recipe_id]['ingredients'].append({
                     'quantity': row['quantity'],
                     'name': row['ingredient_name'],
+                    'name_fr': row['ingredient_name_fr'],  # Nom français pour le catalogue
                     'unit': row['unit'],
                     'notes': row['notes']
                 })

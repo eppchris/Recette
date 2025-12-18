@@ -29,6 +29,7 @@ def compute_estimated_cost_for_ingredient(
     Algorithme de résolution (par ordre de priorité) :
     1. DIRECT : recipe_unit == IPC.unit_fr → calcul immédiat
     2. UC (Unit Conversion générique) : recipe_unit → target_unit via category
+       Note: Essaie TOUTES les UC possibles jusqu'à trouver un IPC correspondant
     3. ISC (Ingredient Specific Conversion) : recipe_unit → target_unit pour cet ingrédient
     4. ISC + UC (chaîne) : recipe_unit → ISC → UC → target_unit
 
@@ -69,7 +70,7 @@ def compute_estimated_cost_for_ingredient(
     # -----------------------------
     ipc_rows = conn.execute(
         f"""
-        SELECT id, ingredient_name_fr, unit_fr, {price_field} AS price, qty, conversion_category
+        SELECT id, ingredient_name_fr, unit_fr, unit_jp, {price_field} AS price, qty, conversion_category
         FROM ingredient_price_catalog
         WHERE LOWER(ingredient_name_fr) = LOWER(?)
         """,
@@ -87,6 +88,13 @@ def compute_estimated_cost_for_ingredient(
             category = r["conversion_category"]
             break
     debug["conversion_category"] = category
+
+    # Helper: obtenir l'unité dans la bonne langue
+    def get_unit_for_lang(ipc_row):
+        """Retourne l'unité du catalogue dans la langue demandée"""
+        if lang == "jp":
+            return ipc_row["unit_jp"] if ipc_row["unit_jp"] else ipc_row["unit_fr"]
+        return ipc_row["unit_fr"]
 
     # Helper: trouver une ligne IPC par unité avec prix non-null
     def find_ipc_by_unit(unit_code: str):
@@ -120,7 +128,7 @@ def compute_estimated_cost_for_ingredient(
     ipc_direct = find_ipc_by_unit(recipe_unit)
     if ipc_direct is not None:
         debug["path"].append("direct")
-        debug["ipc_unit"] = ipc_direct["unit_fr"]
+        debug["ipc_unit"] = get_unit_for_lang(ipc_direct)
         debug["ipc_id"] = ipc_direct["id"]
         debug["pack_qty"] = ipc_direct["qty"]
         debug["pack_price"] = ipc_direct["price"]
@@ -130,31 +138,34 @@ def compute_estimated_cost_for_ingredient(
     # -----------------------------
     # 3) UC générique (recipe_unit → target_unit) via category
     # -----------------------------
+    # Essayer TOUTES les conversions UC possibles jusqu'à trouver un IPC
     if category is not None:
-        uc = conn.execute(
+        uc_rows = conn.execute(
             """
             SELECT from_unit, to_unit, factor
             FROM unit_conversion
             WHERE category = ?
               AND LOWER(from_unit) = LOWER(?)
-            LIMIT 1
+            ORDER BY from_unit, to_unit
             """,
             (category, recipe_unit),
-        ).fetchone()
+        ).fetchall()
 
-        if uc is not None:
+        for uc in uc_rows:
             target_unit = uc["to_unit"]
             factor = uc["factor"]
             converted_qty = recipe_qty * factor
-            debug["path"].append("uc")
-            debug["uc_from"] = recipe_unit
-            debug["uc_to"] = target_unit
-            debug["uc_factor"] = factor
-            debug["qty_after_uc"] = converted_qty
 
+            # Vérifier si un IPC existe pour cette unité cible
             ipc_uc = find_ipc_by_unit(target_unit)
             if ipc_uc is not None:
-                debug["ipc_unit"] = ipc_uc["unit_fr"]
+                # Conversion réussie !
+                debug["path"].append("uc")
+                debug["uc_from"] = recipe_unit
+                debug["uc_to"] = target_unit
+                debug["uc_factor"] = factor
+                debug["qty_after_uc"] = converted_qty
+                debug["ipc_unit"] = get_unit_for_lang(ipc_uc)
                 debug["ipc_id"] = ipc_uc["id"]
                 debug["pack_qty"] = ipc_uc["qty"]
                 debug["pack_price"] = ipc_uc["price"]
@@ -189,7 +200,7 @@ def compute_estimated_cost_for_ingredient(
         ipc_isc = find_ipc_by_unit(target_unit)
         if ipc_isc is not None:
             debug["path"].append("isc->ipc")
-            debug["ipc_unit"] = ipc_isc["unit_fr"]
+            debug["ipc_unit"] = get_unit_for_lang(ipc_isc)
             debug["ipc_id"] = ipc_isc["id"]
             debug["pack_qty"] = ipc_isc["qty"]
             debug["pack_price"] = ipc_isc["price"]
@@ -222,7 +233,7 @@ def compute_estimated_cost_for_ingredient(
                 ipc_isc_uc = find_ipc_by_unit(target_unit2)
                 if ipc_isc_uc is not None:
                     debug["path"].append("isc->uc->ipc")
-                    debug["ipc_unit"] = ipc_isc_uc["unit_fr"]
+                    debug["ipc_unit"] = get_unit_for_lang(ipc_isc_uc)
                     debug["ipc_id"] = ipc_isc_uc["id"]
                     debug["pack_qty"] = ipc_isc_uc["qty"]
                     debug["pack_price"] = ipc_isc_uc["price"]
@@ -284,7 +295,7 @@ def compute_estimated_cost_for_ingredient(
                 # Maintenant calculer avec cette nouvelle conversion
                 converted_qty = recipe_qty * 1.0
 
-                debug["ipc_unit"] = catalog_unit
+                debug["ipc_unit"] = get_unit_for_lang(target_ipc)
                 debug["ipc_id"] = target_ipc["id"]
                 debug["pack_qty"] = target_ipc["qty"]
                 debug["pack_price"] = target_ipc["price"]

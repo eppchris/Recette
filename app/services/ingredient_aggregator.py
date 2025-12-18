@@ -331,8 +331,10 @@ class IngredientAggregator:
             multiplier = recipe_data.get("servings_multiplier", 1.0)
 
             for ingredient in recipe_data["ingredients"]:
-                # Normaliser le nom
-                normalized_name = self.normalize_ingredient_name(ingredient["name"])
+                # Normaliser le nom FRANÇAIS pour agréger et stocker
+                # (Le nom traduit 'name' est gardé pour l'affichage)
+                name_fr = ingredient.get("name_fr", ingredient["name"])
+                normalized_name = self.normalize_ingredient_name(name_fr)
 
                 # Quantité ajustée
                 quantity = ingredient.get("quantity")
@@ -396,8 +398,9 @@ class IngredientAggregator:
         # Convertir en liste de résultats
         result = []
         for normalized_name, data in aggregated.items():
-            # Choisir le meilleur nom à afficher parmi les variantes
-            display_name = self.choose_display_name(data["original_names"])
+            # Utiliser le nom français normalisé comme clé unique
+            # (La traduction pour l'affichage se fera dans le template)
+            display_name = normalized_name
 
             # Convertir vers unité d'achat
             if data["total_quantity_standard"] > 0:

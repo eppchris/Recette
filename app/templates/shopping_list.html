@@ -12,6 +12,9 @@
     <link rel="apple-touch-icon" sizes="64x64" href="/static/favicon-64x64.png?v=2">
     <script src="/static/css/tailwind.min.js"></script>
     <script defer src="/static/css/alpine.min.js"></script>
+    <style>
+        [x-cloak] { display: none !important; }
+    </style>
 </head>
 {% set currency = '€' if event.currency == 'EUR' else '¥' %}
 <body class="bg-gray-50" x-data="shoppingListApp()">
@@ -445,13 +448,17 @@
 
                         try {
                             const response = await fetch(`/api/ingredient-catalog-info?ingredient_name=${encodeURIComponent(ingredientName)}&lang={{ lang }}`);
+                            if (!response.ok) {
+                                throw new Error(`HTTP ${response.status}`);
+                            }
                             const data = await response.json();
                             this.data = data;
-                        } catch (error) {
-                            console.error('Erreur:', error);
-                            alert('{{ 'Erreur lors du chargement' if lang == 'fr' else 'エラーが発生しました' }}');
-                        } finally {
                             this.loading = false;
+                        } catch (error) {
+                            console.error('Erreur lors du chargement du catalogue:', error);
+                            this.loading = false;
+                            this.close();
+                            alert('{{ 'Erreur lors du chargement du catalogue' if lang == 'fr' else 'カタログの読み込みエラー' }}');
                         }
                     },
 
@@ -537,8 +544,6 @@
     </script>
 
     <style>
-        [x-cloak] { display: none !important; }
-
         @media print {
             /* Reset général */
             * {

@@ -130,7 +130,7 @@ async def event_detail(request: Request, event_id: int, lang: str = "fr"):
     all_recipes = db.list_recipes(lang)
 
     # Vérifier si une shopping list existe pour cet événement
-    shopping_list_items = db.get_shopping_list_items(event_id)
+    shopping_list_items = db.get_shopping_list_items(event_id, lang)
     has_shopping_list = len(shopping_list_items) > 0
 
     # Récupérer les participants et groupes (avec gestion d'erreur si tables non migrées)
@@ -252,7 +252,7 @@ async def event_update(
         db.update_event_recipes_multipliers(event_id, ratio)
 
         # Si une liste de courses existe, la régénérer avec les nouvelles quantités
-        shopping_list_items = db.get_shopping_list_items(event_id)
+        shopping_list_items = db.get_shopping_list_items(event_id, lang)
 
         if len(shopping_list_items) > 0:
             # Récupérer les recettes de l'événement avec les ingrédients (avec les nouveaux multiplicateurs)
@@ -483,7 +483,7 @@ async def event_shopping_list(request: Request, event_id: int, lang: str = "fr",
     recipes_data = db.get_event_recipes_with_ingredients(event_id, lang)
 
     # Vérifier si une liste existe déjà
-    saved_items = db.get_shopping_list_items(event_id)
+    saved_items = db.get_shopping_list_items(event_id, lang)
 
     # Détecter si on doit régénérer (pas de liste OU changement de langue)
     needs_regeneration = not saved_items or regenerate
@@ -510,7 +510,7 @@ async def event_shopping_list(request: Request, event_id: int, lang: str = "fr",
         db.save_shopping_list_items(event_id, aggregated_ingredients)
 
         # Recharger les items sauvegardés
-        saved_items = db.get_shopping_list_items(event_id)
+        saved_items = db.get_shopping_list_items(event_id, lang)
 
     return templates.TemplateResponse(
         "shopping_list.html",
@@ -627,7 +627,7 @@ async def event_budget_view(request: Request, event_id: int, lang: str = "fr"):
     budget_summary = db.get_event_budget_summary(event_id)
 
     # Récupérer la liste de courses
-    shopping_list = db.get_shopping_list_items(event_id)
+    shopping_list = db.get_shopping_list_items(event_id, lang)
 
     # Si la liste est vide, essayer de la générer depuis les recettes de l'événement
     if not shopping_list:
@@ -637,7 +637,7 @@ async def event_budget_view(request: Request, event_id: int, lang: str = "fr"):
             aggregator = get_ingredient_aggregator()
             aggregated_ingredients = aggregator.aggregate_ingredients(recipes_data, lang)
             db.save_shopping_list_items(event_id, aggregated_ingredients)
-            shopping_list = db.get_shopping_list_items(event_id)
+            shopping_list = db.get_shopping_list_items(event_id, lang)
     # Vérifier si la liste doit être régénérée pour la bonne langue
     elif shopping_list:
         # Vérifier si la liste contient des caractères japonais
@@ -653,7 +653,7 @@ async def event_budget_view(request: Request, event_id: int, lang: str = "fr"):
                 aggregator = get_ingredient_aggregator()
                 aggregated_ingredients = aggregator.aggregate_ingredients(recipes_data, lang)
                 db.save_shopping_list_items(event_id, aggregated_ingredients)
-                shopping_list = db.get_shopping_list_items(event_id)
+                shopping_list = db.get_shopping_list_items(event_id, lang)
 
     # Enrichir chaque ingrédient avec son prix calculé pour la quantité demandée
     # Utiliser la langue de l'interface pour déterminer la devise à afficher
@@ -819,7 +819,7 @@ async def event_add_ingredients_expense(
     form_data = await request.form()
 
     # Récupérer la liste de courses
-    shopping_list = db.get_shopping_list_items(event_id)
+    shopping_list = db.get_shopping_list_items(event_id, lang)
 
     # Calculer le total et préparer les données des ingrédients
     ingredients_data = []
@@ -898,7 +898,7 @@ async def save_ingredient_budget(
     form_data = await request.form()
 
     # Récupérer la liste de courses
-    shopping_list = db.get_shopping_list_items(event_id)
+    shopping_list = db.get_shopping_list_items(event_id, lang)
 
     # Sauvegarder les prix unitaires prévus et montants dépensés pour chaque ingrédient
     for item in shopping_list:
@@ -959,7 +959,7 @@ async def sync_ingredient_prices_from_catalog(
         )
 
     # Récupérer la liste de courses
-    shopping_list = db.get_shopping_list_items(event_id)
+    shopping_list = db.get_shopping_list_items(event_id, lang)
 
     # Déterminer la devise selon la langue
     currency = 'EUR' if lang == 'fr' else 'JPY'

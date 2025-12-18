@@ -4,9 +4,13 @@ Module de gestion des listes de courses
 from .db_core import get_db
 
 
-def get_shopping_list_items(event_id: int):
+def get_shopping_list_items(event_id: int, lang: str = "fr"):
     """
     Récupère tous les items d'une liste de courses pour un événement
+
+    Args:
+        event_id: ID de l'événement
+        lang: Langue pour la traduction des noms d'ingrédients ("fr" ou "jp")
     """
     with get_db() as conn:
         cursor = conn.cursor()
@@ -16,21 +20,43 @@ def get_shopping_list_items(event_id: int):
         columns = cursor.fetchall()
         print(f"DEBUG: shopping_list_item columns: {[col[1] for col in columns]}")
 
+        # Récupérer les items avec traduction depuis le catalogue
         cursor.execute("""
-            SELECT id, event_id, ingredient_name,
-                   needed_quantity, needed_unit,
-                   purchase_quantity, purchase_unit,
-                   is_checked, notes, source_recipes, position,
-                   created_at, updated_at,
-                   planned_unit_price, actual_total_price
-            FROM shopping_list_item
-            WHERE event_id = ?
-            ORDER BY position, ingredient_name
-        """, (event_id,))
+            SELECT
+                sli.id,
+                sli.event_id,
+                sli.ingredient_name,
+                CASE
+                    WHEN ? = 'jp' AND ipc.ingredient_name_jp IS NOT NULL
+                    THEN ipc.ingredient_name_jp
+                    ELSE sli.ingredient_name
+                END AS ingredient_name_display,
+                sli.needed_quantity,
+                sli.needed_unit,
+                sli.purchase_quantity,
+                sli.purchase_unit,
+                sli.is_checked,
+                sli.notes,
+                sli.source_recipes,
+                sli.position,
+                sli.created_at,
+                sli.updated_at,
+                sli.planned_unit_price,
+                sli.actual_total_price
+            FROM shopping_list_item sli
+            LEFT JOIN ingredient_price_catalog ipc
+                ON LOWER(sli.ingredient_name) = LOWER(ipc.ingredient_name_fr)
+            WHERE sli.event_id = ?
+            ORDER BY sli.position, sli.ingredient_name
+        """, (lang, event_id))
 
         items = []
         for row in cursor.fetchall():
             item = dict(row)
+            # Utiliser le nom traduit pour l'affichage
+            item['ingredient_name'] = item['ingredient_name_display']
+            del item['ingredient_name_display']
+
             # Déserialiser le JSON des recettes sources
             if item['source_recipes']:
                 import json

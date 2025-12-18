@@ -127,6 +127,7 @@ def list_ingredient_catalog(search: str = None, lang: str = 'fr'):
                 c.price_eur,
                 c.price_jpy,
                 c.qty,
+                c.conversion_category,
                 c.updated_at,
                 c.created_at
             FROM ingredient_price_catalog c
@@ -177,7 +178,7 @@ def get_ingredient_from_catalog(ingredient_id: int = None, ingredient_name: str 
         return dict(result) if result else None
 
 
-def update_ingredient_catalog_price(ingredient_id: int, price_eur: float = None, price_jpy: float = None, unit_fr: str = None, unit_jp: str = None, qty: float = None):
+def update_ingredient_catalog_price(ingredient_id: int, price_eur: float = None, price_jpy: float = None, unit_fr: str = None, unit_jp: str = None, qty: float = None, conversion_category: str = None):
     """
     Met à jour les prix d'un ingrédient dans le catalogue
 
@@ -188,6 +189,7 @@ def update_ingredient_catalog_price(ingredient_id: int, price_eur: float = None,
         unit_fr: Unité en français (optionnel)
         unit_jp: Unité en japonais (optionnel)
         qty: Quantité de référence pour le prix (optionnel)
+        conversion_category: Catégorie de conversion (poids, volume, unite) (optionnel)
 
     Returns:
         True si succès, False sinon
@@ -217,6 +219,10 @@ def update_ingredient_catalog_price(ingredient_id: int, price_eur: float = None,
         if qty is not None:
             updates.append("qty = ?")
             params.append(qty)
+
+        if conversion_category is not None:
+            updates.append("conversion_category = ?")
+            params.append(conversion_category if conversion_category else None)
 
         if updates:
             updates.append("updated_at = CURRENT_TIMESTAMP")

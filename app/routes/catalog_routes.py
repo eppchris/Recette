@@ -49,7 +49,8 @@ async def update_ingredient_price(
     price_eur: Optional[str] = Form(None),
     price_jpy: Optional[str] = Form(None),
     qty: Optional[str] = Form(None),
-    unit: str = Form(...)
+    unit: str = Form(...),
+    conversion_category: Optional[str] = Form(None)
 ):
     """
     Met à jour les prix d'un ingrédient
@@ -79,9 +80,9 @@ async def update_ingredient_price(
 
     # Mettre à jour l'unité selon la langue affichée
     if lang == 'jp':
-        db.update_ingredient_catalog_price(ingredient_id, eur, jpy, unit_jp=unit, qty=quantity)
+        db.update_ingredient_catalog_price(ingredient_id, eur, jpy, unit_jp=unit, qty=quantity, conversion_category=conversion_category)
     else:
-        db.update_ingredient_catalog_price(ingredient_id, eur, jpy, unit_fr=unit, qty=quantity)
+        db.update_ingredient_catalog_price(ingredient_id, eur, jpy, unit_fr=unit, qty=quantity, conversion_category=conversion_category)
 
     return RedirectResponse(f"/ingredient-catalog?lang={lang}", status_code=303)
 

@@ -155,6 +155,8 @@ def get_recipe_by_slug(slug: str, lang: str):
             return None
 
         # Récupérer les ingrédients avec leurs traductions
+        # IMPORTANT: On récupère TOUJOURS le nom français (name_fr) car c'est la clé
+        # pour le catalogue des prix, même si on affiche le nom traduit (name)
         ingredients_sql = """
             SELECT
                 ri.id,
@@ -162,10 +164,13 @@ def get_recipe_by_slug(slug: str, lang: str):
                 ri.quantity,
                 COALESCE(rit.name, '') AS name,
                 COALESCE(rit.unit, '') AS unit,
-                COALESCE(rit.notes, '') AS notes
+                COALESCE(rit.notes, '') AS notes,
+                COALESCE(rit_fr.name, rit.name, '') AS name_fr
             FROM recipe_ingredient ri
             LEFT JOIN recipe_ingredient_translation rit
                 ON rit.recipe_ingredient_id = ri.id AND rit.lang = ?
+            LEFT JOIN recipe_ingredient_translation rit_fr
+                ON rit_fr.recipe_ingredient_id = ri.id AND rit_fr.lang = 'fr'
             WHERE ri.recipe_id = ?
             ORDER BY ri.position
         """
@@ -627,9 +632,10 @@ def calculate_recipe_cost(slug: str, lang: str, servings: int = None):
             normalized_name = aggregator.normalize_ingredient_name(ing['name'])
 
             # Calculer le coût avec le nouveau système
+            # IMPORTANT: Utiliser name_fr (pas name) car le catalogue utilise toujours les noms français
             cost_result = compute_estimated_cost_for_ingredient(
                 conn=conn,
-                ingredient_name_fr=ing['name'],
+                ingredient_name_fr=ing['name_fr'],
                 recipe_qty=adjusted_quantity,
                 recipe_unit=ing['unit'],
                 currency=currency,
