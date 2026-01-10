@@ -146,7 +146,7 @@ EXEMPLES:
                     "temperature": 0.1,  # Faible température pour plus de précision
                     "topK": 32,
                     "topP": 1,
-                    "maxOutputTokens": 2048,
+                    "maxOutputTokens": 8192,  # Augmenté pour tickets longs
                 }
             }
 
