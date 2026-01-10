@@ -194,12 +194,13 @@ ssh $SYNOLOGY_SSH << 'ENDSSH'
 cd recette
 source venv/bin/activate
 
-# Nouvelles dépendances pour Gemini Vision API
+# Installer toutes les dépendances depuis requirements.txt
+echo "  📦 Installation des dépendances depuis requirements.txt..."
+pip install --quiet -r requirements.txt
+
+# Nouvelle dépendance pour Gemini Vision API (V2.5)
 echo "  🔍 Installation de google-generativeai..."
 pip install --quiet google-generativeai
-
-echo "  🔍 Vérification de Pillow (traitement images)..."
-pip install --quiet --upgrade Pillow
 
 echo "✅ Dépendances installées"
 
