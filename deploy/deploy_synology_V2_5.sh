@@ -157,54 +157,35 @@ ENDSSH
 
 # 6. Application des migrations SQL
 echo ""
-echo "🗄️  Étape 6/8 : Application des migrations SQL..."
-ssh $SYNOLOGY_SSH << 'ENDSSH'
-cd recette
-
-echo "  📝 Migration 008: Création des tables receipts..."
-sqlite3 data/recette.sqlite3 < migrations/008_add_receipt_tables.sql
-if [ $? -eq 0 ]; then
-    echo "  ✅ Migration 008 appliquée"
-else
-    echo "  ❌ Erreur migration 008"
-    exit 1
-fi
-
-echo "  📝 Migration 009: Colonnes bilingues pour receipts..."
-sqlite3 data/recette.sqlite3 < migrations/009_add_receipt_bilingual_columns.sql
-if [ $? -eq 0 ]; then
-    echo "  ✅ Migration 009 appliquée"
-else
-    echo "  ❌ Erreur migration 009"
-    exit 1
-fi
-
-echo "  📝 Migration 010: Tracking source des prix..."
-sqlite3 data/recette.sqlite3 < migrations/010_add_price_source_tracking.sql
-if [ $? -eq 0 ]; then
-    echo "  ✅ Migration 010 appliquée"
-else
-    echo "  ❌ Erreur migration 010"
-    exit 1
-fi
-
+echo "🗄️  Étape 6/8 : Transfert de la base de données migrée..."
 echo ""
-echo "  🔍 Vérification de l'intégrité de la base..."
-sqlite3 data/recette.sqlite3 "PRAGMA integrity_check;" > /dev/null 2>&1
-if [ $? -eq 0 ]; then
-    echo "  ✅ Base de données OK"
-else
-    echo "  ❌ Base de données corrompue - RESTAURER LE BACKUP !"
-    exit 1
-fi
+echo "⚠️  IMPORTANT : Les migrations SQL ne peuvent pas être appliquées directement sur le NAS"
+echo "    à cause de la version ancienne de SQLite (< 3.25.0) qui ne supporte pas"
+echo "    certaines commandes comme ALTER TABLE RENAME COLUMN."
+echo ""
+echo "📋 PROCÉDURE MANUELLE REQUISE :"
+echo ""
+echo "   1️⃣  Copier la base du NAS vers le poste local :"
+echo "       scp admin@192.168.1.14:recette/data/recette.sqlite3 data/recette_nas_backup.sqlite3"
+echo ""
+echo "   2️⃣  Appliquer les migrations en local :"
+echo "       sqlite3 data/recette_nas_backup.sqlite3 < migrations/008_add_receipt_tables.sql"
+echo "       sqlite3 data/recette_nas_backup.sqlite3 < migrations/009_add_receipt_bilingual_columns.sql"
+echo "       sqlite3 data/recette_nas_backup.sqlite3 < migrations/010_add_price_source_tracking.sql"
+echo ""
+echo "   3️⃣  Vérifier l'intégrité :"
+echo "       sqlite3 data/recette_nas_backup.sqlite3 'PRAGMA integrity_check;'"
+echo ""
+echo "   4️⃣  Copier la base migrée vers le NAS :"
+echo "       scp data/recette_nas_backup.sqlite3 admin@192.168.1.14:recette/data/recette.sqlite3"
+echo ""
+echo "   5️⃣  Relancer ce script pour déployer le code"
+echo ""
+echo "❓ Avez-vous déjà effectué la migration manuelle de la base de données ?"
+echo "   (Appuyez sur Entrée pour continuer si OUI, ou Ctrl+C pour annuler)"
+read -r
 
-ENDSSH
-
-if [ $? -ne 0 ]; then
-    echo "❌ Erreur lors des migrations SQL"
-    echo "⚠️  RESTAURER LE BACKUP AVANT DE CONTINUER !"
-    exit 1
-fi
+echo "✅ Migration de la base supposée effectuée, on continue..."
 
 # 7. Vérification et installation des dépendances
 echo ""

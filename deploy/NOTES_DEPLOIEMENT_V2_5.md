@@ -308,8 +308,12 @@ class="bg-red-100 dark:bg-red-900 text-red-700 dark:text-red-300"
 
 - [ ] Backup base de données créé
 - [ ] Application arrêtée
+- [ ] **MIGRATIONS SQL (PROCÉDURE MANUELLE OBLIGATOIRE)** :
+  - [ ] Copier la base du NAS vers le poste local
+  - [ ] Appliquer migrations 008, 009, 010 en local
+  - [ ] Vérifier l'intégrité de la base
+  - [ ] Copier la base migrée vers le NAS
 - [ ] Fichiers déployés
-- [ ] Migrations 008, 009, 010 appliquées
 - [ ] Dépendances installées
 - [ ] GEMINI_API_KEY ajoutée dans .env
 - [ ] Application redémarrée
@@ -369,7 +373,38 @@ sqlite3 data/recette.sqlite3 "PRAGMA table_info(ingredient_price_catalog);" | gr
 
 ## ⚠️ Points d'attention
 
-### 1. Clé API Gemini OBLIGATOIRE
+### 1. Migration SQL manuelle OBLIGATOIRE
+
+**IMPORTANT** : Les migrations SQL ne peuvent PAS être appliquées directement sur le NAS à cause de la version ancienne de SQLite (< 3.25.0).
+
+**Procédure obligatoire** :
+
+```bash
+# 1. Copier la base du NAS vers le poste local
+scp admin@192.168.1.14:recette/data/recette.sqlite3 data/recette.sqlite3
+
+# 2. Appliquer les migrations en local
+sqlite3 data/recette.sqlite3 < migrations/008_add_receipt_tables.sql
+sqlite3 data/recette.sqlite3 < migrations/009_add_receipt_bilingual_columns.sql
+sqlite3 data/recette.sqlite3 < migrations/010_add_price_source_tracking.sql
+
+# 3. Vérifier l'intégrité
+sqlite3 data/recette.sqlite3 "PRAGMA integrity_check;"
+
+# 4. Tester en local (optionnel mais recommandé)
+source venv/bin/activate
+uvicorn main:app --reload --port 8000
+
+# 5. Copier la base migrée vers le NAS
+scp data/recette.sqlite3 admin@192.168.1.14:recette/data/recette.sqlite3
+
+# 6. Relancer le script de déploiement pour déployer le code
+./deploy/deploy_synology_V2_5.sh
+```
+
+**Raison** : SQLite < 3.25.0 ne supporte pas `ALTER TABLE RENAME COLUMN` utilisé dans la migration 009.
+
+### 2. Clé API Gemini OBLIGATOIRE
 
 Sans la clé, l'upload de tickets plantera.
 
