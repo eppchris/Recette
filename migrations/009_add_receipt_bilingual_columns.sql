@@ -19,7 +19,7 @@ CREATE TABLE receipt_item_match_new (
     confidence_score REAL DEFAULT 0.0,
     status TEXT DEFAULT 'pending',
     validated_at TIMESTAMP,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    notes TEXT,
     FOREIGN KEY (receipt_id) REFERENCES receipt_upload_history(id) ON DELETE CASCADE,
     FOREIGN KEY (matched_ingredient_id) REFERENCES ingredient_price_catalog(id) ON DELETE SET NULL
 );
@@ -40,7 +40,7 @@ INSERT INTO receipt_item_match_new (
     confidence_score,
     status,
     validated_at,
-    created_at
+    notes
 )
 SELECT
     id,
@@ -54,7 +54,7 @@ SELECT
     confidence_score,
     status,
     validated_at,
-    created_at
+    notes
 FROM receipt_item_match;
 
 -- ============================================================================
