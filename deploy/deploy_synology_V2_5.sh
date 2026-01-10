@@ -199,8 +199,23 @@ echo "  📦 Installation des dépendances depuis requirements.txt..."
 pip install --quiet -r requirements.txt
 
 # Nouvelle dépendance pour Gemini Vision API (V2.5)
-echo "  🔍 Installation de google-generativeai..."
-pip install --quiet google-generativeai
+# IMPORTANT: Utiliser --only-binary pour éviter la compilation sur Synology
+# (pas de compilateur C++ disponible sur DS213+)
+echo "  🔍 Installation de google-generativeai (binaire uniquement)..."
+pip install --quiet --only-binary=:all: google-generativeai || {
+    echo "  ⚠️  Échec installation avec --only-binary, tentative sans restriction..."
+    pip install --quiet google-generativeai || {
+        echo "  ❌ ERREUR: Impossible d'installer google-generativeai"
+        echo "      La fonctionnalité OCR de tickets ne sera pas disponible"
+        echo "      L'application démarrera mais l'upload de tickets échouera"
+        echo ""
+        echo "      Solution: Installer manuellement sur le NAS avec:"
+        echo "      ssh admin@192.168.1.14"
+        echo "      cd recette && source venv/bin/activate"
+        echo "      pip install --only-binary=:all: google-generativeai"
+        exit 1
+    }
+}
 
 echo "✅ Dépendances installées"
 
