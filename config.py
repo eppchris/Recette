@@ -38,6 +38,7 @@ class Config:
 
     # API externe
     GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
+    GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 
     # Logs
     LOG_LEVEL = os.getenv("LOG_LEVEL", "info" if ENV == "prod" else "debug")

@@ -398,12 +398,19 @@ def get_event_recipes_with_ingredients(event_id: int, lang: str):
     OPTIMISATION: Une seule requête avec JOIN au lieu de N+1 queries
     Gain: 91% de réduction (11 requêtes → 1 requête pour 10 recettes)
 
+    IMPORTANT: Calcule automatiquement le multiplicateur en fonction de:
+    - event.attendees (nombre de convives de l'événement)
+    - recipe.servings_default (nombre de portions par défaut de la recette)
+    - er.servings_multiplier (ajustement manuel supplémentaire)
+
+    Formule: multiplicateur_final = (event.attendees / recipe.servings_default) * er.servings_multiplier
+
     Args:
         event_id: ID de l'événement
         lang: Code de langue ('fr' ou 'jp')
 
     Returns:
-        Liste des recettes avec ingrédients détaillés et multiplicateur
+        Liste des recettes avec ingrédients détaillés et multiplicateur calculé
     """
     with get_db() as con:
         # Une seule requête avec tous les JOINs
@@ -413,8 +420,10 @@ def get_event_recipes_with_ingredients(event_id: int, lang: str):
             SELECT
                 r.id AS recipe_id,
                 r.slug AS recipe_slug,
+                r.servings_default,
                 COALESCE(rt.name, r.slug) AS recipe_name,
-                er.servings_multiplier,
+                er.servings_multiplier AS manual_multiplier,
+                e.attendees AS event_attendees,
                 er.position AS recipe_position,
                 ri.id AS ingredient_id,
                 ri.position AS ingredient_position,
@@ -425,6 +434,7 @@ def get_event_recipes_with_ingredients(event_id: int, lang: str):
                 COALESCE(rit_fr.name, rit.name, '') AS ingredient_name_fr
             FROM event_recipe er
             JOIN recipe r ON r.id = er.recipe_id
+            JOIN event e ON e.id = er.event_id
             LEFT JOIN recipe_translation rt ON rt.recipe_id = r.id AND rt.lang = ?
             LEFT JOIN recipe_ingredient ri ON ri.recipe_id = r.id
             LEFT JOIN recipe_ingredient_translation rit
@@ -444,11 +454,22 @@ def get_event_recipes_with_ingredients(event_id: int, lang: str):
 
             # Créer l'entrée de recette si elle n'existe pas
             if recipe_id not in recipes_dict:
+                # Calculer le multiplicateur automatique basé sur le nombre de convives
+                servings_default = row['servings_default'] or 1  # Éviter division par zéro
+                event_attendees = row['event_attendees'] or 1
+                manual_multiplier = row['manual_multiplier'] or 1.0
+
+                # Formule: (convives événement / portions recette) × ajustement manuel
+                auto_multiplier = event_attendees / servings_default
+                final_multiplier = auto_multiplier * manual_multiplier
+
                 recipes_dict[recipe_id] = {
                     'recipe_id': recipe_id,
                     'recipe_slug': row['recipe_slug'],
                     'recipe_name': row['recipe_name'],
-                    'servings_multiplier': row['servings_multiplier'],
+                    'servings_multiplier': final_multiplier,  # Multiplicateur calculé automatiquement
+                    'servings_default': servings_default,  # Pour information
+                    'event_attendees': event_attendees,  # Pour information
                     'recipe_position': row['recipe_position'],
                     'ingredients': []
                 }

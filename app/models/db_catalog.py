@@ -128,6 +128,10 @@ def list_ingredient_catalog(search: str = None, lang: str = 'fr'):
                 c.price_jpy,
                 c.qty,
                 c.conversion_category,
+                c.price_eur_source,
+                c.price_eur_last_receipt_date,
+                c.price_jpy_source,
+                c.price_jpy_last_receipt_date,
                 c.updated_at,
                 c.created_at
             FROM ingredient_price_catalog c

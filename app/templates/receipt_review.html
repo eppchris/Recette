@@ -1,0 +1,484 @@
+<!DOCTYPE html>
+<html lang="{{ lang }}">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ 'Détail du ticket' if lang == 'fr' else 'レシート詳細' }} - Recette</title>
+
+    <!-- Favicons -->
+    <link rel="icon" type="image/x-icon" href="/static/favicon.ico?v=2">
+    <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-32x32.png?v=2">
+    <link rel="icon" type="image/png" sizes="16x16" href="/static/favicon-16x16.png?v=2">
+    <link rel="apple-touch-icon" sizes="64x64" href="/static/favicon-64x64.png?v=2">
+    <script src="/static/css/tailwind.min.js"></script>
+    <script defer src="/static/css/alpine.min.js"></script>
+</head>
+<body class="bg-gray-50" x-data="{ darkMode: false, editingItem: null }">
+    <div :class="darkMode ? 'dark bg-gray-900' : 'bg-gray-50'" class="min-h-screen">
+        <!-- Header -->
+        <header class="bg-white dark:bg-gray-800 shadow-sm border-b border-gray-200 dark:border-gray-700">
+            <div class="max-w-7xl mx-auto px-4 py-4">
+                <div class="flex justify-between items-center">
+                    <div class="flex items-center gap-4">
+                        <a href="/receipt-list?lang={{ lang }}" class="text-blue-600 dark:text-blue-400 hover:underline">
+                            ← {{ 'Retour à la liste' if lang == 'fr' else 'リストに戻る' }}
+                        </a>
+                        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">
+                            📋 {{ 'Détail du ticket' if lang == 'fr' else 'レシート詳細' }}
+                        </h1>
+                    </div>
+
+                    <div class="flex items-center gap-4">
+                        <!-- Sélecteur de langue -->
+                        <div class="flex gap-2">
+                            <a href="?lang=fr"
+                               class="px-3 py-1.5 rounded-lg {{ 'bg-blue-500 text-white' if lang == 'fr' else 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600' }}">
+                                FR
+                            </a>
+                            <a href="?lang=jp"
+                               class="px-3 py-1.5 rounded-lg {{ 'bg-blue-500 text-white' if lang == 'jp' else 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600' }}">
+                                JP
+                            </a>
+                        </div>
+
+                        <!-- Toggle mode sombre -->
+                        <button @click="darkMode = !darkMode"
+                                class="p-2 rounded-lg bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600">
+                            <span x-show="!darkMode">🌙</span>
+                            <span x-show="darkMode">☀️</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Contenu principal -->
+        <main class="max-w-7xl mx-auto px-4 py-8">
+            <!-- Informations du ticket -->
+            <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6 mb-6">
+                <div class="flex justify-between items-start">
+                    <div>
+                        <h2 class="text-xl font-semibold text-gray-900 dark:text-white mb-2">
+                            {% if receipt.receipt_name %}
+                                {{ receipt.receipt_name }}
+                            {% else %}
+                                {{ receipt.filename }}
+                            {% endif %}
+                        </h2>
+                        <div class="text-sm text-gray-600 dark:text-gray-400 space-y-1">
+                            {% if receipt.store_name %}
+                                <div>
+                                    <span class="font-medium">{{ 'Commerce' if lang == 'fr' else '店舗' }}:</span>
+                                    {{ receipt.store_name }}
+                                </div>
+                            {% endif %}
+                            {% if receipt.receipt_date %}
+                                <div>
+                                    <span class="font-medium">{{ 'Date' if lang == 'fr' else '日付' }}:</span>
+                                    {{ receipt.receipt_date }}
+                                </div>
+                            {% endif %}
+                            <div>
+                                <span class="font-medium">{{ 'Devise' if lang == 'fr' else '通貨' }}:</span>
+                                {{ receipt.currency }}
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Statistiques -->
+                    <div class="text-right">
+                        <div class="text-sm text-gray-600 dark:text-gray-400 space-y-1">
+                            <div>{{ receipt.total_items }} {{ 'articles extraits' if lang == 'fr' else 'アイテム抽出' }}</div>
+                            <div>{{ receipt.matched_items }} {{ 'matchés' if lang == 'fr' else 'マッチ' }}</div>
+                            <div class="font-semibold text-green-600 dark:text-green-400">
+                                {{ receipt.validated_items }} {{ 'validés' if lang == 'fr' else '検証済み' }}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+
+            <!-- Filtres -->
+            <script>
+                window.receiptItems = {{ receipt.matched_items_list | tojson | safe }};
+            </script>
+            <div x-data="{
+                filterStatus: '',
+                items: window.receiptItems,
+                editingItem: null,
+                get filteredItems() {
+                    let filtered = this.items;
+                    if (this.filterStatus) {
+                        filtered = filtered.filter(i => i.status === this.filterStatus);
+                    }
+                    return filtered;
+                }
+            }">
+                <!-- Barre de filtres -->
+                <div class="mb-6 bg-white dark:bg-gray-800 rounded-lg shadow p-4">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <!-- Filtre statut -->
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                {{ 'Statut' if lang == 'fr' else 'ステータス' }}
+                            </label>
+                            <select x-model="filterStatus"
+                                    class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white">
+                                <option value="">{{ 'Tous' if lang == 'fr' else 'すべて' }}</option>
+                                <option value="pending">{{ 'En attente' if lang == 'fr' else '保留中' }}</option>
+                                <option value="applied">{{ 'Appliqué' if lang == 'fr' else '適用済み' }}</option>
+                            </select>
+                        </div>
+
+                        <!-- Statistiques -->
+                        <div class="flex items-end">
+                            <div class="text-sm text-gray-600 dark:text-gray-400">
+                                <span x-text="filteredItems.length"></span>
+                                {{ 'article(s) affiché(s)' if lang == 'fr' else 'アイテム表示中' }}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tableau des items -->
+                <div class="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                            <thead class="bg-gray-50 dark:bg-gray-900">
+                                <tr>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                        {{ 'Article du ticket' if lang == 'fr' else 'レシート項目' }}
+                                    </th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                        {{ 'Prix' if lang == 'fr' else '価格' }}
+                                    </th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                        {{ 'Ingrédient correspondant' if lang == 'fr' else '対応食材' }}
+                                    </th>
+                                    <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                        {{ 'Actions' if lang == 'fr' else '操作' }}
+                                    </th>
+                                </tr>
+                            </thead>
+                            <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                                <template x-for="item in filteredItems" :key="item.id">
+                                    <tr class="hover:bg-gray-50 dark:hover:bg-gray-700" x-data="{ editing: editingItem === item.id }">
+                                        <!-- Article du ticket -->
+                                        <td class="px-6 py-4">
+                                            <div class="text-sm font-medium text-gray-900 dark:text-white" x-text="item.receipt_item_text"></div>
+                                            <div class="text-xs text-gray-500 dark:text-gray-400" x-show="item.receipt_quantity" x-text="item.receipt_quantity + ' ' + (item.receipt_unit || '')"></div>
+                                        </td>
+
+                                        <!-- Prix -->
+                                        <td class="px-6 py-4 whitespace-nowrap">
+                                            <div class="text-sm text-gray-900 dark:text-white" x-text="item.receipt_price + ' {{ receipt.currency }}'"></div>
+                                        </td>
+
+                                        <!-- Ingrédient correspondant -->
+                                        <td class="px-6 py-4">
+                                            <!-- Mode lecture -->
+                                            <div x-show="!editing">
+                                                <template x-if="item.matched_ingredient_name">
+                                                    <div>
+                                                        <div class="text-sm font-medium text-gray-900 dark:text-white" x-text="item.matched_ingredient_name"></div>
+                                                        <template x-if="item.catalog_price_eur || item.catalog_price_jpy">
+                                                            <div class="text-xs text-gray-500 dark:text-gray-400">
+                                                                {{ 'Prix actuel:' if lang == 'fr' else '現在の価格:' }}
+                                                                <template x-if="'{{ receipt.currency }}' === 'EUR' && item.catalog_price_eur">
+                                                                    <span x-text="item.catalog_price_eur + ' €'"></span>
+                                                                </template>
+                                                                <template x-if="'{{ receipt.currency }}' === 'JPY' && item.catalog_price_jpy">
+                                                                    <span x-text="item.catalog_price_jpy + ' ¥'"></span>
+                                                                </template>
+                                                                <template x-if="item.catalog_qty">
+                                                                    <span x-text="' / ' + item.catalog_qty + ' ' + item.matched_ingredient_unit"></span>
+                                                                </template>
+                                                            </div>
+                                                        </template>
+                                                        <template x-if="!item.catalog_price_eur && !item.catalog_price_jpy">
+                                                            <div class="text-xs text-orange-600 dark:text-orange-400">{{ 'Pas de prix' if lang == 'fr' else '価格未登録' }}</div>
+                                                        </template>
+                                                    </div>
+                                                </template>
+                                                <template x-if="!item.matched_ingredient_name">
+                                                    <span class="text-sm text-red-600 dark:text-red-400">{{ 'Aucune correspondance' if lang == 'fr' else '対応なし' }}</span>
+                                                </template>
+                                            </div>
+
+                                            <!-- Mode édition -->
+                                            <div x-show="editing" x-cloak>
+                                                <form method="POST" :action="'/receipt-match/' + item.id + '/update-ingredient'" class="flex gap-2">
+                                                    <input type="hidden" name="lang" value="{{ lang }}">
+                                                    <select name="ingredient_id" required
+                                                            class="flex-1 px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded dark:bg-gray-700 dark:text-white">
+                                                        <option value="">{{ 'Sélectionner...' if lang == 'fr' else '選択...' }}</option>
+                                                        {% for ing in all_ingredients %}
+                                                            <option value="{{ ing.id }}" :selected="item.matched_ingredient_id === {{ ing.id }}">
+                                                                {{ ing.name }}
+                                                            </option>
+                                                        {% endfor %}
+                                                    </select>
+                                                    <button type="submit"
+                                                            class="px-2 py-1 bg-green-600 text-white rounded hover:bg-green-700 text-xs">
+                                                        💾
+                                                    </button>
+                                                    <button type="button"
+                                                            @click="editingItem = null"
+                                                            class="px-2 py-1 bg-gray-500 text-white rounded hover:bg-gray-600 text-xs">
+                                                        ✗
+                                                    </button>
+                                                </form>
+                                            </div>
+                                        </td>
+
+                                        <!-- Actions -->
+                                        <td class="px-6 py-4 whitespace-nowrap text-center">
+                                            <!-- Bouton valider et appliquer directement -->
+                                            <template x-if="item.status !== 'applied' && item.matched_ingredient_id">
+                                                <form method="POST" :action="'/receipt-match/' + item.id + '/validate-and-apply'" class="inline">
+                                                    <input type="hidden" name="lang" value="{{ lang }}">
+                                                    <button type="submit"
+                                                            class="px-3 py-1 bg-green-600 text-white rounded hover:bg-green-700 text-sm">
+                                                        ✓ {{ 'Valider' if lang == 'fr' else '検証' }}
+                                                    </button>
+                                                </form>
+                                            </template>
+                                            <template x-if="item.status === 'applied'">
+                                                <span class="text-sm text-green-600 dark:text-green-400">✓ {{ 'Appliqué' if lang == 'fr' else '適用済' }}</span>
+                                            </template>
+                                            <template x-if="!item.matched_ingredient_id && item.status !== 'applied'">
+                                                <button @click="editingItem = item.id"
+                                                        class="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm">
+                                                    {{ 'Associer' if lang == 'fr' else '関連付け' }}
+                                                </button>
+                                            </template>
+                                        </td>
+                                    </tr>
+                                </template>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Liste originale des items (cachée maintenant) -->
+            <div class="hidden space-y-4">
+                {% for item in receipt.matched_items_list %}
+                <div class="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
+                    <div class="p-6">
+                        <div class="flex gap-6">
+                            <!-- Article du ticket -->
+                            <div class="flex-1">
+                                <div class="mb-4">
+                                    <div class="text-xs text-gray-500 dark:text-gray-400 mb-1">
+                                        {{ 'Article du ticket' if lang == 'fr' else 'レシート項目' }}
+                                    </div>
+                                    <div class="text-lg font-semibold text-gray-900 dark:text-white">
+                                        {{ item.receipt_item_text }}
+                                    </div>
+                                    <div class="mt-1 text-sm text-gray-600 dark:text-gray-400">
+                                        {{ item.receipt_price }} {{ receipt.currency }}
+                                        {% if item.receipt_quantity %}
+                                            • {{ item.receipt_quantity }} {{ item.receipt_unit if item.receipt_unit else '' }}
+                                        {% endif %}
+                                    </div>
+                                </div>
+
+                                <!-- Correspondance -->
+                                <div x-data="{ editing: editingItem === {{ item.id }} }">
+                                    <div class="flex items-center gap-2 mb-2">
+                                        <span class="text-xs text-gray-500 dark:text-gray-400">
+                                            {{ 'Correspond à' if lang == 'fr' else '対応する食材' }}:
+                                        </span>
+                                        {% if item.confidence_score is not none %}
+                                            <!-- Badge de confiance -->
+                                            {% if item.confidence_score >= 0.8 %}
+                                                <span class="px-2 py-0.5 bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200 rounded text-xs">
+                                                    {{ (item.confidence_score * 100)|round|int }}% {{ 'confiance' if lang == 'fr' else '信頼度' }}
+                                                </span>
+                                            {% elif item.confidence_score >= 0.5 %}
+                                                <span class="px-2 py-0.5 bg-yellow-100 dark:bg-yellow-900 text-yellow-800 dark:text-yellow-200 rounded text-xs">
+                                                    {{ (item.confidence_score * 100)|round|int }}% {{ 'confiance' if lang == 'fr' else '信頼度' }}
+                                                </span>
+                                            {% else %}
+                                                <span class="px-2 py-0.5 bg-red-100 dark:bg-red-900 text-red-800 dark:text-red-200 rounded text-xs">
+                                                    {{ (item.confidence_score * 100)|round|int }}% {{ 'confiance' if lang == 'fr' else '信頼度' }}
+                                                </span>
+                                            {% endif %}
+                                        {% endif %}
+                                    </div>
+
+                                    <!-- Affichage normal -->
+                                    <div x-show="!editing">
+                                        {% if item.matched_ingredient_name %}
+                                            <div class="flex items-center gap-3">
+                                                <div class="flex-1 p-3 bg-gray-50 dark:bg-gray-700 rounded">
+                                                    <div class="font-medium text-gray-900 dark:text-white">
+                                                        {{ item.matched_ingredient_name }}
+                                                    </div>
+                                                    {% if item.catalog_price_eur or item.catalog_price_jpy %}
+                                                        <div class="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                                                            {{ 'Prix actuel:' if lang == 'fr' else '現在の価格:' }}
+                                                            {% if receipt.currency == 'EUR' and item.catalog_price_eur %}
+                                                                {{ item.catalog_price_eur }} €
+                                                            {% elif receipt.currency == 'JPY' and item.catalog_price_jpy %}
+                                                                {{ item.catalog_price_jpy }} ¥
+                                                            {% endif %}
+                                                            {% if item.catalog_qty %}
+                                                                {{ '/' if lang == 'fr' else '/' }} {{ item.catalog_qty }} {{ item.matched_ingredient_unit }}
+                                                            {% endif %}
+                                                        </div>
+                                                    {% else %}
+                                                        <div class="text-sm text-orange-600 dark:text-orange-400 mt-1">
+                                                            {{ 'Pas de prix enregistré' if lang == 'fr' else '価格未登録' }}
+                                                        </div>
+                                                    {% endif %}
+                                                </div>
+                                                <button @click="editingItem = {{ item.id }}"
+                                                        class="px-3 py-2 text-sm text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded">
+                                                    ✏️ {{ 'Modifier' if lang == 'fr' else '編集' }}
+                                                </button>
+                                            </div>
+                                        {% else %}
+                                            <div class="flex items-center gap-3">
+                                                <div class="flex-1 p-3 bg-red-50 dark:bg-red-900/20 rounded text-red-700 dark:text-red-300">
+                                                    {{ 'Aucune correspondance trouvée' if lang == 'fr' else '対応が見つかりません' }}
+                                                </div>
+                                                <button @click="editingItem = {{ item.id }}"
+                                                        class="px-3 py-2 text-sm text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded">
+                                                    ➕ {{ 'Assigner' if lang == 'fr' else '割り当て' }}
+                                                </button>
+                                            </div>
+                                        {% endif %}
+                                    </div>
+
+                                    <!-- Mode édition -->
+                                    <div x-show="editing" x-cloak>
+                                        <form method="POST" action="/receipt-match/{{ item.id }}/update-ingredient" class="flex gap-2">
+                                            <input type="hidden" name="lang" value="{{ lang }}">
+                                            <select name="ingredient_id" required
+                                                    class="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded dark:bg-gray-700 dark:text-white">
+                                                <option value="">{{ 'Sélectionner un ingrédient...' if lang == 'fr' else '食材を選択...' }}</option>
+                                                {% for ing in all_ingredients %}
+                                                    <option value="{{ ing.id }}" {% if item.matched_ingredient_id == ing.id %}selected{% endif %}>
+                                                        {{ ing.name }}
+                                                    </option>
+                                                {% endfor %}
+                                            </select>
+                                            <button type="submit"
+                                                    class="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 text-sm">
+                                                💾 {{ 'OK' if lang == 'fr' else 'OK' }}
+                                            </button>
+                                            <button type="button"
+                                                    @click="editingItem = null"
+                                                    class="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600 text-sm">
+                                                {{ 'Annuler' if lang == 'fr' else 'キャンセル' }}
+                                            </button>
+                                        </form>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Actions de validation -->
+                            <div class="flex flex-col gap-2" style="min-width: 140px;">
+                                <!-- Statut actuel -->
+                                {% if item.status == 'validated' %}
+                                    <div class="px-3 py-2 bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200 rounded text-sm font-semibold text-center">
+                                        ✓ {{ 'Validé' if lang == 'fr' else '検証済み' }}
+                                    </div>
+                                {% elif item.status == 'rejected' %}
+                                    <div class="px-3 py-2 bg-red-100 dark:bg-red-900 text-red-800 dark:text-red-200 rounded text-sm font-semibold text-center">
+                                        ✗ {{ 'Rejeté' if lang == 'fr' else '拒否' }}
+                                    </div>
+                                {% elif item.status == 'applied' %}
+                                    <div class="px-3 py-2 bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 rounded text-sm font-semibold text-center">
+                                        ✓ {{ 'Appliqué' if lang == 'fr' else '適用済み' }}
+                                    </div>
+                                {% else %}
+                                    <div class="px-3 py-2 bg-yellow-100 dark:bg-yellow-900 text-yellow-800 dark:text-yellow-200 rounded text-sm font-semibold text-center">
+                                        ⏳ {{ 'En attente' if lang == 'fr' else '保留中' }}
+                                    </div>
+                                {% endif %}
+
+                                <!-- Boutons d'action -->
+                                {% if item.status != 'applied' %}
+                                    {% if item.matched_ingredient_id %}
+                                        {% if item.status != 'validated' %}
+                                            <form method="POST" action="/receipt-match/{{ item.id }}/validate">
+                                                <input type="hidden" name="lang" value="{{ lang }}">
+                                                <input type="hidden" name="validated" value="true">
+                                                <button type="submit"
+                                                        class="w-full px-3 py-2 bg-green-600 text-white rounded hover:bg-green-700 text-sm">
+                                                    ✓ {{ 'Valider' if lang == 'fr' else '検証' }}
+                                                </button>
+                                            </form>
+                                        {% endif %}
+
+                                        {% if item.status != 'rejected' %}
+                                            <form method="POST" action="/receipt-match/{{ item.id }}/validate">
+                                                <input type="hidden" name="lang" value="{{ lang }}">
+                                                <input type="hidden" name="validated" value="false">
+                                                <button type="submit"
+                                                        class="w-full px-3 py-2 bg-red-600 text-white rounded hover:bg-red-700 text-sm">
+                                                    ✗ {{ 'Rejeter' if lang == 'fr' else '拒否' }}
+                                                </button>
+                                            </form>
+                                        {% endif %}
+                                    {% endif %}
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+
+                {% if not receipt.items %}
+                <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-12 text-center">
+                    <div class="text-gray-500 dark:text-gray-400">
+                        {{ 'Aucun article extrait du ticket' if lang == 'fr' else 'レシートからアイテムが抽出されませんでした' }}
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+
+            <!-- Légende -->
+            <div class="mt-6 bg-gray-100 dark:bg-gray-800 rounded-lg p-4">
+                <h3 class="font-semibold text-gray-900 dark:text-white mb-3">
+                    ℹ️ {{ 'Légende des scores de confiance' if lang == 'fr' else '信頼度スコアの凡例' }}
+                </h3>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-3 text-sm">
+                    <div class="flex items-center gap-2">
+                        <span class="px-2 py-1 bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200 rounded text-xs">
+                            80-100%
+                        </span>
+                        <span class="text-gray-700 dark:text-gray-300">
+                            {{ 'Match très probable' if lang == 'fr' else '高精度マッチ' }}
+                        </span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="px-2 py-1 bg-yellow-100 dark:bg-yellow-900 text-yellow-800 dark:text-yellow-200 rounded text-xs">
+                            50-79%
+                        </span>
+                        <span class="text-gray-700 dark:text-gray-300">
+                            {{ 'À vérifier' if lang == 'fr' else '要確認' }}
+                        </span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="px-2 py-1 bg-red-100 dark:bg-red-900 text-red-800 dark:text-red-200 rounded text-xs">
+                            < 50%
+                        </span>
+                        <span class="text-gray-700 dark:text-gray-300">
+                            {{ 'Incertain' if lang == 'fr' else '不確実' }}
+                        </span>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <style>
+        [x-cloak] { display: none !important; }
+    </style>
+</body>
+</html>

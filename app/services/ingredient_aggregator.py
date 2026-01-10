@@ -276,6 +276,8 @@ class IngredientAggregator:
         Returns:
             Tuple (quantité, unité_achat)
         """
+        import math
+
         unit_lower = standard_unit.lower().strip()
 
         # Pour les liquides: L → ml si < 0.5L
@@ -292,9 +294,15 @@ class IngredientAggregator:
             else:
                 return (round(quantity, 2), "kg")
 
-        # Autres unités: garder tel quel
+        # Autres unités: arrondir au supérieur pour les unités "indivisibles" (œufs, paquets, etc.)
+        # Ces unités n'ont pas de décimales dans les recettes normalement
         else:
-            return (round(quantity, 1), standard_unit)
+            # Si c'est une unité vide ou unitaire, arrondir au supérieur
+            if not standard_unit or standard_unit.strip() == "":
+                return (math.ceil(quantity), standard_unit)
+            else:
+                # Pour les autres unités (cuillères, tasses, etc.), garder 1 décimale
+                return (round(quantity, 1), standard_unit)
 
     def aggregate_ingredients(
         self,
@@ -413,7 +421,9 @@ class IngredientAggregator:
                     purchase_unit = self.translate_unit(purchase_unit, lang)
                 else:
                     # Ingrédient sans unité (ex: œufs, nombre d'items)
-                    purchase_qty = round(data["total_quantity_standard"], 1)
+                    # Arrondir AU SUPÉRIEUR car on ne peut pas acheter 2.3 œufs
+                    import math
+                    purchase_qty = math.ceil(data["total_quantity_standard"])
                     purchase_unit = ""
             else:
                 purchase_qty = None

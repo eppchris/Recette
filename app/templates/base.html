@@ -132,7 +132,7 @@
         <button
           @click="gestionOpen = !gestionOpen"
           class="w-full flex items-center justify-between gap-3 px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition group"
-          :class="('{{ request.path }}'.includes('/ingredient-catalog') || '{{ request.path }}'.includes('/unit-conversions') || '{{ request.path }}'.includes('/ingredient-specific-conversions')) && 'bg-blue-50 dark:bg-blue-900 text-blue-600 dark:text-blue-300'"
+          :class="('{{ request.path }}'.includes('/ingredient-catalog') || '{{ request.path }}'.includes('/unit-conversions') || '{{ request.path }}'.includes('/ingredient-specific-conversions') || '{{ request.path }}'.includes('/receipt-')) && 'bg-blue-50 dark:bg-blue-900 text-blue-600 dark:text-blue-300'"
         >
           <div class="flex items-center gap-3">
             <span class="text-xl">📊</span>
@@ -143,6 +143,9 @@
         <div x-show="sidebarOpen && gestionOpen" x-transition class="ml-11 mt-1 space-y-1">
           <a href="/ingredient-catalog?lang={{ lang }}" class="block px-3 py-1.5 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 rounded">
             {{ 'Catalogue des prix' if lang == 'fr' else '価格カタログ' }}
+          </a>
+          <a href="/receipt-list?lang={{ lang }}" class="block px-3 py-1.5 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 rounded">
+            {{ 'Tickets de caisse' if lang == 'fr' else 'レシート' }}
           </a>
           <a href="/unit-conversions?lang={{ lang }}" class="block px-3 py-1.5 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 rounded">
             {{ 'Conversions d\'unités' if lang == 'fr' else '単位変換' }}

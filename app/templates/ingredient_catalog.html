@@ -20,11 +20,33 @@
                 darkMode: false,
                 sortBy: 'name',
                 sortOrder: 'asc',
+                filterSource: '',
+                allIngredients: [],
                 sortedIngredients: [],
 
                 init() {
                     const data = document.body.dataset.ingredients;
-                    this.sortedIngredients = JSON.parse(data);
+                    this.allIngredients = JSON.parse(data);
+                    this.applyFilters();
+                },
+
+                applyFilters() {
+                    let filtered = this.allIngredients;
+
+                    // Filtrer par source
+                    if (this.filterSource) {
+                        filtered = filtered.filter(ing => {
+                            if (this.filterSource === 'receipt') {
+                                return ing.price_eur_source === 'receipt' || ing.price_jpy_source === 'receipt';
+                            } else if (this.filterSource === 'manual') {
+                                return (ing.price_eur_source === 'manual' || !ing.price_eur_source) ||
+                                       (ing.price_jpy_source === 'manual' || !ing.price_jpy_source);
+                            }
+                            return true;
+                        });
+                    }
+
+                    this.sortedIngredients = filtered;
                     this.sortIngredients();
                 },
 
@@ -119,6 +141,14 @@
                 </div>
 
                 <div class="flex gap-3">
+                    <a href="/receipt-upload?lang={{ lang }}"
+                       class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700">
+                        📄 {{ 'Ticket de caisse' if lang == 'fr' else 'レシート' }}
+                    </a>
+                    <a href="/receipt-list?lang={{ lang }}"
+                       class="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700">
+                        📋 {{ 'Historique' if lang == 'fr' else '履歴' }}
+                    </a>
                     <form method="POST" action="/ingredient-catalog/sync">
                         <input type="hidden" name="lang" value="{{ lang }}">
                         <button type="submit"
@@ -150,6 +180,23 @@
                     </a>
                     {% endif %}
                 </form>
+
+                <!-- Filtre par source -->
+                <div class="flex items-center gap-3">
+                    <label class="text-sm font-medium text-gray-700 dark:text-gray-300">
+                        {{ 'Filtrer par source:' if lang == 'fr' else 'ソースでフィルタリング:' }}
+                    </label>
+                    <select x-model="filterSource" @change="applyFilters()"
+                            class="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white">
+                        <option value="">{{ 'Tous' if lang == 'fr' else 'すべて' }}</option>
+                        <option value="receipt">🎫 {{ 'Prix de ticket' if lang == 'fr' else 'レシート価格' }}</option>
+                        <option value="manual">✍️ {{ 'Prix manuel' if lang == 'fr' else '手動価格' }}</option>
+                    </select>
+                    <span class="text-sm text-gray-600 dark:text-gray-400">
+                        <span x-text="sortedIngredients.length"></span>
+                        {{ ' ingrédient(s)' if lang == 'fr' else ' 食材' }}
+                    </span>
+                </div>
 
                 <!-- Aide pour trier -->
                 <div class="text-sm text-gray-600 dark:text-gray-400">
@@ -224,68 +271,142 @@
                     <tbody class="divide-y divide-gray-200 dark:divide-gray-600">
                         <template x-for="ing in sortedIngredients" :key="ing.id">
                             <tr x-data="{ editing: false }" class="hover:bg-gray-50 dark:hover:bg-gray-700">
-                                <template x-if="!editing">
-                                    <td class="px-4 py-3 text-sm text-gray-900 dark:text-white" x-text="ing.ingredient_name"></td>
-                                </template>
-                                <template x-if="editing">
-                                    <td colspan="7" class="px-4 py-4 bg-gray-50 dark:bg-gray-700">
-                                        <form method="POST" :action="`/ingredient-catalog/${ing.id}/update`" class="flex gap-3 items-center">
-                                            <input type="hidden" name="lang" value="{{ lang }}">
+                                <form method="POST" :action="`/ingredient-catalog/${ing.id}/update`">
+                                    <input type="hidden" name="lang" value="{{ lang }}">
 
-                                            <div class="flex-1">
-                                                <span class="font-medium text-gray-900 dark:text-white" x-text="ing.ingredient_name"></span>
+                                    <!-- Colonne 1: Nom ingrédient -->
+                                    <td class="px-4 py-3 text-sm" :class="editing ? 'bg-gray-50 dark:bg-gray-700' : ''">
+                                        <span class="font-medium text-gray-900 dark:text-white" x-text="ing.ingredient_name"></span>
+                                    </td>
+
+                                    <!-- Colonne 2: Prix EUR -->
+                                    <td class="px-4 py-3 text-sm" :class="editing ? 'bg-gray-50 dark:bg-gray-700' : ''">
+                                        <template x-if="!editing">
+                                            <div class="text-gray-600 dark:text-gray-400">
+                                                <span x-text="ing.price_eur ? ing.price_eur.toFixed(2) : '-'"></span>
+                                                <span x-show="ing.price_eur && ing.price_eur_source === 'receipt'"
+                                                      class="ml-2 px-1.5 py-0.5 bg-red-100 dark:bg-red-900 text-red-700 dark:text-red-300 rounded text-xs cursor-help"
+                                                      :title="`🎫 {{ 'Prix du ticket du' if lang == 'fr' else 'レシート価格' }} ${ing.price_eur_last_receipt_date || ''}`">
+                                                    🎫
+                                                </span>
                                             </div>
+                                        </template>
+                                        <template x-if="editing">
+                                            <input type="number"
+                                                   name="price_eur"
+                                                   :value="ing.price_eur || ''"
+                                                   placeholder="Prix €"
+                                                   step="0.01"
+                                                   min="0"
+                                                   class="w-full px-2 py-1 border border-gray-300 dark:border-gray-600 rounded dark:bg-gray-600 dark:text-white text-sm">
+                                        </template>
+                                    </td>
 
-                                            <div class="w-28">
-                                                <input type="number"
-                                                       name="price_eur"
-                                                       :value="ing.price_eur || ''"
-                                                       placeholder="Prix €"
-                                                       step="0.01"
-                                                       min="0"
-                                                       class="w-full px-2 py-1 border border-gray-300 dark:border-gray-600 rounded dark:bg-gray-600 dark:text-white text-sm">
+                                    <!-- Colonne 3: Prix JPY -->
+                                    <td class="px-4 py-3 text-sm" :class="editing ? 'bg-gray-50 dark:bg-gray-700' : ''">
+                                        <template x-if="!editing">
+                                            <div class="text-gray-600 dark:text-gray-400">
+                                                <span x-text="ing.price_jpy ? ing.price_jpy.toFixed(2) : '-'"></span>
+                                                <span x-show="ing.price_jpy && ing.price_jpy_source === 'receipt'"
+                                                      class="ml-2 px-1.5 py-0.5 bg-red-100 dark:bg-red-900 text-red-700 dark:text-red-300 rounded text-xs cursor-help"
+                                                      :title="`🎫 {{ 'Prix du ticket du' if lang == 'fr' else 'レシート価格' }} ${ing.price_jpy_last_receipt_date || ''}`">
+                                                    🎫
+                                                </span>
                                             </div>
+                                        </template>
+                                        <template x-if="editing">
+                                            <input type="number"
+                                                   name="price_jpy"
+                                                   :value="ing.price_jpy || ''"
+                                                   placeholder="Prix ¥"
+                                                   step="0.01"
+                                                   min="0"
+                                                   class="w-full px-2 py-1 border border-gray-300 dark:border-gray-600 rounded dark:bg-gray-600 dark:text-white text-sm">
+                                        </template>
+                                    </td>
 
-                                            <div class="w-28">
-                                                <input type="number"
-                                                       name="price_jpy"
-                                                       :value="ing.price_jpy || ''"
-                                                       placeholder="Prix ¥"
-                                                       step="0.01"
-                                                       min="0"
-                                                       class="w-full px-2 py-1 border border-gray-300 dark:border-gray-600 rounded dark:bg-gray-600 dark:text-white text-sm">
+                                    <!-- Colonne 4: Quantité -->
+                                    <td class="px-4 py-3 text-sm" :class="editing ? 'bg-gray-50 dark:bg-gray-700' : ''">
+                                        <template x-if="!editing">
+                                            <span class="text-gray-600 dark:text-gray-400" x-text="ing.qty ? ing.qty : '1'"></span>
+                                        </template>
+                                        <template x-if="editing">
+                                            <input type="number"
+                                                   name="qty"
+                                                   :value="ing.qty || '1'"
+                                                   placeholder="Qté"
+                                                   step="0.01"
+                                                   min="0"
+                                                   class="w-full px-2 py-1 border border-gray-300 dark:border-gray-600 rounded dark:bg-gray-600 dark:text-white text-sm">
+                                        </template>
+                                    </td>
+
+                                    <!-- Colonne 5: Unité -->
+                                    <td class="px-4 py-3 text-sm" :class="editing ? 'bg-gray-50 dark:bg-gray-700' : ''">
+                                        <template x-if="!editing">
+                                            <span class="text-gray-600 dark:text-gray-400" x-text="ing.unit"></span>
+                                        </template>
+                                        <template x-if="editing">
+                                            <input type="text"
+                                                   name="unit"
+                                                   :value="ing.unit"
+                                                   required
+                                                   class="w-full px-2 py-1 border border-gray-300 dark:border-gray-600 rounded dark:bg-gray-600 dark:text-white text-sm">
+                                        </template>
+                                    </td>
+
+                                    <!-- Colonne 6: Catégorie conversion -->
+                                    <td class="px-4 py-3 text-sm" :class="editing ? 'bg-gray-50 dark:bg-gray-700' : ''">
+                                        <template x-if="!editing">
+                                            <div class="text-gray-600 dark:text-gray-400">
+                                                <span x-show="ing.conversion_category === 'poids'"
+                                                      class="px-2 py-1 bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 rounded text-xs">
+                                                    {{ 'poids' if lang == 'fr' else '重量' }}
+                                                </span>
+                                                <span x-show="ing.conversion_category === 'volume'"
+                                                      class="px-2 py-1 bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200 rounded text-xs">
+                                                    {{ 'volume' if lang == 'fr' else '容量' }}
+                                                </span>
+                                                <span x-show="ing.conversion_category === 'unite'"
+                                                      class="px-2 py-1 bg-purple-100 dark:bg-purple-900 text-purple-800 dark:text-purple-200 rounded text-xs">
+                                                    {{ 'unité' if lang == 'fr' else '個数' }}
+                                                </span>
+                                                <span x-show="!ing.conversion_category"
+                                                      class="text-gray-400">-</span>
                                             </div>
+                                        </template>
+                                        <template x-if="editing">
+                                            <select name="conversion_category"
+                                                    :value="ing.conversion_category || ''"
+                                                    class="w-full px-2 py-1 border border-gray-300 dark:border-gray-600 rounded dark:bg-gray-600 dark:text-white text-sm">
+                                                <option value="">{{ '-' if lang == 'fr' else '-' }}</option>
+                                                <option value="poids">{{ 'poids' if lang == 'fr' else '重量' }}</option>
+                                                <option value="volume">{{ 'volume' if lang == 'fr' else '容量' }}</option>
+                                                <option value="unite">{{ 'unité' if lang == 'fr' else '個数' }}</option>
+                                            </select>
+                                        </template>
+                                    </td>
 
-                                            <div class="w-20">
-                                                <input type="number"
-                                                       name="qty"
-                                                       :value="ing.qty || '1'"
-                                                       placeholder="Qté"
-                                                       step="0.01"
-                                                       min="0"
-                                                       class="w-full px-2 py-1 border border-gray-300 dark:border-gray-600 rounded dark:bg-gray-600 dark:text-white text-sm">
+                                    <!-- Colonne 7: Actions -->
+                                    <td class="px-4 py-3 text-center" :class="editing ? 'bg-gray-50 dark:bg-gray-700' : ''">
+                                        <template x-if="!editing">
+                                            <div class="flex justify-center gap-2">
+                                                <button type="button" @click="editing = true"
+                                                        class="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 text-sm">
+                                                    ✏️ {{ 'Modifier' if lang == 'fr' else '編集' }}
+                                                </button>
+                                                <form method="POST" :action="`/ingredient-catalog/${ing.id}/delete`" class="inline"
+                                                      onsubmit="return confirm('{{ 'Êtes-vous sûr de vouloir supprimer cet ingrédient ?' if lang == 'fr' else 'この食材を削除してもよろしいですか？' }}');">
+                                                    <input type="hidden" name="lang" value="{{ lang }}">
+                                                    <button type="submit"
+                                                            class="text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300 text-sm">
+                                                        🗑️ {{ 'Supprimer' if lang == 'fr' else '削除' }}
+                                                    </button>
+                                                </form>
                                             </div>
-
-                                            <div class="w-20">
-                                                <input type="text"
-                                                       name="unit"
-                                                       :value="ing.unit"
-                                                       required
-                                                       class="w-full px-2 py-1 border border-gray-300 dark:border-gray-600 rounded dark:bg-gray-600 dark:text-white text-sm">
-                                            </div>
-
-                                            <div class="w-28">
-                                                <select name="conversion_category"
-                                                        :value="ing.conversion_category || ''"
-                                                        class="w-full px-2 py-1 border border-gray-300 dark:border-gray-600 rounded dark:bg-gray-600 dark:text-white text-sm">
-                                                    <option value="">{{ '-' if lang == 'fr' else '-' }}</option>
-                                                    <option value="poids">{{ 'poids' if lang == 'fr' else '重量' }}</option>
-                                                    <option value="volume">{{ 'volume' if lang == 'fr' else '容量' }}</option>
-                                                    <option value="unite">{{ 'unité' if lang == 'fr' else '個数' }}</option>
-                                                </select>
-                                            </div>
-
-                                            <div class="flex gap-2">
+                                        </template>
+                                        <template x-if="editing">
+                                            <div class="flex justify-center gap-2">
                                                 <button type="submit"
                                                         class="px-3 py-1 bg-green-600 text-white rounded text-sm hover:bg-green-700">
                                                     💾 {{ 'Enregistrer' if lang == 'fr' else '保存' }}
@@ -296,57 +417,9 @@
                                                     {{ 'Annuler' if lang == 'fr' else 'キャンセル' }}
                                                 </button>
                                             </div>
-                                        </form>
+                                        </template>
                                     </td>
-                                </template>
-                                <template x-if="!editing">
-                                    <td class="px-4 py-3 text-sm text-gray-600 dark:text-gray-400" x-text="ing.price_eur ? ing.price_eur.toFixed(2) : '-'"></td>
-                                </template>
-                                <template x-if="!editing">
-                                    <td class="px-4 py-3 text-sm text-gray-600 dark:text-gray-400" x-text="ing.price_jpy ? ing.price_jpy.toFixed(2) : '-'"></td>
-                                </template>
-                                <template x-if="!editing">
-                                    <td class="px-4 py-3 text-sm text-gray-600 dark:text-gray-400" x-text="ing.qty ? ing.qty : '1'"></td>
-                                </template>
-                                <template x-if="!editing">
-                                    <td class="px-4 py-3 text-sm text-gray-600 dark:text-gray-400" x-text="ing.unit"></td>
-                                </template>
-                                <template x-if="!editing">
-                                    <td class="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">
-                                        <span x-show="ing.conversion_category === 'poids'"
-                                              class="px-2 py-1 bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 rounded text-xs">
-                                            {{ 'poids' if lang == 'fr' else '重量' }}
-                                        </span>
-                                        <span x-show="ing.conversion_category === 'volume'"
-                                              class="px-2 py-1 bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200 rounded text-xs">
-                                            {{ 'volume' if lang == 'fr' else '容量' }}
-                                        </span>
-                                        <span x-show="ing.conversion_category === 'unite'"
-                                              class="px-2 py-1 bg-purple-100 dark:bg-purple-900 text-purple-800 dark:text-purple-200 rounded text-xs">
-                                            {{ 'unité' if lang == 'fr' else '個数' }}
-                                        </span>
-                                        <span x-show="!ing.conversion_category"
-                                              class="text-gray-400">-</span>
-                                    </td>
-                                </template>
-                                <template x-if="!editing">
-                                    <td class="px-4 py-3 text-center">
-                                        <div class="flex justify-center gap-2">
-                                            <button @click="editing = true"
-                                                    class="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 text-sm">
-                                                ✏️ {{ 'Modifier' if lang == 'fr' else '編集' }}
-                                            </button>
-                                            <form method="POST" :action="`/ingredient-catalog/${ing.id}/delete`" class="inline"
-                                                  onsubmit="return confirm('{{ 'Êtes-vous sûr de vouloir supprimer cet ingrédient ?' if lang == 'fr' else 'この食材を削除してもよろしいですか？' }}');">
-                                                <input type="hidden" name="lang" value="{{ lang }}">
-                                                <button type="submit"
-                                                        class="text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300 text-sm">
-                                                    🗑️ {{ 'Supprimer' if lang == 'fr' else '削除' }}
-                                                </button>
-                                            </form>
-                                        </div>
-                                    </td>
-                                </template>
+                                </form>
                             </tr>
                         </template>
                     </tbody>

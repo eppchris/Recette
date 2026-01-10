@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="{{ lang }}">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ 'Tickets de caisse' if lang == 'fr' else 'レシート一覧' }} - Recette</title>
+
+    <!-- Favicons -->
+    <link rel="icon" type="image/x-icon" href="/static/favicon.ico?v=2">
+    <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-32x32.png?v=2">
+    <link rel="icon" type="image/png" sizes="16x16" href="/static/favicon-16x16.png?v=2">
+    <link rel="apple-touch-icon" sizes="64x64" href="/static/favicon-64x64.png?v=2">
+    <script src="/static/css/tailwind.min.js"></script>
+    <script defer src="/static/css/alpine.min.js"></script>
+</head>
+<body class="bg-gray-50" x-data="{ darkMode: false }">
+    <div :class="darkMode ? 'dark bg-gray-900' : 'bg-gray-50'" class="min-h-screen">
+        <!-- Header -->
+        <header class="bg-white dark:bg-gray-800 shadow-sm border-b border-gray-200 dark:border-gray-700">
+            <div class="max-w-7xl mx-auto px-4 py-4">
+                <div class="flex justify-between items-center">
+                    <div class="flex items-center gap-4">
+                        <a href="/ingredient-catalog?lang={{ lang }}" class="text-blue-600 dark:text-blue-400 hover:underline">
+                            ← {{ 'Retour au catalogue' if lang == 'fr' else 'カタログに戻る' }}
+                        </a>
+                        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">
+                            📄 {{ 'Tickets de caisse' if lang == 'fr' else 'レシート一覧' }}
+                        </h1>
+                    </div>
+
+                    <div class="flex items-center gap-4">
+                        <!-- Sélecteur de langue -->
+                        <div class="flex gap-2">
+                            <a href="?lang=fr"
+                               class="px-3 py-1.5 rounded-lg {{ 'bg-blue-500 text-white' if lang == 'fr' else 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600' }}">
+                                FR
+                            </a>
+                            <a href="?lang=jp"
+                               class="px-3 py-1.5 rounded-lg {{ 'bg-blue-500 text-white' if lang == 'jp' else 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600' }}">
+                                JP
+                            </a>
+                        </div>
+
+                        <!-- Toggle mode sombre -->
+                        <button @click="darkMode = !darkMode"
+                                class="p-2 rounded-lg bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600">
+                            <span x-show="!darkMode">🌙</span>
+                            <span x-show="darkMode">☀️</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Contenu principal -->
+        <main class="max-w-7xl mx-auto px-4 py-8">
+            <!-- Actions -->
+            <div class="flex justify-between items-center mb-6">
+                <div class="text-gray-600 dark:text-gray-400">
+                    {{ receipts|length }} {{ 'ticket(s)' if lang == 'fr' else 'レシート' }}
+                </div>
+
+                <div class="flex gap-3">
+                    <a href="/receipt-upload?lang={{ lang }}"
+                       class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700">
+                        ➕ {{ 'Nouveau ticket' if lang == 'fr' else '新しいレシート' }}
+                    </a>
+                </div>
+            </div>
+
+            <!-- Liste des tickets -->
+            {% if receipts %}
+            <script>
+                window.receiptsData = {{ receipts | tojson | safe }};
+            </script>
+            <div x-data="{
+                searchTerm: '',
+                sortColumn: 'upload_date',
+                sortDirection: 'desc',
+                filterStatus: '',
+                receipts: window.receiptsData,
+                get filteredReceipts() {
+                    let filtered = this.receipts;
+                    if (this.searchTerm) {
+                        const term = this.searchTerm.toLowerCase();
+                        filtered = filtered.filter(r =>
+                            (r.receipt_name && r.receipt_name.toLowerCase().includes(term)) ||
+                            (r.filename && r.filename.toLowerCase().includes(term)) ||
+                            (r.store_name && r.store_name.toLowerCase().includes(term)) ||
+                            (r.username && r.username.toLowerCase().includes(term))
+                        );
+                    }
+                    if (this.filterStatus) {
+                        filtered = filtered.filter(r => r.status === this.filterStatus);
+                    }
+                    filtered.sort((a, b) => {
+                        let aVal = a[this.sortColumn] || '';
+                        let bVal = b[this.sortColumn] || '';
+                        if (this.sortColumn === 'matched_percent') {
+                            aVal = a.total_items > 0 ? (a.matched_items / a.total_items) : 0;
+                            bVal = b.total_items > 0 ? (b.matched_items / b.total_items) : 0;
+                        } else if (this.sortColumn === 'validated_percent') {
+                            aVal = a.total_items > 0 ? (a.validated_items / a.total_items) : 0;
+                            bVal = b.total_items > 0 ? (b.validated_items / b.total_items) : 0;
+                        }
+                        if (this.sortDirection === 'asc') {
+                            return aVal > bVal ? 1 : -1;
+                        } else {
+                            return aVal < bVal ? 1 : -1;
+                        }
+                    });
+                    return filtered;
+                },
+                sort(column) {
+                    if (this.sortColumn === column) {
+                        this.sortDirection = this.sortDirection === 'asc' ? 'desc' : 'asc';
+                    } else {
+                        this.sortColumn = column;
+                        this.sortDirection = 'asc';
+                    }
+                }
+            }">
+                <!-- Barre de filtres -->
+                <div class="mb-6 bg-white dark:bg-gray-800 rounded-lg shadow p-4">
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <!-- Recherche -->
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                {{ 'Rechercher' if lang == 'fr' else '検索' }}
+                            </label>
+                            <input type="text"
+                                   x-model="searchTerm"
+                                   placeholder="{{ 'Nom, enseigne, créateur...' if lang == 'fr' else '名前、店舗、作成者...' }}"
+                                   class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white">
+                        </div>
+
+                        <!-- Filtre statut -->
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                {{ 'Statut' if lang == 'fr' else 'ステータス' }}
+                            </label>
+                            <select x-model="filterStatus"
+                                    class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white">
+                                <option value="">{{ 'Tous' if lang == 'fr' else 'すべて' }}</option>
+                                <option value="processed">{{ 'Traité' if lang == 'fr' else '処理済み' }}</option>
+                                <option value="pending">{{ 'En attente' if lang == 'fr' else '保留中' }}</option>
+                                <option value="error">{{ 'Erreur' if lang == 'fr' else 'エラー' }}</option>
+                            </select>
+                        </div>
+
+                        <!-- Statistiques -->
+                        <div class="flex items-end">
+                            <div class="text-sm text-gray-600 dark:text-gray-400">
+                                <span x-text="filteredReceipts.length"></span>
+                                {{ 'ticket(s) affiché(s)' if lang == 'fr' else 'レシート表示中' }}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tableau -->
+                <div class="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
+                    <div class="overflow-x-auto">
+                        <table class="w-full divide-y divide-gray-200 dark:divide-gray-700">
+                            <thead class="bg-gray-50 dark:bg-gray-900">
+                                <tr>
+                                    <th @click="sort('receipt_name')" class="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800">
+                                        {{ 'Nom' if lang == 'fr' else '名前' }}
+                                    </th>
+                                    <th @click="sort('receipt_date')" class="px-2 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800">
+                                        {{ 'Date' if lang == 'fr' else '日付' }}
+                                    </th>
+                                    <th @click="sort('total_items')" class="px-2 py-2 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800">
+                                        {{ 'Art.' if lang == 'fr' else '項目' }}
+                                    </th>
+                                    <th @click="sort('validated_percent')" class="px-2 py-2 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800">
+                                        {{ 'Valid.' if lang == 'fr' else '検証' }}
+                                    </th>
+                                    <th class="px-2 py-2 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">
+                                        {{ 'Actions' if lang == 'fr' else '操作' }}
+                                    </th>
+                                </tr>
+                            </thead>
+                            <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                                <template x-for="receipt in filteredReceipts" :key="receipt.id">
+                                    <tr class="hover:bg-gray-50 dark:hover:bg-gray-700">
+                                        <!-- Nom + info -->
+                                        <td class="px-3 py-3">
+                                            <a :href="'/receipt-review/' + receipt.id + '?lang={{ lang }}'"
+                                               class="text-sm font-medium text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 hover:underline"
+                                               x-text="receipt.receipt_name || receipt.filename">
+                                            </a>
+                                            <div class="text-xs text-gray-500 dark:text-gray-400">
+                                                <span x-text="receipt.store_name || ''"></span>
+                                                <span x-show="receipt.store_name && receipt.currency"> • </span>
+                                                <span x-text="receipt.currency || ''"></span>
+                                            </div>
+                                        </td>
+
+                                        <!-- Date -->
+                                        <td class="px-2 py-3 whitespace-nowrap">
+                                            <div class="text-sm text-gray-900 dark:text-white" x-text="receipt.receipt_date || '-'"></div>
+                                        </td>
+
+                                        <!-- Articles -->
+                                        <td class="px-2 py-3 whitespace-nowrap text-center">
+                                            <div class="text-sm font-medium text-gray-900 dark:text-white" x-text="receipt.total_items"></div>
+                                        </td>
+
+                                        <!-- Validés -->
+                                        <td class="px-2 py-3 whitespace-nowrap text-center">
+                                            <div class="text-sm">
+                                                <span class="font-medium" x-text="receipt.validated_items"></span>
+                                                <span class="text-xs text-gray-500" x-show="receipt.total_items > 0" x-text="'/' + receipt.total_items"></span>
+                                            </div>
+                                        </td>
+
+                                        <!-- Actions -->
+                                        <td class="px-2 py-3 whitespace-nowrap text-center text-sm font-medium">
+                                            <div class="flex items-center justify-center gap-2">
+                                                <a :href="'/receipt-review/' + receipt.id + '?lang={{ lang }}'"
+                                                   class="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300"
+                                                   :title="'{{ 'Voir' if lang == 'fr' else '表示' }}'">
+                                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+                                                    </svg>
+                                                </a>
+                                                <form method="POST" :action="'/receipt-delete/' + receipt.id" class="inline"
+                                                      onsubmit="return confirm('{{ 'Êtes-vous sûr de vouloir supprimer ce ticket ?' if lang == 'fr' else 'このレシートを削除してもよろしいですか？' }}');">
+                                                    <input type="hidden" name="lang" value="{{ lang }}">
+                                                    <button type="submit"
+                                                            class="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300"
+                                                            title="{{ 'Supprimer' if lang == 'fr' else '削除' }}">
+                                                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                                                        </svg>
+                                                    </button>
+                                                </form>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                </template>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            {% else %}
+            <!-- Message si aucun ticket -->
+            <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-12 text-center">
+                <div class="text-6xl mb-4">📄</div>
+                <h3 class="text-xl font-semibold text-gray-900 dark:text-white mb-2">
+                    {{ 'Aucun ticket de caisse' if lang == 'fr' else 'レシートがありません' }}
+                </h3>
+                <p class="text-gray-600 dark:text-gray-400 mb-6">
+                    {{ 'Commencez par uploader votre premier ticket de caisse en PDF' if lang == 'fr' else '最初のPDFレシートをアップロードして開始します' }}
+                </p>
+                <a href="/receipt-upload?lang={{ lang }}"
+                   class="inline-block px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700">
+                    ➕ {{ 'Uploader un ticket' if lang == 'fr' else 'レシートをアップロード' }}
+                </a>
+            </div>
+            {% endif %}
+
+            <!-- Info -->
+            <div class="mt-6 text-sm text-gray-600 dark:text-gray-400 space-y-2">
+                <p>💡 {{ 'Les tickets de caisse permettent de mettre à jour automatiquement les prix du catalogue des ingrédients.' if lang == 'fr' else 'レシートを使用して、食材カタログの価格を自動的に更新できます。' }}</p>
+            </div>
+        </main>
+    </div>
+</body>
+</html>

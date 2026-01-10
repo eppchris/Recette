@@ -1,79 +1,96 @@
-"""Script de test rapide pour vérifier la configuration de l'authentification"""
+#!/usr/bin/env python3
+"""
+Test du système d'authentification
+"""
 
+import sys
 import os
-from dotenv import load_dotenv
+sys.path.insert(0, os.path.abspath(os.path.dirname(__file__)))
 
-# Charger les variables d'environnement
-load_dotenv()
+from app.models import authenticate_user, create_user, get_user_by_username
 
-print("=== Test de Configuration d'Authentification ===\n")
+def test_auth():
+    """Test l'authentification"""
+    print("\n" + "="*80)
+    print("TEST DU SYSTÈME D'AUTHENTIFICATION")
+    print("="*80)
 
-# Vérifier les variables d'environnement
-require_password = os.getenv("REQUIRE_PASSWORD", "False")
-shared_password = os.getenv("SHARED_PASSWORD", "")
-secret_key = os.getenv("SECRET_KEY", "")
-
-print(f"REQUIRE_PASSWORD: {require_password}")
-print(f"SHARED_PASSWORD: {'***' + shared_password[-4:] if shared_password else 'NON DÉFINI'}")
-print(f"SECRET_KEY: {'***' + secret_key[-8:] if secret_key else 'NON DÉFINI'}")
-
-print("\n=== Résultat ===\n")
-
-if require_password.lower() == "true":
-    print("✅ Protection par mot de passe ACTIVÉE")
-
-    if not shared_password:
-        print("❌ ERREUR: SHARED_PASSWORD n'est pas défini dans .env")
-    elif len(shared_password) < 8:
-        print("⚠️  ATTENTION: Le mot de passe est trop court (recommandé: 8+ caractères)")
+    # Test 1: Login avec l'admin existant
+    print("\n1️⃣  Test de connexion avec admin existant")
+    user = authenticate_user("admin", "admin123")
+    if user:
+        print(f"   ✅ Connexion réussie : {user['username']} (ID: {user['id']})")
+        print(f"   📧 Email : {user['email']}")
+        print(f"   👤 Nom : {user['display_name']}")
+        print(f"   ⭐ Admin : {user['is_admin']}")
     else:
-        print(f"✅ Mot de passe défini ({len(shared_password)} caractères)")
+        print("   ❌ Échec de connexion")
+        return False
 
-    if not secret_key:
-        print("❌ ERREUR: SECRET_KEY n'est pas définie dans .env")
-    elif secret_key in ["dev-secret-key-change-me", "dev-secret-key-for-sessions"]:
-        print("⚠️  ATTENTION: Vous utilisez une clé secrète par défaut (changez-la en production!)")
+    # Test 2: Login avec email
+    print("\n2️⃣  Test de connexion avec email")
+    user = authenticate_user("admin@recette.local", "admin123")
+    if user:
+        print(f"   ✅ Connexion réussie avec email : {user['username']}")
     else:
-        print(f"✅ Clé secrète définie ({len(secret_key)} caractères)")
+        print("   ❌ Échec de connexion avec email")
+        return False
 
-else:
-    print("⚠️  Protection par mot de passe DÉSACTIVÉE")
-    print("   → Pour activer: REQUIRE_PASSWORD=True dans .env")
-
-print("\n=== Imports Python ===\n")
-
-try:
-    from starlette.middleware.sessions import SessionMiddleware
-    print("✅ starlette.middleware.sessions importé")
-except ImportError as e:
-    print(f"❌ Erreur d'import: {e}")
-
-try:
-    from app.middleware.auth import AuthMiddleware, check_password
-    print("✅ app.middleware.auth importé")
-except ImportError as e:
-    print(f"❌ Erreur d'import: {e}")
-
-try:
-    from app.routes.auth_routes import router
-    print("✅ app.routes.auth_routes importé")
-except ImportError as e:
-    print(f"❌ Erreur d'import: {e}")
-
-print("\n=== Test de vérification de mot de passe ===\n")
-
-try:
-    from app.middleware.auth import check_password
-
-    test_password = "RecipeTakachan2026"
-    result = check_password(test_password, shared_password)
-
-    if result:
-        print(f"✅ Fonction check_password fonctionne correctement")
+    # Test 3: Login avec mauvais mot de passe
+    print("\n3️⃣  Test de connexion avec mauvais mot de passe")
+    user = authenticate_user("admin", "wrongpassword")
+    if not user:
+        print("   ✅ Connexion refusée correctement")
     else:
-        print(f"⚠️  Le mot de passe de test ne correspond pas à SHARED_PASSWORD")
+        print("   ❌ ERREUR : Connexion acceptée avec mauvais mot de passe !")
+        return False
 
-except Exception as e:
-    print(f"❌ Erreur lors du test: {e}")
+    # Test 4: Créer un nouvel utilisateur
+    print("\n4️⃣  Test de création d'utilisateur")
+    try:
+        # Vérifier si l'utilisateur existe déjà
+        existing = get_user_by_username("testuser")
+        if existing:
+            print("   ℹ️  L'utilisateur testuser existe déjà")
+        else:
+            user_id = create_user(
+                username="testuser",
+                email="test@example.com",
+                password="testpass123",
+                display_name="Test User",
+                is_admin=False
+            )
+            print(f"   ✅ Utilisateur créé : ID {user_id}")
 
-print("\n=== Fin du test ===\n")
+        # Test de connexion avec le nouvel utilisateur
+        user = authenticate_user("testuser", "testpass123")
+        if user:
+            print(f"   ✅ Connexion réussie avec testuser")
+        else:
+            print("   ❌ Échec de connexion avec testuser")
+            return False
+
+    except ValueError as e:
+        print(f"   ℹ️  Utilisateur existe déjà : {e}")
+
+    print("\n" + "="*80)
+    print("✅ TOUS LES TESTS SONT PASSÉS !")
+    print("="*80)
+    print("\n📝 Vous pouvez maintenant :")
+    print("   • Vous connecter sur http://127.0.0.1:8000/login")
+    print("   • Username: admin")
+    print("   • Password: admin123")
+    print("   • Ou créer un nouveau compte via /register\n")
+
+    return True
+
+
+if __name__ == "__main__":
+    try:
+        success = test_auth()
+        sys.exit(0 if success else 1)
+    except Exception as e:
+        print(f"\n❌ ERREUR : {e}")
+        import traceback
+        traceback.print_exc()
+        sys.exit(1)

@@ -195,6 +195,21 @@ from .db_participants import (
     get_participant_events,
 )
 
+# Import des fonctions de gestion des tickets de caisse
+from .db_receipt import (
+    create_receipt_upload,
+    save_receipt_items,
+    get_receipt_with_matches,
+    list_all_receipts,
+    get_receipt_by_id,
+    delete_receipt,
+    update_receipt_status,
+    validate_match,
+    update_match_ingredient,
+    apply_validated_prices,
+    get_all_catalog_ingredients_for_dropdown,
+)
+
 __all__ = [
     # Core
     'get_db',
@@ -360,6 +375,19 @@ __all__ = [
     'add_group_to_event',
     'remove_participant_from_event',
     'get_participant_events',
+
+    # Receipts
+    'create_receipt_upload',
+    'save_receipt_items',
+    'get_receipt_with_matches',
+    'list_all_receipts',
+    'get_receipt_by_id',
+    'delete_receipt',
+    'update_receipt_status',
+    'validate_match',
+    'update_match_ingredient',
+    'apply_validated_prices',
+    'get_all_catalog_ingredients_for_dropdown',
 ]
 
 # Créer un objet 'db' pour compatibilité avec l'ancien code (permet d'utiliser db.fonction())
@@ -528,4 +556,17 @@ db = SimpleNamespace(
     add_group_to_event=add_group_to_event,
     remove_participant_from_event=remove_participant_from_event,
     get_participant_events=get_participant_events,
+
+    # Receipts
+    create_receipt_upload=create_receipt_upload,
+    save_receipt_items=save_receipt_items,
+    get_receipt_with_matches=get_receipt_with_matches,
+    list_all_receipts=list_all_receipts,
+    get_receipt_by_id=get_receipt_by_id,
+    delete_receipt=delete_receipt,
+    update_receipt_status=update_receipt_status,
+    validate_match=validate_match,
+    update_match_ingredient=update_match_ingredient,
+    apply_validated_prices=apply_validated_prices,
+    get_all_catalog_ingredients_for_dropdown=get_all_catalog_ingredients_for_dropdown,
 )

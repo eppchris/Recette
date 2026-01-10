@@ -29,8 +29,11 @@
   deleteModal: false,
   recipeToDelete: null,
   creatorId: {{ creator_id or 'null' }},
+  viewMode: 'grid',
 
   init() {
+    // Initialiser le mode d'affichage depuis localStorage
+    this.viewMode = localStorage.getItem('recipesViewMode') || 'grid';
     // Initialiser les filtres depuis l'URL
     const urlParams = new URLSearchParams(window.location.search);
     this.selectedCategories = urlParams.get('categories') ? urlParams.get('categories').split(',').map(id => parseInt(id)) : [];
@@ -295,6 +298,11 @@
   cancelDelete() {
     this.deleteModal = false;
     this.recipeToDelete = null;
+  },
+
+  setViewMode(mode) {
+    this.viewMode = mode;
+    localStorage.setItem('recipesViewMode', mode);
   }
 }">
   <!-- Bouton retour vers l'accueil -->
@@ -311,32 +319,57 @@
 
   <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-4">
     <h1 class="text-2xl font-bold">{{ S('all') }}</h1>
-    <div class="relative w-full sm:w-auto" x-data="{ showImportMenu: false }">
-      <button
-        @click="showImportMenu = !showImportMenu"
-        class="w-full sm:w-auto px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition flex items-center justify-center gap-2">
-        {{ S('import') }}
-        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
-        </svg>
-      </button>
-      <div
-        x-show="showImportMenu"
-        @click.away="showImportMenu = false"
-        x-transition
-        class="absolute right-0 mt-2 w-64 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 z-10">
-        <a href="/import?lang={{ lang }}" class="block px-4 py-3 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-t-lg">
-          <div class="font-semibold">📄 {{ 'Import CSV' if lang == 'fr' else 'CSVインポート' }}</div>
-          <div class="text-xs text-gray-600 dark:text-gray-400">{{ 'Fichier CSV local' if lang == 'fr' else 'ローカルCSVファイル' }}</div>
-        </a>
-        <a href="/import-url?lang={{ lang }}" class="block px-4 py-3 hover:bg-gray-100 dark:hover:bg-gray-700">
-          <div class="font-semibold">🌐 {{ 'Import depuis URL' if lang == 'fr' else 'URLからインポート' }}</div>
-          <div class="text-xs text-gray-600 dark:text-gray-400">{{ 'Importer depuis un site web' if lang == 'fr' else 'ウェブサイトからインポート' }}</div>
-        </a>
-        <a href="/import-pdf?lang={{ lang }}" class="block px-4 py-3 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-b-lg">
-          <div class="font-semibold">📑 {{ 'Import PDF' if lang == 'fr' else 'PDFインポート' }}</div>
-          <div class="text-xs text-gray-600 dark:text-gray-400">{{ 'Document PDF' if lang == 'fr' else 'PDFドキュメント' }}</div>
-        </a>
+    <div class="flex gap-2 items-center">
+      <!-- Boutons de mode d'affichage -->
+      <div class="flex bg-gray-100 dark:bg-gray-700 rounded-lg p-1">
+        <button
+          @click="setViewMode('grid')"
+          :class="viewMode === 'grid' ? 'bg-white dark:bg-gray-600 shadow' : 'text-gray-500'"
+          class="px-3 py-1.5 rounded transition-all"
+          title="{{ 'Affichage en grille' if lang == 'fr' else 'グリッド表示' }}">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"></path>
+          </svg>
+        </button>
+        <button
+          @click="setViewMode('list')"
+          :class="viewMode === 'list' ? 'bg-white dark:bg-gray-600 shadow' : 'text-gray-500'"
+          class="px-3 py-1.5 rounded transition-all"
+          title="{{ 'Affichage en liste' if lang == 'fr' else 'リスト表示' }}">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path>
+          </svg>
+        </button>
+      </div>
+
+      <!-- Menu import -->
+      <div class="relative w-full sm:w-auto" x-data="{ showImportMenu: false }">
+        <button
+          @click="showImportMenu = !showImportMenu"
+          class="w-full sm:w-auto px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition flex items-center justify-center gap-2">
+          {{ S('import') }}
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+          </svg>
+        </button>
+        <div
+          x-show="showImportMenu"
+          @click.away="showImportMenu = false"
+          x-transition
+          class="absolute right-0 mt-2 w-64 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 z-10">
+          <a href="/import?lang={{ lang }}" class="block px-4 py-3 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-t-lg">
+            <div class="font-semibold">📄 {{ 'Import CSV' if lang == 'fr' else 'CSVインポート' }}</div>
+            <div class="text-xs text-gray-600 dark:text-gray-400">{{ 'Fichier CSV local' if lang == 'fr' else 'ローカルCSVファイル' }}</div>
+          </a>
+          <a href="/import-url?lang={{ lang }}" class="block px-4 py-3 hover:bg-gray-100 dark:hover:bg-gray-700">
+            <div class="font-semibold">🌐 {{ 'Import depuis URL' if lang == 'fr' else 'URLからインポート' }}</div>
+            <div class="text-xs text-gray-600 dark:text-gray-400">{{ 'Importer depuis un site web' if lang == 'fr' else 'ウェブサイトからインポート' }}</div>
+          </a>
+          <a href="/import-pdf?lang={{ lang }}" class="block px-4 py-3 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-b-lg">
+            <div class="font-semibold">📑 {{ 'Import PDF' if lang == 'fr' else 'PDFインポート' }}</div>
+            <div class="text-xs text-gray-600 dark:text-gray-400">{{ 'Document PDF' if lang == 'fr' else 'PDFドキュメント' }}</div>
+          </a>
+        </div>
       </div>
     </div>
   </div>
@@ -521,8 +554,8 @@
     </div>
   </div>
 
-  <!-- Grille de cartes de recettes -->
-  <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6">
+  <!-- Affichage en grille -->
+  <div x-show="viewMode === 'grid'" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6">
     <template x-for="r in filteredRecipes" :key="r.id">
       <div class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden hover:shadow-lg transition-shadow">
         <!-- Image -->
@@ -544,6 +577,12 @@
           <div x-show="r.creator_name" class="flex items-center text-xs text-gray-500 mb-2">
             <span class="mr-1">👤</span>
             <span x-text="r.creator_name"></span>
+          </div>
+
+          <!-- Type de recette / Prestation -->
+          <div x-show="r.type" class="flex items-center text-xs text-gray-500 mb-2">
+            <span class="mr-1">📋</span>
+            <span x-text="r.type"></span>
           </div>
 
           <div class="flex items-center justify-end text-sm text-gray-600 mb-3">
@@ -571,6 +610,111 @@
 
     <!-- Message si aucun résultat -->
     <div x-show="filteredRecipes.length === 0" class="col-span-full p-12 text-center text-gray-500">
+      <div class="text-6xl mb-4">🔍</div>
+      <div class="text-xl">{{ 'Aucune recette trouvée' if lang == 'fr' else 'レシピが見つかりません' }}</div>
+    </div>
+  </div>
+
+  <!-- Affichage en liste -->
+  <div x-show="viewMode === 'list'" class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
+    <table class="w-full">
+      <thead class="bg-gray-50 dark:bg-gray-700 border-b border-gray-200 dark:border-gray-600">
+        <tr>
+          <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+            <button @click="sort('name')" class="flex items-center gap-1 hover:text-gray-700 dark:hover:text-gray-100">
+              {{ 'Nom' if lang == 'fr' else '名前' }}
+              <span x-show="sortBy === 'name'">
+                <svg x-show="sortOrder === 'asc'" class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                  <path d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"/>
+                </svg>
+                <svg x-show="sortOrder === 'desc'" class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                  <path d="M14.707 12.707a1 1 0 01-1.414 0L10 9.414l-3.293 3.293a1 1 0 01-1.414-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 010 1.414z"/>
+                </svg>
+              </span>
+            </button>
+          </th>
+          <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider hidden sm:table-cell">
+            <button @click="sort('type')" class="flex items-center gap-1 hover:text-gray-700 dark:hover:text-gray-100">
+              {{ 'Type' if lang == 'fr' else 'タイプ' }}
+              <span x-show="sortBy === 'type'">
+                <svg x-show="sortOrder === 'asc'" class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                  <path d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"/>
+                </svg>
+                <svg x-show="sortOrder === 'desc'" class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                  <path d="M14.707 12.707a1 1 0 01-1.414 0L10 9.414l-3.293 3.293a1 1 0 01-1.414-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 010 1.414z"/>
+                </svg>
+              </span>
+            </button>
+          </th>
+          <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider hidden md:table-cell">
+            <button @click="sort('creator_name')" class="flex items-center gap-1 hover:text-gray-700 dark:hover:text-gray-100">
+              {{ 'Créateur' if lang == 'fr' else '作成者' }}
+              <span x-show="sortBy === 'creator_name'">
+                <svg x-show="sortOrder === 'asc'" class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                  <path d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"/>
+                </svg>
+                <svg x-show="sortOrder === 'desc'" class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                  <path d="M14.707 12.707a1 1 0 01-1.414 0L10 9.414l-3.293 3.293a1 1 0 01-1.414-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 010 1.414z"/>
+                </svg>
+              </span>
+            </button>
+          </th>
+          <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider hidden lg:table-cell">
+            <button @click="sort('servings')" class="flex items-center gap-1 hover:text-gray-700 dark:hover:text-gray-100 mx-auto">
+              {{ 'Personnes' if lang == 'fr' else '人数' }}
+              <span x-show="sortBy === 'servings'">
+                <svg x-show="sortOrder === 'asc'" class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                  <path d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"/>
+                </svg>
+                <svg x-show="sortOrder === 'desc'" class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                  <path d="M14.707 12.707a1 1 0 01-1.414 0L10 9.414l-3.293 3.293a1 1 0 01-1.414-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 010 1.414z"/>
+                </svg>
+              </span>
+            </button>
+          </th>
+          <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+            {{ 'Actions' if lang == 'fr' else 'アクション' }}
+          </th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
+        <template x-for="r in filteredRecipes" :key="r.id">
+          <tr class="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+            <td class="px-4 py-3">
+              <a :href="getRecipeURL(r.slug)" class="flex items-center gap-3 group">
+                <img
+                  :src="r.thumbnail_url || '/static/images/recipe-placeholder.jpg'"
+                  :alt="r.name"
+                  class="w-12 h-12 object-cover rounded"
+                >
+                <span class="font-medium text-gray-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400" x-text="r.name"></span>
+              </a>
+            </td>
+            <td class="px-4 py-3 text-sm text-gray-500 dark:text-gray-400 hidden sm:table-cell">
+              <span x-text="r.type || '-'"></span>
+            </td>
+            <td class="px-4 py-3 text-sm text-gray-500 dark:text-gray-400 hidden md:table-cell">
+              <span x-text="r.creator_name || '-'"></span>
+            </td>
+            <td class="px-4 py-3 text-sm text-gray-500 dark:text-gray-400 text-center hidden lg:table-cell">
+              <span x-show="r.servings">👥 <span x-text="r.servings"></span></span>
+              <span x-show="!r.servings">-</span>
+            </td>
+            <td class="px-4 py-3 text-right">
+              <button
+                @click="confirmDelete(r)"
+                class="text-red-600 hover:text-red-800 dark:hover:text-red-400 transition text-sm"
+              >
+                🗑️
+              </button>
+            </td>
+          </tr>
+        </template>
+      </tbody>
+    </table>
+
+    <!-- Message si aucun résultat -->
+    <div x-show="filteredRecipes.length === 0" class="p-12 text-center text-gray-500">
       <div class="text-6xl mb-4">🔍</div>
       <div class="text-xl">{{ 'Aucune recette trouvée' if lang == 'fr' else 'レシピが見つかりません' }}</div>
     </div>
