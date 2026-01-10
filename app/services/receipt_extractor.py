@@ -10,6 +10,7 @@ import mimetypes
 from typing import Dict, Optional, Tuple
 from pathlib import Path
 import requests
+import time
 from config import Config
 
 logger = logging.getLogger(__name__)
@@ -25,7 +26,7 @@ class ReceiptExtractor:
 
         self.api_key = Config.GEMINI_API_KEY
         self.base_url = "https://generativelanguage.googleapis.com/v1beta"
-        # Utiliser gemini-1.5-flash (modèle rapide et économique avec vision)
+        # Utiliser gemini-1.5-flash (quota gratuit: 15 requêtes/minute, 1500/jour)
         self.model = "gemini-1.5-flash"
         logger.info(f"✅ Gemini Vision API REST configurée (modèle: {self.model})")
 
@@ -152,6 +153,13 @@ EXEMPLES:
             # Appel API REST
             logger.info("Envoi de la requête à Gemini API REST...")
             response = requests.post(url, json=payload, timeout=60)
+
+            # Gestion du quota dépassé (429)
+            if response.status_code == 429:
+                logger.warning("Quota dépassé (429), retry dans 60 secondes...")
+                time.sleep(60)
+                response = requests.post(url, json=payload, timeout=60)
+
             response.raise_for_status()
 
             result = response.json()
