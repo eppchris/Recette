@@ -26,8 +26,8 @@ class ReceiptExtractor:
 
         self.api_key = Config.GEMINI_API_KEY
         self.base_url = "https://generativelanguage.googleapis.com/v1"
-        # Utiliser gemini-1.5-flash (quota gratuit: 15 requêtes/minute, 1500/jour)
-        self.model = "gemini-1.5-flash"
+        # Utiliser gemini-2.5-flash (modèle stable multimodal, quota gratuit généreux)
+        self.model = "gemini-2.5-flash"
         logger.info(f"✅ Gemini Vision API REST configurée (modèle: {self.model})")
 
     def _encode_file_to_base64(self, file_path: str) -> Tuple[str, str]:
