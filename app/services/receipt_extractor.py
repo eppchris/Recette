@@ -1,12 +1,15 @@
 """
 Service d'extraction et d'analyse de tickets de caisse depuis des fichiers PDF
-Utilise Google Gemini Vision pour l'analyse directe des PDFs
+Utilise l'API REST de Google Gemini Vision (pas de dépendance google-generativeai)
 """
 
 import json
 import logging
-from typing import Dict, Optional
-import google.generativeai as genai
+import base64
+import mimetypes
+from typing import Dict, Optional, Tuple
+from pathlib import Path
+import requests
 from config import Config
 
 logger = logging.getLogger(__name__)
@@ -16,18 +19,35 @@ class ReceiptExtractor:
     """Extracteur de tickets de caisse depuis des fichiers PDF"""
 
     def __init__(self):
-        """Initialise l'extracteur avec Gemini Vision"""
+        """Initialise l'extracteur avec Gemini Vision API REST"""
         if not Config.GEMINI_API_KEY:
             raise ValueError("GEMINI_API_KEY non configurée - impossible d'analyser les tickets")
 
-        genai.configure(api_key=Config.GEMINI_API_KEY)
-        # Utiliser gemini-flash-latest (modèle stable et disponible)
-        self.gemini_model = genai.GenerativeModel('gemini-flash-latest')
-        logger.info("✅ Gemini Vision configuré pour l'analyse de tickets (modèle: gemini-flash-latest)")
+        self.api_key = Config.GEMINI_API_KEY
+        self.base_url = "https://generativelanguage.googleapis.com/v1beta"
+        # Utiliser gemini-1.5-flash (modèle rapide et économique avec vision)
+        self.model = "gemini-1.5-flash"
+        logger.info(f"✅ Gemini Vision API REST configurée (modèle: {self.model})")
+
+    def _encode_file_to_base64(self, file_path: str) -> Tuple[str, str]:
+        """
+        Encode un fichier en base64 pour l'API Gemini
+
+        Returns:
+            Tuple (mime_type, base64_data)
+        """
+        path = Path(file_path)
+        mime_type = mimetypes.guess_type(file_path)[0] or 'application/pdf'
+
+        with open(file_path, 'rb') as f:
+            file_data = f.read()
+            base64_data = base64.b64encode(file_data).decode('utf-8')
+
+        return mime_type, base64_data
 
     def extract_receipt_from_pdf(self, pdf_path: str, currency_hint: str = "EUR") -> Optional[Dict]:
         """
-        Extrait et analyse un ticket de caisse depuis un PDF avec Gemini Vision
+        Extrait et analyse un ticket de caisse depuis un PDF avec Gemini Vision API REST
 
         Args:
             pdf_path: Chemin vers le fichier PDF
@@ -50,14 +70,14 @@ class ReceiptExtractor:
             }
         """
         try:
-            logger.info(f"Analyse du ticket PDF avec Gemini Vision (devise: {currency_hint})...")
+            logger.info(f"Analyse du ticket PDF avec Gemini Vision API REST (devise: {currency_hint})...")
 
-            # Uploader le PDF vers Gemini
-            uploaded_file = genai.upload_file(pdf_path)
-            logger.info(f"PDF uploadé: {uploaded_file.name}")
+            # Encoder le PDF en base64
+            mime_type, base64_data = self._encode_file_to_base64(pdf_path)
+            logger.info(f"PDF encodé ({mime_type}, {len(base64_data)} caractères base64)")
 
             # Prompt pour Gemini
-            prompt = f"""Analyse ce ticket de caisse et extrait les informations en JSON.
+            prompt_text = f"""Analyse ce ticket de caisse et extrait les informations en JSON.
 
 IMPORTANT:
 - Extrait UNIQUEMENT les articles alimentaires (ingrédients, produits alimentaires)
@@ -106,11 +126,45 @@ EXEMPLES:
   }}
 """
 
-            # Générer la réponse
-            response = self.gemini_model.generate_content([uploaded_file, prompt])
+            # Construire la requête pour l'API REST
+            url = f"{self.base_url}/models/{self.model}:generateContent?key={self.api_key}"
+
+            payload = {
+                "contents": [{
+                    "parts": [
+                        {"text": prompt_text},
+                        {
+                            "inline_data": {
+                                "mime_type": mime_type,
+                                "data": base64_data
+                            }
+                        }
+                    ]
+                }],
+                "generationConfig": {
+                    "temperature": 0.1,  # Faible température pour plus de précision
+                    "topK": 32,
+                    "topP": 1,
+                    "maxOutputTokens": 2048,
+                }
+            }
+
+            # Appel API REST
+            logger.info("Envoi de la requête à Gemini API REST...")
+            response = requests.post(url, json=payload, timeout=60)
+            response.raise_for_status()
+
+            result = response.json()
+
+            # Extraire le texte de la réponse
+            if 'candidates' not in result or not result['candidates']:
+                logger.error("Aucun candidat dans la réponse Gemini")
+                return None
+
+            content = result['candidates'][0]['content']['parts'][0]['text']
 
             # Nettoyer la réponse (enlever les éventuels markdown)
-            content = response.text.strip()
+            content = content.strip()
             if content.startswith("```json"):
                 content = content[7:]
             if content.startswith("```"):
@@ -159,8 +213,13 @@ EXEMPLES:
             logger.error(f"Erreur parsing JSON: {e}")
             logger.error(f"Contenu reçu: {content[:500] if 'content' in locals() else 'N/A'}")
             return None
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Erreur requête API Gemini: {e}")
+            if hasattr(e, 'response') and e.response is not None:
+                logger.error(f"Réponse API: {e.response.text[:500]}")
+            return None
         except Exception as e:
-            logger.error(f"Erreur Gemini Vision: {e}", exc_info=True)
+            logger.error(f"Erreur Gemini Vision API REST: {e}", exc_info=True)
             return None
 
 
