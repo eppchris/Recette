@@ -25,7 +25,7 @@ class ReceiptExtractor:
             raise ValueError("GEMINI_API_KEY non configurée - impossible d'analyser les tickets")
 
         self.api_key = Config.GEMINI_API_KEY
-        self.base_url = "https://generativelanguage.googleapis.com/v1beta"
+        self.base_url = "https://generativelanguage.googleapis.com/v1"
         # Utiliser gemini-1.5-flash (quota gratuit: 15 requêtes/minute, 1500/jour)
         self.model = "gemini-1.5-flash"
         logger.info(f"✅ Gemini Vision API REST configurée (modèle: {self.model})")
