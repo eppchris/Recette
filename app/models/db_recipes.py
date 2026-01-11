@@ -309,6 +309,27 @@ def update_recipe_complete(recipe_id: int, lang: str, data: dict):
             )
 
         # Mettre à jour les ingrédients
+        # Ne traiter les ingrédients que si le champ est présent dans les données
+        if 'ingredients' in data:
+            # Récupérer les IDs des ingrédients à conserver
+            kept_ingredient_ids = [ing['id'] for ing in data['ingredients'] if ing.get('id')]
+
+            # Supprimer les ingrédients qui ne sont plus dans la liste
+            if kept_ingredient_ids:
+                placeholders = ','.join('?' * len(kept_ingredient_ids))
+                con.execute(
+                    f"""DELETE FROM recipe_ingredient
+                        WHERE recipe_id = ? AND id NOT IN ({placeholders})""",
+                    (recipe_id, *kept_ingredient_ids)
+                )
+            elif data['ingredients']:  # Liste vide explicite ou seulement nouveaux ingrédients
+                # Supprimer tous les ingrédients existants
+                con.execute(
+                    "DELETE FROM recipe_ingredient WHERE recipe_id = ?",
+                    (recipe_id,)
+                )
+
+        # Mettre à jour ou insérer les ingrédients
         for order, ing in enumerate(data.get('ingredients', []), start=1):
             if ing.get('id'):
                 # Mettre à jour un ingrédient existant
@@ -342,6 +363,27 @@ def update_recipe_complete(recipe_id: int, lang: str, data: dict):
                 )
 
         # Mettre à jour les étapes
+        # Ne traiter les étapes que si le champ est présent dans les données
+        if 'steps' in data:
+            # Récupérer les IDs des étapes à conserver
+            kept_step_ids = [step['id'] for step in data['steps'] if step.get('id')]
+
+            # Supprimer les étapes qui ne sont plus dans la liste
+            if kept_step_ids:
+                placeholders = ','.join('?' * len(kept_step_ids))
+                con.execute(
+                    f"""DELETE FROM step
+                        WHERE recipe_id = ? AND id NOT IN ({placeholders})""",
+                    (recipe_id, *kept_step_ids)
+                )
+            elif data['steps']:  # Liste vide explicite ou seulement nouvelles étapes
+                # Supprimer toutes les étapes existantes
+                con.execute(
+                    "DELETE FROM step WHERE recipe_id = ?",
+                    (recipe_id,)
+                )
+
+        # Mettre à jour ou insérer les étapes
         for order, step in enumerate(data.get('steps', []), start=1):
             if step.get('id'):
                 # Mettre à jour une étape existante
@@ -413,6 +455,41 @@ def delete_recipe(slug: str):
         con.execute("DELETE FROM recipe WHERE id = ?", (recipe_id,))
 
         return True
+
+
+def delete_recipe_language(recipe_id: int, lang: str):
+    """
+    Supprime toutes les données d'une recette pour une langue spécifique
+
+    Args:
+        recipe_id: ID de la recette
+        lang: Code de langue à supprimer ('fr' ou 'jp')
+
+    Returns:
+        bool: True si la suppression a réussi, False sinon
+    """
+    with get_db() as con:
+        # Supprimer les traductions des étapes pour cette langue
+        con.execute("""
+            DELETE FROM step_translation
+            WHERE step_id IN (SELECT id FROM step WHERE recipe_id = ?)
+            AND lang = ?
+        """, (recipe_id, lang))
+
+        # Supprimer les traductions des ingrédients pour cette langue
+        con.execute("""
+            DELETE FROM recipe_ingredient_translation
+            WHERE recipe_ingredient_id IN (SELECT id FROM recipe_ingredient WHERE recipe_id = ?)
+            AND lang = ?
+        """, (recipe_id, lang))
+
+        # Supprimer la traduction de la recette pour cette langue
+        result = con.execute(
+            "DELETE FROM recipe_translation WHERE recipe_id = ? AND lang = ?",
+            (recipe_id, lang)
+        )
+
+        return result.rowcount > 0
 
 
 def update_recipe_image(recipe_id: int, image_url: str, thumbnail_url: str):

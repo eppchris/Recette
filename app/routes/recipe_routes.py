@@ -188,12 +188,9 @@ async def translate_recipe(slug: str, target_lang: str = Query(...)):
             status_code=404
         )
 
-    # Vérifier si la traduction existe déjà
+    # Si la traduction existe déjà, la supprimer pour permettre la retraduction
     if db.check_translation_exists(recipe_id, target_lang):
-        return JSONResponse(
-            {"success": False, "message": f"La traduction existe déjà en {target_lang}"},
-            status_code=400
-        )
+        db.delete_recipe_language(recipe_id, target_lang)
 
     # Déterminer la langue source
     source_lang = db.get_source_language(recipe_id)

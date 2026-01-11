@@ -39,18 +39,19 @@
           <span>{{ '編集' if lang == 'jp' else 'Modifier' }}</span>
         </button>
 
-        <!-- Bouton de traduction (affiché seulement si pas de traduction) -->
-        {% if not has_translation %}
+        <!-- Bouton de traduction/retraduction -->
         <button
           @click="translateRecipe()"
           :disabled="translating"
-          :class="apiStatus === 'operational' ? 'bg-green-600 hover:bg-green-700' : 'bg-red-600 hover:bg-red-700'"
-          class="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-2 text-white rounded font-semibold disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          class="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded font-semibold disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
         >
-          <span x-show="!translating">🌐 {{ '翻訳' if lang == 'jp' else 'Traduction' }}</span>
+          {% if lang == 'jp' %}
+          <span x-show="!translating">{{ '🔄 FR → JP 再翻訳' if has_translation else '🌐 FR → JP 翻訳' }}</span>
+          {% else %}
+          <span x-show="!translating">{{ '🔄 JP → FR Retraduire' if has_translation else '🌐 JP → FR Traduire' }}</span>
+          {% endif %}
           <span x-show="translating">⏳ {{ 'Traduction...' if lang == 'fr' else '翻訳中...' }}</span>
         </button>
-        {% endif %}
       </div>
     </div>
 
@@ -819,10 +820,8 @@
       lang: '{{ lang }}',
 
       async init() {
-        // Vérifier le statut de l'API uniquement si la traduction est nécessaire
-        {% if not has_translation %}
+        // Vérifier le statut de l'API pour la traduction/retraduction
         await this.checkApiStatus();
-        {% endif %}
         // Charger les catégories et tags
         await this.loadCategoriesAndTags();
         // Initialiser les données d'édition
@@ -908,10 +907,31 @@
       },
 
       async translateRecipe() {
+        const hasTranslation = {{ 'true' if has_translation else 'false' }};
+
+        // Confirmer la retraduction si la traduction existe déjà
+        if (hasTranslation) {
+          {% if lang == 'jp' %}
+          const confirmMessage = '⚠️ 注意 ⚠️\n\n' +
+            'フランス語版から日本語版に再翻訳します。\n' +
+            '現在の日本語版は完全に削除され、置き換えられます。\n\n' +
+            '本当に実行しますか？';
+          {% else %}
+          const confirmMessage = '⚠️ ATTENTION ⚠️\n\n' +
+            'Vous allez REMPLACER la version française par une retraduction depuis le japonais.\n' +
+            'La version française actuelle sera complètement ÉCRASÉE.\n\n' +
+            'Êtes-vous sûr de vouloir continuer ?';
+          {% endif %}
+          if (!confirm(confirmMessage)) {
+            return;
+          }
+        }
+
         this.translating = true;
         this.message = '';
 
         try {
+          // Utiliser l'endpoint de traduction (qui gère aussi la retraduction)
           const response = await fetch('/api/translate/{{ rec["slug"] }}?target_lang={{ lang }}', {
             method: 'POST'
           });
