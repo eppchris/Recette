@@ -140,7 +140,11 @@
                     {{ ingredients|length }} {{ 'ingrédients' if lang == 'fr' else '食材' }}
                 </div>
 
-                <div class="flex gap-3">
+                <div class="flex flex-wrap gap-3">
+                    <a href="/ingredient-catalog/maintenance?lang={{ lang }}"
+                       class="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700">
+                        🔧 {{ 'Maintenance' if lang == 'fr' else 'メンテナンス' }}
+                    </a>
                     <a href="/receipt-upload?lang={{ lang }}"
                        class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700">
                         📄 {{ 'Ticket de caisse' if lang == 'fr' else 'レシート' }}
@@ -270,9 +274,32 @@
                     </thead>
                     <tbody class="divide-y divide-gray-200 dark:divide-gray-600">
                         <template x-for="ing in sortedIngredients" :key="ing.id">
-                            <tr x-data="{ editing: false }" class="hover:bg-gray-50 dark:hover:bg-gray-700">
-                                <form method="POST" :action="`/ingredient-catalog/${ing.id}/update`">
-                                    <input type="hidden" name="lang" value="{{ lang }}">
+                            <tr x-data="{
+                                editing: false,
+                                submitUpdate() {
+                                    const row = this.$el.closest('tr');
+                                    const form = document.createElement('form');
+                                    form.method = 'POST';
+                                    form.action = `/ingredient-catalog/${ing.id}/update`;
+                                    const fields = {
+                                        lang: '{{ lang }}',
+                                        price_eur: row.querySelector('[data-field=price_eur]')?.value || '',
+                                        price_jpy: row.querySelector('[data-field=price_jpy]')?.value || '',
+                                        qty: row.querySelector('[data-field=qty]')?.value || '',
+                                        unit: row.querySelector('[data-field=unit]')?.value || '',
+                                        conversion_category: row.querySelector('[data-field=category]')?.value || ''
+                                    };
+                                    for (const [key, val] of Object.entries(fields)) {
+                                        const input = document.createElement('input');
+                                        input.type = 'hidden';
+                                        input.name = key;
+                                        input.value = val;
+                                        form.appendChild(input);
+                                    }
+                                    document.body.appendChild(form);
+                                    form.submit();
+                                }
+                            }" class="hover:bg-gray-50 dark:hover:bg-gray-700">
 
                                     <!-- Colonne 1: Nom ingrédient -->
                                     <td class="px-4 py-3 text-sm" :class="editing ? 'bg-gray-50 dark:bg-gray-700' : ''">
@@ -293,7 +320,7 @@
                                         </template>
                                         <template x-if="editing">
                                             <input type="number"
-                                                   name="price_eur"
+                                                   data-field="price_eur"
                                                    :value="ing.price_eur || ''"
                                                    placeholder="Prix €"
                                                    step="0.01"
@@ -316,7 +343,7 @@
                                         </template>
                                         <template x-if="editing">
                                             <input type="number"
-                                                   name="price_jpy"
+                                                   data-field="price_jpy"
                                                    :value="ing.price_jpy || ''"
                                                    placeholder="Prix ¥"
                                                    step="0.01"
@@ -332,7 +359,7 @@
                                         </template>
                                         <template x-if="editing">
                                             <input type="number"
-                                                   name="qty"
+                                                   data-field="qty"
                                                    :value="ing.qty || '1'"
                                                    placeholder="Qté"
                                                    step="0.01"
@@ -348,7 +375,7 @@
                                         </template>
                                         <template x-if="editing">
                                             <input type="text"
-                                                   name="unit"
+                                                   data-field="unit"
                                                    :value="ing.unit"
                                                    required
                                                    class="w-full px-2 py-1 border border-gray-300 dark:border-gray-600 rounded dark:bg-gray-600 dark:text-white text-sm">
@@ -376,7 +403,7 @@
                                             </div>
                                         </template>
                                         <template x-if="editing">
-                                            <select name="conversion_category"
+                                            <select data-field="category"
                                                     :value="ing.conversion_category || ''"
                                                     class="w-full px-2 py-1 border border-gray-300 dark:border-gray-600 rounded dark:bg-gray-600 dark:text-white text-sm">
                                                 <option value="">{{ '-' if lang == 'fr' else '-' }}</option>
@@ -407,7 +434,8 @@
                                         </template>
                                         <template x-if="editing">
                                             <div class="flex justify-center gap-2">
-                                                <button type="submit"
+                                                <button type="button"
+                                                        @click="submitUpdate()"
                                                         class="px-3 py-1 bg-green-600 text-white rounded text-sm hover:bg-green-700">
                                                     💾 {{ 'Enregistrer' if lang == 'fr' else '保存' }}
                                                 </button>
@@ -419,7 +447,6 @@
                                             </div>
                                         </template>
                                     </td>
-                                </form>
                             </tr>
                         </template>
                     </tbody>

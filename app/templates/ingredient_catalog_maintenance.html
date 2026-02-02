@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="{{ lang }}">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ 'Maintenance du catalogue' if lang == 'fr' else 'カタログメンテナンス' }} - Recette</title>
+
+    <!-- Favicons -->
+    <link rel="icon" type="image/x-icon" href="/static/favicon.ico?v=2">
+    <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-32x32.png?v=2">
+    <link rel="icon" type="image/png" sizes="16x16" href="/static/favicon-16x16.png?v=2">
+    <link rel="apple-touch-icon" sizes="64x64" href="/static/favicon-64x64.png?v=2">
+    <script src="/static/css/tailwind.min.js"></script>
+    <script defer src="/static/css/alpine.min.js"></script>
+</head>
+<body class="bg-gray-50" x-data="maintenanceData()" x-init="init()" :class="darkMode ? 'dark bg-gray-900' : 'bg-gray-50'">
+    <script>
+        function maintenanceData() {
+            return {
+                darkMode: false,
+                groups: [],
+                lang: '{{ lang }}',
+
+                init() {
+                    // Charger le dark mode depuis localStorage
+                    this.darkMode = localStorage.getItem('darkMode') === 'true';
+                    // Charger les groupes depuis le data attribute
+                    const data = document.getElementById('groups-data').textContent;
+                    this.groups = JSON.parse(data);
+                    // Pre-selectionner tous les membres + definir le keeper (index 0 = meilleur)
+                    this.groups.forEach(g => {
+                        g.keeper_idx = 0;
+                        g.members.forEach(m => { m.selected = true; });
+                    });
+                },
+
+                toggleDarkMode() {
+                    this.darkMode = !this.darkMode;
+                    localStorage.setItem('darkMode', this.darkMode);
+                },
+
+                selectedCount(groupIdx) {
+                    return this.groups[groupIdx].members.filter(m => m.selected).length;
+                },
+
+                selectAll(groupIdx) {
+                    this.groups[groupIdx].members.forEach(m => { m.selected = true; });
+                },
+
+                deselectAll(groupIdx) {
+                    this.groups[groupIdx].members.forEach(m => { m.selected = false; });
+                },
+
+                mergeGroup(groupIdx) {
+                    const group = this.groups[groupIdx];
+                    const selected = group.members.filter(m => m.selected);
+
+                    if (selected.length < 2) {
+                        alert(this.lang === 'fr'
+                            ? 'Selectionnez au moins 2 ingredients a fusionner.'
+                            : '少なくとも2つの食材を選択してください。');
+                        return;
+                    }
+
+                    // Verifier que le keeper est parmi les selectionnes
+                    const keeper = group.members[group.keeper_idx];
+                    if (!keeper.selected) {
+                        alert(this.lang === 'fr'
+                            ? 'L\'ingredient de reference (prix a garder) doit etre selectionne.'
+                            : '基準食材（保持する価格）は選択されている必要があります。');
+                        return;
+                    }
+
+                    const canonicalFr = group.canonical_name_fr;
+                    const keeperName = keeper.ingredient_name_fr;
+                    const msg = this.lang === 'fr'
+                        ? `Fusionner ${selected.length} ingredients en "${canonicalFr}" ?\n\nPrix de reference : ${keeperName}\nLes recettes seront mises a jour automatiquement.`
+                        : `${selected.length}つの食材を「${canonicalFr}」に統合しますか？\n\n基準価格：${keeperName}\nレシピは自動的に更新されます。`;
+
+                    if (!confirm(msg)) return;
+
+                    // Creer et soumettre le formulaire
+                    const form = document.createElement('form');
+                    form.method = 'POST';
+                    form.action = '/ingredient-catalog/maintenance/merge';
+
+                    const fields = {
+                        lang: this.lang,
+                        member_ids: selected.map(m => m.catalog_id).join(','),
+                        canonical_name_fr: group.canonical_name_fr,
+                        canonical_name_jp: group.canonical_name_jp || '',
+                        keeper_id: keeper.catalog_id
+                    };
+
+                    for (const [key, val] of Object.entries(fields)) {
+                        const input = document.createElement('input');
+                        input.type = 'hidden';
+                        input.name = key;
+                        input.value = val;
+                        form.appendChild(input);
+                    }
+
+                    document.body.appendChild(form);
+                    form.submit();
+                },
+
+                dismissGroup(groupIdx) {
+                    this.groups.splice(groupIdx, 1);
+                }
+            }
+        }
+    </script>
+
+    <!-- Donnees JSON cachees -->
+    <script id="groups-data" type="application/json">{{ groups|tojson|safe }}</script>
+
+    <div class="min-h-screen" :class="darkMode ? 'dark bg-gray-900 text-gray-100' : 'bg-gray-50 text-gray-900'">
+        <!-- Header -->
+        <header class="shadow-sm mb-6" :class="darkMode ? 'bg-gray-800' : 'bg-white'">
+            <div class="max-w-7xl mx-auto px-4 py-4">
+                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                    <div class="flex items-center gap-4">
+                        <a href="/ingredient-catalog?lang={{ lang }}"
+                           class="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 font-medium">
+                            ← {{ 'Catalogue' if lang == 'fr' else 'カタログ' }}
+                        </a>
+                        <h1 class="text-xl sm:text-2xl font-bold">
+                            {{ 'Maintenance - Doublons' if lang == 'fr' else 'メンテナンス - 重複' }}
+                        </h1>
+                    </div>
+                    <div class="flex items-center gap-3">
+                        <!-- Selecteur de langue -->
+                        <div class="flex rounded-lg overflow-hidden border" :class="darkMode ? 'border-gray-600' : 'border-gray-300'">
+                            <a href="?lang=fr"
+                               class="px-3 py-1.5 text-sm font-medium {{ 'bg-blue-600 text-white' if lang == 'fr' else '' }}"
+                               :class="'{{ lang }}' !== 'fr' ? (darkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-700') : ''">
+                                FR
+                            </a>
+                            <a href="?lang=jp"
+                               class="px-3 py-1.5 text-sm font-medium {{ 'bg-blue-600 text-white' if lang == 'jp' else '' }}"
+                               :class="'{{ lang }}' !== 'jp' ? (darkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-700') : ''">
+                                JP
+                            </a>
+                        </div>
+                        <!-- Dark mode -->
+                        <button @click="toggleDarkMode()"
+                                class="p-2 rounded-lg transition-colors"
+                                :class="darkMode ? 'bg-gray-700 hover:bg-gray-600 text-yellow-400' : 'bg-gray-100 hover:bg-gray-200 text-gray-600'">
+                            <span x-show="!darkMode">🌙</span>
+                            <span x-show="darkMode">☀️</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <main class="max-w-7xl mx-auto px-4 pb-8">
+            <!-- Statistiques -->
+            <div class="mb-6 p-4 rounded-lg" :class="darkMode ? 'bg-gray-800 border border-gray-700' : 'bg-white border border-gray-200'">
+                <div class="flex flex-wrap gap-6 items-center">
+                    <div>
+                        <span class="text-3xl font-bold" :class="groups.length > 0 ? 'text-orange-600' : 'text-green-600'" x-text="groups.length"></span>
+                        <span class="ml-2 text-sm" :class="darkMode ? 'text-gray-400' : 'text-gray-600'">
+                            {{ 'groupes de doublons' if lang == 'fr' else '重複グループ' }}
+                        </span>
+                    </div>
+                    <div>
+                        <span class="text-3xl font-bold text-blue-600" x-text="groups.reduce((sum, g) => sum + g.members.length, 0)"></span>
+                        <span class="ml-2 text-sm" :class="darkMode ? 'text-gray-400' : 'text-gray-600'">
+                            {{ 'ingredients concernes' if lang == 'fr' else '対象食材' }}
+                        </span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Etat vide -->
+            <div x-show="groups.length === 0" class="text-center py-16">
+                <div class="text-6xl mb-4">✅</div>
+                <h2 class="text-2xl font-bold mb-2" :class="darkMode ? 'text-gray-200' : 'text-gray-800'">
+                    {{ 'Aucun doublon detecte !' if lang == 'fr' else '重複は見つかりませんでした！' }}
+                </h2>
+                <p :class="darkMode ? 'text-gray-400' : 'text-gray-600'">
+                    {{ 'Votre catalogue est propre.' if lang == 'fr' else 'カタログはきれいです。' }}
+                </p>
+            </div>
+
+            <!-- Liste des groupes -->
+            <div class="space-y-4">
+                <template x-for="(group, groupIdx) in groups" :key="groupIdx">
+                    <div class="rounded-lg overflow-hidden" :class="darkMode ? 'bg-gray-800 border border-gray-700' : 'bg-white border border-gray-200 shadow-sm'">
+                        <!-- En-tete du groupe -->
+                        <div class="px-4 py-3 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2" :class="darkMode ? 'bg-gray-750 border-b border-gray-700' : 'bg-gray-50 border-b border-gray-200'">
+                            <div class="flex items-center gap-2">
+                                <span class="text-orange-500 text-lg">⚠️</span>
+                                <span class="font-bold" :class="darkMode ? 'text-gray-200' : 'text-gray-800'" x-text="group.members.length + (lang === 'fr' ? ' ingredients similaires' : ' 類似食材')"></span>
+                            </div>
+                            <div class="flex gap-2">
+                                <button @click="selectAll(groupIdx)"
+                                        class="text-xs px-2 py-1 rounded" :class="darkMode ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'">
+                                    {{ 'Tout selectionner' if lang == 'fr' else '全選択' }}
+                                </button>
+                                <button @click="dismissGroup(groupIdx)"
+                                        class="text-xs px-2 py-1 rounded bg-gray-400 text-white hover:bg-gray-500">
+                                    {{ 'Ignorer' if lang == 'fr' else '無視' }}
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="p-4">
+                            <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                                <!-- Colonne gauche : membres -->
+                                <div class="lg:col-span-2">
+                                    <h4 class="text-sm font-semibold mb-2" :class="darkMode ? 'text-gray-400' : 'text-gray-500'">
+                                        {{ 'Ingredients detectes' if lang == 'fr' else '検出された食材' }}
+                                    </h4>
+                                    <div class="space-y-1.5">
+                                        <template x-for="(member, mIdx) in group.members" :key="mIdx">
+                                            <div class="flex items-stretch gap-0 rounded-lg overflow-hidden transition-all"
+                                                 :class="member.selected
+                                                     ? (darkMode ? 'bg-blue-900/30 border border-blue-700' : 'bg-blue-50 border border-blue-300')
+                                                     : (darkMode ? 'bg-gray-750 border border-gray-700 opacity-60' : 'bg-gray-50 border border-gray-200 opacity-60')">
+                                                <!-- Checkbox de selection -->
+                                                <label class="flex items-center px-2 cursor-pointer">
+                                                    <input type="checkbox" x-model="member.selected"
+                                                           class="w-4 h-4 text-blue-600 rounded">
+                                                </label>
+                                                <!-- Infos du membre -->
+                                                <div class="flex-1 min-w-0 py-2 pr-2">
+                                                    <div class="flex items-center gap-2 flex-wrap">
+                                                        <span class="font-medium truncate" :class="darkMode ? 'text-gray-200' : 'text-gray-900'" x-text="member.ingredient_name_fr"></span>
+                                                        <span x-show="member.ingredient_name_jp" class="text-xs px-1.5 py-0.5 rounded" :class="darkMode ? 'bg-gray-700 text-gray-400' : 'bg-gray-200 text-gray-600'" x-text="member.ingredient_name_jp"></span>
+                                                    </div>
+                                                    <div class="flex items-center gap-3 mt-1 text-xs">
+                                                        <span class="px-1.5 py-0.5 rounded-full"
+                                                              :class="member.recipe_count > 0
+                                                                  ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300'
+                                                                  : 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400'"
+                                                              x-text="member.recipe_count + (lang === 'fr' ? ' recette(s)' : ' レシピ')"></span>
+                                                        <span x-show="member.has_price_eur" class="text-green-600 dark:text-green-400" x-text="'EUR: ' + member.price_eur + '/' + member.qty + member.unit_fr"></span>
+                                                        <span x-show="member.has_price_jpy" class="text-green-600 dark:text-green-400" x-text="'JPY: ' + member.price_jpy + '/' + member.qty + member.unit_fr"></span>
+                                                        <span x-show="!member.has_price_eur && !member.has_price_jpy" class="text-gray-400 dark:text-gray-500">
+                                                            {{ 'Pas de prix' if lang == 'fr' else '価格なし' }}
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                                <!-- Radio bouton keeper (prix de reference) -->
+                                                <label class="flex items-center px-3 cursor-pointer border-l"
+                                                       :class="group.keeper_idx === mIdx
+                                                           ? (darkMode ? 'bg-amber-900/40 border-amber-700' : 'bg-amber-50 border-amber-300')
+                                                           : (darkMode ? 'border-gray-700' : 'border-gray-200')"
+                                                       :title="lang === 'fr' ? 'Garder ces prix' : 'この価格を保持'">
+                                                    <input type="radio" :name="'keeper_' + groupIdx"
+                                                           :checked="group.keeper_idx === mIdx"
+                                                           @change="group.keeper_idx = mIdx"
+                                                           class="w-4 h-4 text-amber-600">
+                                                    <span class="ml-1.5 text-xs font-medium whitespace-nowrap"
+                                                          :class="group.keeper_idx === mIdx
+                                                              ? 'text-amber-700 dark:text-amber-400'
+                                                              : (darkMode ? 'text-gray-500' : 'text-gray-400')"
+                                                          x-text="group.keeper_idx === mIdx ? (lang === 'fr' ? '★ Prix ref.' : '★ 基準価格') : (lang === 'fr' ? 'Prix ref.' : '基準価格')">
+                                                    </span>
+                                                </label>
+                                            </div>
+                                        </template>
+                                    </div>
+                                </div>
+
+                                <!-- Colonne droite : nom canonique + action -->
+                                <div class="lg:col-span-1">
+                                    <h4 class="text-sm font-semibold mb-2" :class="darkMode ? 'text-gray-400' : 'text-gray-500'">
+                                        {{ 'Nom final apres fusion' if lang == 'fr' else '統合後の名前' }}
+                                    </h4>
+                                    <div class="space-y-3">
+                                        <div>
+                                            <label class="block text-xs font-medium mb-1" :class="darkMode ? 'text-gray-400' : 'text-gray-600'">
+                                                {{ 'Nom FR' if lang == 'fr' else 'フランス語名' }}
+                                            </label>
+                                            <input type="text" x-model="group.canonical_name_fr"
+                                                   class="w-full px-3 py-2 border rounded-lg text-sm"
+                                                   :class="darkMode ? 'bg-gray-700 border-gray-600 text-gray-100' : 'bg-white border-gray-300 text-gray-900'">
+                                        </div>
+                                        <div>
+                                            <label class="block text-xs font-medium mb-1" :class="darkMode ? 'text-gray-400' : 'text-gray-600'">
+                                                {{ 'Nom JP' if lang == 'fr' else '日本語名' }}
+                                            </label>
+                                            <input type="text" x-model="group.canonical_name_jp"
+                                                   class="w-full px-3 py-2 border rounded-lg text-sm"
+                                                   :class="darkMode ? 'bg-gray-700 border-gray-600 text-gray-100' : 'bg-white border-gray-300 text-gray-900'">
+                                        </div>
+                                        <button @click="mergeGroup(groupIdx)"
+                                                :disabled="selectedCount(groupIdx) < 2"
+                                                class="w-full px-4 py-2.5 bg-orange-600 hover:bg-orange-700 text-white rounded-lg font-semibold transition-colors disabled:opacity-40 disabled:cursor-not-allowed text-sm">
+                                            🔀 {{ 'Fusionner' if lang == 'fr' else '統合する' }}
+                                            (<span x-text="selectedCount(groupIdx)"></span>)
+                                        </button>
+                                    </div>
+
+                                    <!-- Resume de ce qui va se passer -->
+                                    <div class="mt-3 p-2 rounded text-xs" :class="darkMode ? 'bg-gray-750 text-gray-400' : 'bg-gray-100 text-gray-500'">
+                                        <span x-text="lang === 'fr'
+                                            ? 'Prix de reference : ' + group.members[group.keeper_idx].ingredient_name_fr + '. Les recettes seront mises a jour.'
+                                            : '基準価格：' + group.members[group.keeper_idx].ingredient_name_fr + '。レシピは自動更新されます。'">
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </template>
+            </div>
+
+            <!-- Info footer -->
+            <div x-show="groups.length > 0" class="mt-8 p-4 rounded-lg text-sm" :class="darkMode ? 'bg-blue-900/20 border border-blue-800 text-blue-300' : 'bg-blue-50 border border-blue-200 text-blue-800'">
+                <h3 class="font-bold mb-2">{{ 'Comment ca marche ?' if lang == 'fr' else '使い方' }}</h3>
+                <ul class="space-y-1 list-disc list-inside">
+                    <li>{{ 'Cochez les ingredients que vous souhaitez fusionner' if lang == 'fr' else '統合する食材にチェックを入れます' }}</li>
+                    <li>{{ 'Modifiez le nom final si necessaire' if lang == 'fr' else '必要に応じて最終名を編集します' }}</li>
+                    <li>{{ 'Cliquez sur "Fusionner" pour appliquer' if lang == 'fr' else '「統合する」をクリックして適用します' }}</li>
+                    <li>{{ 'Les recettes utilisant les anciens noms seront automatiquement mises a jour' if lang == 'fr' else '古い名前を使用しているレシピは自動的に更新されます' }}</li>
+                    <li>{{ 'Selectionnez "Prix ref." pour choisir quel ingredient garde ses prix' if lang == 'fr' else '「基準価格」を選択して、どの食材の価格を保持するか選びます' }}</li>
+                    <li>{{ 'Les prix manquants sont completes depuis les autres ingredients du groupe' if lang == 'fr' else '不足している価格情報は、グループの他の食材から補完されます' }}</li>
+                </ul>
+            </div>
+        </main>
+    </div>
+</body>
+</html>

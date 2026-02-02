@@ -42,6 +42,69 @@ async def sync_catalog(lang: str = Form("fr")):
 
 
 
+# ============================================================================
+# MAINTENANCE DU CATALOGUE (DETECTION ET FUSION DES DOUBLONS)
+# ============================================================================
+
+@router.get("/ingredient-catalog/maintenance")
+async def ingredient_catalog_maintenance(
+    request: Request,
+    lang: str = "fr"
+):
+    """
+    Page de maintenance du catalogue - detection et fusion des doublons
+    """
+    groups = db.detect_duplicate_groups()
+
+    return templates.TemplateResponse("ingredient_catalog_maintenance.html", {
+        "request": request,
+        "lang": lang,
+        "groups": groups,
+        "total_groups": len(groups),
+        "total_duplicates": sum(len(g['members']) for g in groups)
+    })
+
+
+@router.post("/ingredient-catalog/maintenance/merge")
+async def merge_ingredients(
+    request: Request,
+    lang: str = Form("fr"),
+    member_ids: str = Form(""),
+    canonical_name_fr: str = Form(""),
+    canonical_name_jp: str = Form(""),
+    keeper_id: Optional[str] = Form(None)
+):
+    """
+    Fusionne un groupe d'ingredients doublons
+    """
+    if not member_ids.strip() or not canonical_name_fr.strip():
+        return RedirectResponse(
+            f"/ingredient-catalog/maintenance?lang={lang}", status_code=303
+        )
+
+    try:
+        ids_list = [int(x.strip()) for x in member_ids.split(",") if x.strip()]
+    except ValueError:
+        return RedirectResponse(
+            f"/ingredient-catalog/maintenance?lang={lang}", status_code=303
+        )
+
+    # Parser le keeper_id (optionnel)
+    keeper = None
+    if keeper_id and keeper_id.strip():
+        try:
+            keeper = int(keeper_id.strip())
+        except ValueError:
+            pass
+
+    jp_name = canonical_name_jp.strip() if canonical_name_jp and canonical_name_jp.strip() else None
+    db.merge_ingredient_group(ids_list, canonical_name_fr.strip(), jp_name, keeper_id=keeper)
+
+    return RedirectResponse(
+        f"/ingredient-catalog/maintenance?lang={lang}", status_code=303
+    )
+
+
 @router.post("/ingredient-catalog/{ingredient_id}/update")
 async def update_ingredient_price(
     ingredient_id: int,

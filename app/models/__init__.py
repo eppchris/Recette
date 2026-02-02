@@ -196,6 +196,12 @@ from .db_participants import (
     get_participant_events,
 )
 
+# Import des fonctions de maintenance du catalogue
+from .db_catalog_maintenance import (
+    detect_duplicate_groups,
+    merge_ingredient_group,
+)
+
 # Import des fonctions de gestion des tickets de caisse
 from .db_receipt import (
     create_receipt_upload,
@@ -378,6 +384,10 @@ __all__ = [
     'remove_participant_from_event',
     'get_participant_events',
 
+    # Catalog Maintenance
+    'detect_duplicate_groups',
+    'merge_ingredient_group',
+
     # Receipts
     'create_receipt_upload',
     'save_receipt_items',
@@ -559,6 +569,10 @@ db = SimpleNamespace(
     add_group_to_event=add_group_to_event,
     remove_participant_from_event=remove_participant_from_event,
     get_participant_events=get_participant_events,
+
+    # Catalog Maintenance
+    detect_duplicate_groups=detect_duplicate_groups,
+    merge_ingredient_group=merge_ingredient_group,
 
     # Receipts
     create_receipt_upload=create_receipt_upload,
