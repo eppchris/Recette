@@ -21,6 +21,10 @@ class Config:
     DATA_DIR = BASE_DIR / "data"
     DATA_DIR.mkdir(exist_ok=True)
 
+    # Stockage des tickets de caisse (PDFs)
+    RECEIPTS_DIR = BASE_DIR / "data" / "receipts"
+    RECEIPTS_DIR.mkdir(exist_ok=True)
+
     # Base de données (nom unifié)
     DB_PATH = str(DATA_DIR / "recette.sqlite3")
     DATABASE_URL = f"sqlite:///{DB_PATH}"

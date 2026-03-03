@@ -113,17 +113,30 @@
                             {% endif %}
                         </td>
                         <td class="px-4 py-3 text-right">
-                            <div class="flex justify-end gap-2">
-                                <a href="/participants/{{ member.id }}?lang={{ lang }}"
-                                   class="p-2 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded transition-colors"
-                                   title="{{ 'Voir' if lang == 'fr' else '見る' }}">
-                                    👁️
-                                </a>
-                                <button @click="openDeleteModal({{ member.id }}, '{{ member.nom }}')"
-                                        class="p-2 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors"
-                                        title="{{ 'Retirer du groupe' if lang == 'fr' else 'グループから削除' }}">
-                                    🗑️
-                                </button>
+                            <div class="flex justify-end gap-1">
+                                <div class="relative group/tip">
+                                    <a href="/participants/{{ member.id }}?lang={{ lang }}"
+                                       class="p-1.5 rounded hover:bg-blue-50 dark:hover:bg-blue-900/30 text-blue-600 dark:text-blue-400 inline-flex transition-colors">
+                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+                                        </svg>
+                                    </a>
+                                    <span class="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 px-2 py-0.5 text-xs bg-gray-800 text-white rounded whitespace-nowrap opacity-0 group-hover/tip:opacity-100 transition-opacity z-20">
+                                        {{ 'Voir' if lang == 'fr' else '見る' }}
+                                    </span>
+                                </div>
+                                <div class="relative group/tip">
+                                    <button @click="openDeleteModal({{ member.id }}, '{{ member.nom }}')"
+                                            class="p-1.5 rounded hover:bg-red-50 dark:hover:bg-red-900/30 text-red-600 dark:text-red-400 inline-flex transition-colors">
+                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7a4 4 0 11-8 0 4 4 0 018 0zM9 14a6 6 0 00-6 6v1h12v-1a6 6 0 00-6-6zM21 12h-6"/>
+                                        </svg>
+                                    </button>
+                                    <span class="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 px-2 py-0.5 text-xs bg-gray-800 text-white rounded whitespace-nowrap opacity-0 group-hover/tip:opacity-100 transition-opacity z-20">
+                                        {{ 'Retirer du groupe' if lang == 'fr' else 'グループから削除' }}
+                                    </span>
+                                </div>
                             </div>
                         </td>
                     </tr>

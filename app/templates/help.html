@@ -233,32 +233,50 @@
                         <h2 class="font-bold text-lg mb-4 text-gray-900 dark:text-white">
                             {{ 'Sommaire' if lang == 'fr' else '目次' }}
                         </h2>
-                        <nav class="space-y-2">
-                            <a href="#recipes" class="block text-sm text-blue-600 dark:text-blue-400 hover:underline">
+                        <nav class="space-y-1.5">
+                            <a href="#recipes" class="block text-sm font-medium text-blue-600 dark:text-blue-400 hover:underline">
                                 {{ '📖 Recettes' if lang == 'fr' else '📖 レシピ' }}
                             </a>
-                            <a href="#search" class="block text-sm text-blue-600 dark:text-blue-400 hover:underline">
+                            <a href="#nationality" class="block text-sm text-blue-600 dark:text-blue-400 hover:underline pl-3">
+                                {{ '🌍 Nationalité (drapeaux)' if lang == 'fr' else '🌍 国籍（国旗）' }}
+                            </a>
+                            <a href="#recipe-links" class="block text-sm text-blue-600 dark:text-blue-400 hover:underline pl-3">
+                                {{ '🔗 Liaison entre recettes' if lang == 'fr' else '🔗 レシピのリンク' }}
+                            </a>
+                            <a href="#calendar" class="block text-sm font-medium text-blue-600 dark:text-blue-400 hover:underline">
+                                {{ '📅 Calendrier des repas' if lang == 'fr' else '📅 食事カレンダー' }}
+                            </a>
+                            <a href="#receipts" class="block text-sm font-medium text-blue-600 dark:text-blue-400 hover:underline">
+                                {{ '🧾 Tickets de caisse' if lang == 'fr' else '🧾 レシート' }}
+                            </a>
+                            <a href="#import" class="block text-sm font-medium text-blue-600 dark:text-blue-400 hover:underline">
+                                {{ '📥 Import de recettes' if lang == 'fr' else '📥 レシピのインポート' }}
+                            </a>
+                            <a href="#categories" class="block text-sm font-medium text-blue-600 dark:text-blue-400 hover:underline">
+                                {{ '🏷️ Catégories et Tags' if lang == 'fr' else '🏷️ カテゴリーとタグ' }}
+                            </a>
+                            <a href="#search" class="block text-sm font-medium text-blue-600 dark:text-blue-400 hover:underline">
                                 {{ '🔍 Recherche par ingrédients' if lang == 'fr' else '🔍 食材で検索' }}
                             </a>
-                            <a href="#participants" class="block text-sm text-blue-600 dark:text-blue-400 hover:underline">
+                            <a href="#participants" class="block text-sm font-medium text-blue-600 dark:text-blue-400 hover:underline">
                                 {{ '👥 Participants et groupes' if lang == 'fr' else '👥 参加者とグループ' }}
                             </a>
-                            <a href="#events" class="block text-sm text-blue-600 dark:text-blue-400 hover:underline">
+                            <a href="#events" class="block text-sm font-medium text-blue-600 dark:text-blue-400 hover:underline">
                                 {{ '📅 Événements' if lang == 'fr' else '📅 イベント' }}
                             </a>
-                            <a href="#multiday" class="block text-sm text-blue-600 dark:text-blue-400 hover:underline">
-                                {{ '📆 Événements multi-jours' if lang == 'fr' else '📆 複数日イベント' }}
+                            <a href="#multiday" class="block text-sm text-blue-600 dark:text-blue-400 hover:underline pl-3">
+                                {{ '📆 Multi-jours' if lang == 'fr' else '📆 複数日' }}
                             </a>
-                            <a href="#planning" class="block text-sm text-blue-600 dark:text-blue-400 hover:underline">
+                            <a href="#planning" class="block text-sm text-blue-600 dark:text-blue-400 hover:underline pl-3">
                                 {{ '🗓️ Planification' if lang == 'fr' else '🗓️ プランニング' }}
                             </a>
-                            <a href="#shopping" class="block text-sm text-blue-600 dark:text-blue-400 hover:underline">
+                            <a href="#shopping" class="block text-sm text-blue-600 dark:text-blue-400 hover:underline pl-3">
                                 {{ '🛒 Liste de courses' if lang == 'fr' else '🛒 買い物リスト' }}
                             </a>
-                            <a href="#budget" class="block text-sm text-blue-600 dark:text-blue-400 hover:underline">
+                            <a href="#budget" class="block text-sm text-blue-600 dark:text-blue-400 hover:underline pl-3">
                                 {{ '💰 Budget' if lang == 'fr' else '💰 予算' }}
                             </a>
-                            <a href="#catalog" class="block text-sm text-blue-600 dark:text-blue-400 hover:underline">
+                            <a href="#catalog" class="block text-sm font-medium text-blue-600 dark:text-blue-400 hover:underline">
                                 {{ '📚 Catalogue des prix' if lang == 'fr' else '📚 価格カタログ' }}
                             </a>
                         </nav>
@@ -291,7 +309,7 @@
             <!-- Pied de page -->
             <div class="mt-12 text-center text-gray-500 dark:text-gray-400 text-sm">
                 <p>{{ 'Besoin d\'aide supplémentaire? Contactez un administrateur.' if lang == 'fr' else 'さらにヘルプが必要ですか？管理者にお問い合わせください。' }}</p>
-                <p class="mt-2">Version 2.1 - {{ 'Mise à jour: Décembre 2025' if lang == 'fr' else '更新: 2025年12月' }}</p>
+                <p class="mt-2">Version 2.5 - {{ 'Mise à jour: Mars 2026' if lang == 'fr' else '更新: 2026年3月' }}</p>
             </div>
         </main>
     </div>

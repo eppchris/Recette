@@ -2,7 +2,7 @@
 Routes pour la gestion du catalogue des prix des ingrédients
 """
 from fastapi import APIRouter, Request, Form, UploadFile
-from fastapi.responses import RedirectResponse
+from fastapi.responses import RedirectResponse, FileResponse
 from fastapi.templating import Jinja2Templates
 from app.models import db
 from typing import Optional
@@ -328,14 +328,21 @@ async def receipt_list(
     lang: str = "fr"
 ):
     """
-    Page de liste de tous les tickets de caisse uploadés
+    Page de liste des tickets de caisse (filtrée par utilisateur, sauf admin)
     """
-    receipts = db.list_all_receipts(lang=lang, limit=100)
+    user_id = request.session.get('user_id')
+    is_admin = request.session.get('is_admin', False)
+
+    if not user_id:
+        return RedirectResponse(url=f"/login?lang={lang}", status_code=303)
+
+    receipts = db.list_all_receipts(lang=lang, limit=100, user_id=user_id, is_admin=is_admin)
 
     return templates.TemplateResponse("receipt_list.html", {
         "request": request,
         "lang": lang,
-        "receipts": receipts
+        "receipts": receipts,
+        "is_admin": is_admin
     })
 
 
@@ -365,8 +372,15 @@ async def receipt_upload_process(
     """
     import tempfile
     import os
+    import shutil
+    import uuid
     from app.services.receipt_extractor import get_receipt_extractor
     from app.services.ingredient_matcher import get_ingredient_matcher
+    from config import Config
+
+    user_id = request.session.get('user_id')
+    if not user_id:
+        return RedirectResponse(url=f"/login?lang={lang}", status_code=303)
 
     if not pdf_file:
         return templates.TemplateResponse("receipt_upload.html", {
@@ -387,25 +401,38 @@ async def receipt_upload_process(
         currency_hint = "JPY" if lang == "jp" else "EUR"
         receipt_data = extractor.extract_receipt_from_pdf(temp_path, currency_hint)
 
-        # Nettoyer le fichier temporaire
-        os.unlink(temp_path)
-
         if not receipt_data:
+            os.unlink(temp_path)
             return templates.TemplateResponse("receipt_upload.html", {
                 "request": request,
                 "lang": lang,
                 "error": "Impossible d'extraire les données du PDF" if lang == "fr" else "PDFからデータを抽出できません"
             })
 
-        # Créer l'enregistrement du receipt
+        # Créer l'enregistrement du receipt (sans file_path encore)
         receipt_id = db.create_receipt_upload(
             filename=pdf_file.filename,
             receipt_name=receipt_name if receipt_name and receipt_name.strip() else None,
             store_name=receipt_data.get('store_name'),
             receipt_date=receipt_data.get('date'),
             currency=receipt_data.get('currency', currency_hint),
-            user_id=None  # TODO: récupérer user_id de la session
+            user_id=user_id
         )
+
+        # Conserver le PDF dans data/receipts/ avec un nom unique
+        unique_name = f"receipt_{receipt_id}_{uuid.uuid4().hex[:8]}.pdf"
+        dest_path = Config.RECEIPTS_DIR / unique_name
+        shutil.copy2(temp_path, dest_path)
+        os.unlink(temp_path)
+
+        # Mettre à jour le file_path en BDD
+        from app.models.db_core import get_db as get_db_conn
+        with get_db_conn() as conn:
+            conn.execute(
+                "UPDATE receipt_upload_history SET file_path = ? WHERE id = ?",
+                (str(dest_path), receipt_id)
+            )
+            conn.commit()
 
         # Matcher les ingrédients
         matcher = get_ingredient_matcher()
@@ -436,6 +463,36 @@ async def receipt_upload_process(
         })
 
 
+@router.get("/receipt-file/{receipt_id}")
+async def receipt_file(
+    request: Request,
+    receipt_id: int
+):
+    """
+    Sert le PDF original du ticket (accès protégé par propriété ou admin)
+    """
+    import os
+    user_id = request.session.get('user_id')
+    is_admin = request.session.get('is_admin', False)
+
+    if not user_id:
+        return RedirectResponse(url="/login", status_code=303)
+
+    receipt = db.get_receipt_by_id(receipt_id)
+    if not receipt:
+        return templates.TemplateResponse("not_found.html", {"request": request, "lang": "fr", "message": "Ticket introuvable"}, status_code=404)
+
+    if not is_admin and receipt.get('user_id') != user_id:
+        return templates.TemplateResponse("not_found.html", {"request": request, "lang": "fr", "message": "Accès refusé"}, status_code=403)
+
+    file_path = receipt.get('file_path')
+    if not file_path or not os.path.exists(file_path):
+        return templates.TemplateResponse("not_found.html", {"request": request, "lang": "fr", "message": "Fichier introuvable"}, status_code=404)
+
+    filename = receipt.get('filename', 'ticket.pdf')
+    return FileResponse(file_path, media_type="application/pdf", filename=filename)
+
+
 @router.get("/receipt-review/{receipt_id}")
 async def receipt_review(
     request: Request,
@@ -445,6 +502,12 @@ async def receipt_review(
     """
     Page de révision et validation des matches d'ingrédients
     """
+    user_id = request.session.get('user_id')
+    is_admin = request.session.get('is_admin', False)
+
+    if not user_id:
+        return RedirectResponse(url=f"/login?lang={lang}", status_code=303)
+
     receipt = db.get_receipt_with_matches(receipt_id, lang)
 
     if not receipt:
@@ -452,6 +515,13 @@ async def receipt_review(
             "not_found.html",
             {"request": request, "lang": lang, "message": "Ticket introuvable"},
             status_code=404
+        )
+
+    if not is_admin and receipt.get('user_id') != user_id:
+        return templates.TemplateResponse(
+            "not_found.html",
+            {"request": request, "lang": lang, "message": "Accès refusé"},
+            status_code=403
         )
 
     # Récupérer tous les ingrédients du catalogue pour le dropdown
@@ -587,33 +657,50 @@ async def update_receipt_match_ingredient(
 
 @router.post("/receipt-apply/{receipt_id}")
 async def apply_receipt_prices(
+    request: Request,
     receipt_id: int,
     lang: str = Form("fr")
 ):
     """
     Applique tous les prix validés au catalogue
     """
+    user_id = request.session.get('user_id')
+    is_admin = request.session.get('is_admin', False)
+
     receipt = db.get_receipt_by_id(receipt_id)
 
     if not receipt:
         return RedirectResponse(f"/receipt-list?lang={lang}", status_code=303)
 
-    # Appliquer les prix
-    count = db.apply_validated_prices(receipt_id, receipt['currency'])
+    if not is_admin and receipt.get('user_id') != user_id:
+        return RedirectResponse(f"/receipt-list?lang={lang}", status_code=303)
 
-    # TODO: Ajouter un message flash pour afficher "{count} prix mis à jour"
+    # Appliquer les prix
+    db.apply_validated_prices(receipt_id, receipt['currency'])
 
     return RedirectResponse(f"/receipt-list?lang={lang}", status_code=303)
 
 
 @router.post("/receipt-delete/{receipt_id}")
 async def delete_receipt_by_id(
+    request: Request,
     receipt_id: int,
     lang: str = Form("fr")
 ):
     """
-    Supprime un ticket de caisse
+    Supprime un ticket de caisse (et son fichier PDF s'il existe)
     """
-    db.delete_receipt(receipt_id)
+    import os
+    user_id = request.session.get('user_id')
+    is_admin = request.session.get('is_admin', False)
+
+    receipt = db.get_receipt_by_id(receipt_id)
+
+    if receipt and (is_admin or receipt.get('user_id') == user_id):
+        # Supprimer le fichier PDF si présent
+        file_path = receipt.get('file_path')
+        if file_path and os.path.exists(file_path):
+            os.unlink(file_path)
+        db.delete_receipt(receipt_id)
 
     return RedirectResponse(f"/receipt-list?lang={lang}", status_code=303)

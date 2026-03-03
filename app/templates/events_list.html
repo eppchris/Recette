@@ -111,18 +111,32 @@
                             {{ event.attendees }}
                         </td>
                         <td class="px-4 py-4 text-right text-sm whitespace-nowrap">
-                            <div class="flex items-center justify-end gap-3">
+                            <div class="flex items-center justify-end gap-1">
                                 <!-- Bouton Copier -->
-                                <a href="/events/{{ event.id }}/copy?lang={{ lang }}"
-                                   class="text-yellow-600 dark:text-yellow-400 hover:text-yellow-800 dark:hover:text-yellow-300 text-sm">
-                                    📋 {{ 'Copier' if lang == 'fr' else 'コピー' }}
-                                </a>
+                                <div class="relative group/tip">
+                                    <a href="/events/{{ event.id }}/copy?lang={{ lang }}"
+                                       class="p-1.5 rounded hover:bg-yellow-50 dark:hover:bg-yellow-900/30 text-yellow-600 dark:text-yellow-400 inline-flex">
+                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"/>
+                                        </svg>
+                                    </a>
+                                    <span class="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 px-2 py-0.5 text-xs bg-gray-800 text-white rounded whitespace-nowrap opacity-0 group-hover/tip:opacity-100 transition-opacity z-20">
+                                        {{ 'Copier' if lang == 'fr' else 'コピー' }}
+                                    </span>
+                                </div>
 
                                 <!-- Bouton Supprimer -->
-                                <button @click="openDeleteModal({{ event.id }}, '{{ event.name }}')"
-                                        class="text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300 text-sm">
-                                    🗑️ {{ 'Supprimer' if lang == 'fr' else '削除' }}
-                                </button>
+                                <div class="relative group/tip">
+                                    <button @click="openDeleteModal({{ event.id }}, '{{ event.name }}')"
+                                            class="p-1.5 rounded hover:bg-red-50 dark:hover:bg-red-900/30 text-red-600 dark:text-red-400 inline-flex">
+                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                                        </svg>
+                                    </button>
+                                    <span class="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 px-2 py-0.5 text-xs bg-gray-800 text-white rounded whitespace-nowrap opacity-0 group-hover/tip:opacity-100 transition-opacity z-20">
+                                        {{ 'Supprimer' if lang == 'fr' else '削除' }}
+                                    </span>
+                                </div>
                             </div>
                         </td>
                     </tr>

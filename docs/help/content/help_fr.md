@@ -18,6 +18,162 @@ Plusieurs options de filtrage sont disponibles:
 - **Par recherche textuelle:** Tapez le nom de la recette dans la barre de recherche
 - **Par Ingrédients** Tapez le nom de l'ingrédient et toutes les recettes utilisant l'ingrédient apparaitront
 
+### 🌍 Nationalité du plat (drapeaux) {#nationality}
+
+Chaque recette peut avoir une nationalité, affichée sous forme de drapeau emoji.
+
+**Où le drapeau apparaît:**
+- Dans la liste des recettes (coin de la carte ou à côté du nom)
+- Dans la fiche détail de la recette (à côté des infos prep/cuisson)
+- Dans le calendrier (remplace le point coloré si une nationalité est définie)
+
+**Comment définir la nationalité:**
+
+1. Ouvrez la fiche d'une recette
+2. Cliquez sur "✏️ Modifier"
+3. Dans la section infos générales, sélectionnez le pays dans le menu déroulant "Nationalité"
+4. Cliquez sur "Enregistrer"
+
+**Import automatique:**
+Lors d'un import depuis URL ou PDF, l'IA détecte automatiquement la nationalité du plat et propose le code pays correspondant.
+
+> **💡 Astuce:** Si la nationalité n'est pas reconnue automatiquement à l'import, vous pouvez la saisir manuellement dans la fiche recette.
+
+### 🔗 Liaison entre recettes {#recipe-links}
+
+Un ingrédient peut être lié à une autre recette. Utile quand une préparation est elle-même une recette de la base (ex: "Pâte feuilletée", "Sauce béchamel", "Bouillon de poulet").
+
+**Comment lier un ingrédient à une recette:**
+
+1. Ouvrez la fiche d'une recette en mode édition
+2. Dans la liste des ingrédients, chaque ligne affiche un menu déroulant **"Lier à une recette"**
+3. Sélectionnez la recette cible dans ce menu
+4. Enregistrez
+
+**Ce que ça change à l'affichage:**
+- L'ingrédient lié affiche un badge **🔗 Nom de la recette** cliquable
+- Cliquez sur le badge pour accéder directement à la recette liée
+
+**Important:** La liaison est **visuelle uniquement**. Dans la liste de courses, les ingrédients de la recette liée ne sont **pas** ajoutés automatiquement. La quantité indiquée reste la quantité physique nécessaire (en g, ml, etc.).
+
+> **💡 Exemple:** Dans la recette "Tarte aux pommes", l'ingrédient "250g pâte feuilletée" peut être lié à la recette "Pâte feuilletée". Le badge 🔗 permet de retrouver rapidement la recette de la pâte sans l'inclure automatiquement dans les courses.
+
+---
+
+## 📅 Calendrier des repas {#calendar}
+
+Le calendrier permet de planifier les repas du quotidien, indépendamment des événements.
+
+### Accéder au calendrier
+Depuis le menu principal, cliquez sur "Calendrier".
+
+### Ajouter un repas
+1. Cliquez sur un jour dans le calendrier
+2. Un panneau latéral s'ouvre avec le détail du jour
+3. Cliquez sur "➕ Ajouter un repas"
+4. Cherchez une recette dans la barre de recherche (autocomplétion)
+5. Sélectionnez le moment (Petit-déjeuner / Déjeuner / Dîner / Autre)
+6. Le repas s'affiche dans la cellule du calendrier avec le drapeau de la nationalité si défini
+
+### Types de repas dans le calendrier
+- **Repas personnel** : lié à une recette de votre base → affiche le drapeau 🌍
+- **Repas événement** : provenant d'un événement planifié → affiché en violet
+- **Texte libre** : une note rapide sans recette liée → affiché avec ⭐
+
+### Naviguer
+- Cliquez sur **◀ ▶** pour changer de mois
+- Cliquez sur un jour pour voir le détail et les repas planifiés
+- Cliquez sur un repas pour le supprimer
+
+> **💡 Astuce:** Depuis le calendrier, vous pouvez créer un nouvel événement directement en cliquant sur "Créer un événement" dans le panneau d'un jour. Les dates sont pré-remplies.
+
+---
+
+## 🧾 Tickets de caisse {#receipts}
+
+Cette fonction permet d'importer des tickets de caisse (PDF) pour mettre à jour automatiquement les prix du catalogue d'ingrédients.
+
+### Comment ça marche
+1. Vous photographiez ou scannez votre ticket de caisse en PDF
+2. L'IA extrait les articles et prix
+3. Vous validez les correspondances avec vos ingrédients
+4. Les prix sont mis à jour dans le catalogue
+
+### Importer un ticket
+1. Accédez à "Tickets de caisse" depuis le menu
+2. Cliquez sur "📤 Importer un ticket"
+3. Sélectionnez le fichier PDF
+4. L'IA analyse le ticket et propose des correspondances avec vos ingrédients
+
+### Valider les correspondances
+1. Ouvrez un ticket importé depuis la liste
+2. Pour chaque article détecté :
+   - **Valider** : l'ingrédient correspond → le prix est enregistré
+   - **Valider et appliquer** : valide ET met à jour le prix dans le catalogue
+   - **Corriger** : si la correspondance est incorrecte, choisissez le bon ingrédient
+3. Cliquez sur "Appliquer tous les prix validés" pour une mise à jour groupée
+
+> **💡 Astuce:** Plus vous validez de tickets, plus le catalogue devient précis et les estimations de budget fiables.
+
+---
+
+## 📥 Import de recettes {#import}
+
+Trois méthodes d'import sont disponibles pour enrichir votre base de recettes.
+
+### Import depuis URL (recommandé)
+Importez une recette directement depuis un site web (Marmiton, Cuisine Actuelle, etc.) :
+
+1. Accédez à "Importer depuis URL" dans le menu
+2. Collez l'URL de la page recette
+3. Choisissez la langue cible (FR ou JP)
+4. Cliquez sur "Analyser"
+5. L'IA extrait : titre, ingrédients, étapes, temps, portions, **nationalité**
+6. Vérifiez et corrigez les informations si besoin
+7. Cliquez sur "Enregistrer"
+
+### Import depuis PDF
+Pour les recettes en format PDF (livres de cuisine numérisés, etc.) :
+
+1. Accédez à "Importer depuis PDF" dans le menu
+2. Sélectionnez le fichier PDF
+3. L'IA analyse le PDF et extrait la recette
+4. Vérifiez les informations et enregistrez
+
+### Import CSV
+Pour importer un lot de recettes en une fois :
+
+1. Accédez à "Importer CSV" dans le menu
+2. Préparez votre fichier CSV selon le format requis
+3. Uploadez le fichier
+
+> **💡 Astuce:** L'import URL est la méthode la plus simple et fiable. L'IA détecte automatiquement la langue et la nationalité du plat.
+
+---
+
+## 🏷️ Catégories et Tags {#categories}
+
+Les catégories et tags permettent d'organiser et de retrouver facilement vos recettes.
+
+### Différence entre catégories et tags
+- **Catégories** : classification principale (ex: Plat principal, Dessert, Apéritif)
+- **Tags** : mots-clés libres (ex: rapide, végétarien, sans gluten, recette de famille)
+
+### Assigner des catégories/tags à une recette
+1. Ouvrez la fiche d'une recette
+2. Cliquez sur "✏️ Modifier"
+3. Dans la section "Catégories" ou "Tags", cochez les entrées correspondantes
+4. Enregistrez
+
+### Gérer les catégories et tags (admin)
+Accédez à "Administration des tags" depuis le menu :
+- Créer de nouvelles catégories ou tags
+- Modifier les noms et couleurs
+- Supprimer les entrées inutilisées
+
+### Filtrer par catégorie ou tag
+Depuis la liste des recettes, utilisez les filtres pour afficher uniquement les recettes d'une catégorie ou d'un tag particulier.
+
 ---
 
 ## 🔍 Recherche par ingrédients {#search}
@@ -373,4 +529,4 @@ Non, ils sont optionnels. Le catalogue sert surtout à gagner du temps en suggé
 
 ---
 
-*Dernière mise à jour: Version 1.11 - 11 décembre 2025*
+*Dernière mise à jour: Version 2.5 - Mars 2026*

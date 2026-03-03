@@ -92,7 +92,7 @@ Retourne UNIQUEMENT un objet JSON valide avec cette structure exacte (sans texte
     "étape 1 de préparation",
     "étape 2 de préparation"
   ],
-  "country": "pays d'origine de la recette ou null"
+  "country": "code ISO 2 lettres du pays d'origine (ex: fr, jp, it, cn, kr, th, us, de, es, pt, vn, in, mx, ma, lb, gr, be, gb, tr) ou null"
 }}"""
 
         try:

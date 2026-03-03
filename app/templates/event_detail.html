@@ -3,383 +3,572 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{ event.name }} - Recette</title>
-
-    <!-- Favicons -->
+    <title>{{ event.name if event else S('new_event') }} - Recette</title>
     <link rel="icon" type="image/x-icon" href="/static/favicon.ico?v=2">
     <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-32x32.png?v=2">
     <link rel="icon" type="image/png" sizes="16x16" href="/static/favicon-16x16.png?v=2">
     <link rel="apple-touch-icon" sizes="64x64" href="/static/favicon-64x64.png?v=2">
     <script src="/static/css/tailwind.min.js"></script>
     <script defer src="/static/css/alpine.min.js"></script>
-    <style>
-        [x-cloak] { display: none !important; }
-    </style>
+    <style>[x-cloak] { display: none !important; }</style>
+    <script>
+        {% if event %}
+        window.participantsData = {
+            participants: {{ all_participants|tojson }},
+            groups: {{ all_groups|tojson }},
+            eventParticipants: {{ event_participants|tojson }}
+        };
+        window.modalOpen = {{ 'true' if request.query_params.get('modal') == 'open' else 'false' }};
+        {% endif %}
+
+        function eventApp() {
+            return {
+                darkMode: false,
+                showAddRecipe: false,
+                showParticipantsModal: {% if event %}(window.modalOpen || false){% else %}false{% endif %},
+                eventParticipants: {% if event %}(window.participantsData.eventParticipants || []){% else %}[]{% endif %},
+                allParticipants: {% if event %}(window.participantsData.participants || []){% else %}[]{% endif %},
+                allGroups: {% if event %}(window.participantsData.groups || []){% else %}[]{% endif %},
+
+                // Sélecteur de dates
+                dateDebut: '{{ event.date_debut if event and event.date_debut else prefill_date_debut }}',
+                dateFin: '{{ event.date_fin if event and event.date_fin else prefill_date_fin }}',
+                nombreJours: {{ event.nombre_jours if event and event.nombre_jours else 1 }},
+                dates: [],
+
+                init() {
+                    this.darkMode = localStorage.getItem('darkMode') === 'true' || false;
+                    {% if event_dates %}
+                    this.dates = {{ event_dates | tojson }}.map(d => ({
+                        date: d.date,
+                        selected: d.is_selected == 1
+                    }));
+                    {% elif event and event.date_debut and event.date_fin %}
+                    this.generateDates();
+                    {% elif prefill_date_debut %}
+                    this.generateDates();
+                    this.nombreJours = this.dates.length || 1;
+                    {% endif %}
+                },
+
+                toggleDarkMode() {
+                    this.darkMode = !this.darkMode;
+                    localStorage.setItem('darkMode', this.darkMode);
+                },
+
+                updateDates() {
+                    if (this.dateDebut && this.dateFin) {
+                        const start = new Date(this.dateDebut);
+                        const end = new Date(this.dateFin);
+                        if (end < start) return;
+                        this.generateDates();
+                        this.nombreJours = Math.floor((end - start) / (1000 * 60 * 60 * 24)) + 1;
+                    }
+                },
+
+                generateDates() {
+                    this.dates = [];
+                    if (!this.dateDebut || !this.dateFin) return;
+                    const start = new Date(this.dateDebut);
+                    const end = new Date(this.dateFin);
+                    let current = new Date(start);
+                    while (current <= end) {
+                        this.dates.push({ date: current.toISOString().split('T')[0], selected: true });
+                        current.setDate(current.getDate() + 1);
+                    }
+                },
+
+                toggleDate(index) {
+                    this.dates[index].selected = !this.dates[index].selected;
+                    this.nombreJours = this.dates.filter(d => d.selected).length;
+                },
+
+                async addParticipant(participantId) {
+                    const resp = await fetch('/api/events/{{ event.id if event else 0 }}/participants/add', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+                        body: 'participant_id=' + participantId
+                    });
+                    if (resp.ok) {
+                        const p = this.allParticipants.find(p => p.id == participantId);
+                        if (p) {
+                            this.eventParticipants.push({...p, group_name: null});
+                            this.allParticipants = this.allParticipants.filter(p => p.id != participantId);
+                        }
+                    }
+                },
+
+                async addGroup(groupId) {
+                    const resp = await fetch('/api/events/{{ event.id if event else 0 }}/participants/add-group', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+                        body: 'group_id=' + groupId
+                    });
+                    if (resp.ok) {
+                        window.location.href = '?lang={{ lang }}&modal=open';
+                    }
+                },
+
+                async removeParticipant(participantId) {
+                    const resp = await fetch('/api/events/{{ event.id if event else 0 }}/participants/' + participantId + '/remove', {
+                        method: 'POST'
+                    });
+                    if (resp.ok) {
+                        const p = this.eventParticipants.find(p => p.id == participantId);
+                        if (p && !p.group_name) {
+                            this.eventParticipants = this.eventParticipants.filter(p => p.id != participantId);
+                            this.allParticipants.push(p);
+                        } else {
+                            window.location.href = '?lang={{ lang }}&modal=open';
+                        }
+                    }
+                }
+            }
+        }
+    </script>
 </head>
-<script>
-    window.participantsData = {
-        participants: {{ all_participants|tojson }},
-        groups: {{ all_groups|tojson }},
-        eventParticipants: {{ event_participants|tojson }}
-    };
-    window.modalOpen = {{ 'true' if request.query_params.get('modal') == 'open' else 'false' }};
-</script>
-<body class="bg-gray-50" x-data="{
-    darkMode: localStorage.getItem('darkMode') === 'true' || false,
-    showAddRecipe: false,
-    selectedRecipe: '',
-    showParticipantsModal: window.modalOpen || false,
-    eventParticipants: window.participantsData.eventParticipants || [],
-    allParticipants: window.participantsData.participants || [],
-    allGroups: window.participantsData.groups || [],
-    toggleDarkMode() {
-        this.darkMode = !this.darkMode;
-        localStorage.setItem('darkMode', this.darkMode);
-    },
-    async addParticipant(participantId) {
-        const response = await fetch('/api/events/{{ event.id }}/participants/add', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-            body: 'participant_id=' + participantId
-        });
-        if (response.ok) {
-            // Mettre à jour les listes localement
-            const participant = this.allParticipants.find(p => p.id == participantId);
-            if (participant) {
-                this.eventParticipants.push({...participant, group_name: null});
-                this.allParticipants = this.allParticipants.filter(p => p.id != participantId);
-            }
-        }
-    },
-    async addGroup(groupId) {
-        const response = await fetch('/api/events/{{ event.id }}/participants/add-group', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-            body: 'group_id=' + groupId
-        });
-        if (response.ok) {
-            // Recharger la page avec la modal ouverte
-            window.location.href = '?lang={{ lang }}&modal=open';
-        }
-    },
-    async removeParticipant(participantId) {
-        const response = await fetch('/api/events/{{ event.id }}/participants/' + participantId + '/remove', {
-            method: 'POST'
-        });
-        if (response.ok) {
-            // Mettre à jour les listes localement
-            const participant = this.eventParticipants.find(p => p.id == participantId);
-            if (participant && !participant.group_name) {  // Seulement si ajouté individuellement
-                this.eventParticipants = this.eventParticipants.filter(p => p.id != participantId);
-                this.allParticipants.push(participant);
-            } else {
-                // Pour les groupes, recharger avec modal ouverte
-                window.location.href = '?lang={{ lang }}&modal=open';
-            }
-        }
-    }
-}">
-    <div :class="darkMode ? 'dark bg-gray-900' : 'bg-gray-50'" class="min-h-screen">
-        <!-- Header -->
-        <header class="bg-white dark:bg-gray-800 shadow-sm border-b border-gray-200 dark:border-gray-700">
-            <div class="max-w-7xl mx-auto px-4 py-4 flex justify-between items-center">
-                <div class="flex items-center gap-4">
-                    <a href="/events?lang={{ lang }}"
-                       class="inline-flex items-center gap-2 px-3 py-2
-                              text-blue-600 dark:text-blue-400
-                              hover:bg-blue-50 dark:hover:bg-blue-900/20
-                              rounded-lg transition-colors duration-150">
-                        <span class="text-lg">←</span>
-                        <span class="font-medium">{{ S('back') }}</span>
-                    </a>
-                    <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ event.name }}</h1>
-                </div>
+<body class="bg-gray-50" x-data="eventApp()" x-init="init()">
+<div :class="darkMode ? 'dark bg-gray-900' : 'bg-gray-50'" class="min-h-screen">
 
-                <div class="flex items-center gap-4">
-                    <!-- Sélecteur de langue -->
-                    <div class="flex gap-2">
-                        <a href="?lang=fr"
-                           class="px-3 py-1.5 rounded-lg {{ 'bg-blue-500 text-white' if lang == 'fr' else 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600' }}">
-                            FR
-                        </a>
-                        <a href="?lang=jp"
-                           class="px-3 py-1.5 rounded-lg {{ 'bg-blue-500 text-white' if lang == 'jp' else 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600' }}">
-                            JP
-                        </a>
-                    </div>
-
-                    <!-- Toggle mode sombre -->
-                    <button @click="toggleDarkMode()"
-                            class="p-2 rounded-lg bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600">
-                        <span x-show="!darkMode">🌙</span>
-                        <span x-show="darkMode">☀️</span>
-                    </button>
-                </div>
+    <!-- Header -->
+    <header class="bg-white dark:bg-gray-800 shadow-sm border-b border-gray-200 dark:border-gray-700">
+        <div class="max-w-7xl mx-auto px-4 py-4 flex justify-between items-center">
+            <div class="flex items-center gap-4">
+                <a href="{{ '/calendar?lang=' + lang if from_page == 'calendar' else '/events?lang=' + lang }}"
+                   class="inline-flex items-center gap-2 px-3 py-2 text-blue-600 dark:text-blue-400
+                          hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors">
+                    <span class="text-lg">←</span>
+                    <span class="font-medium">{{ 'Retour au calendrier' if from_page == 'calendar' else S('back') }}</span>
+                </a>
+                <h1 class="text-2xl font-bold text-gray-900 dark:text-white">
+                    {{ event.name if event else S('new_event') }}
+                </h1>
             </div>
-        </header>
+            <div class="flex items-center gap-4">
+                <div class="flex gap-2">
+                    <a href="?lang=fr" class="px-3 py-1.5 rounded-lg {{ 'bg-blue-500 text-white' if lang == 'fr' else 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300' }}">FR</a>
+                    <a href="?lang=jp" class="px-3 py-1.5 rounded-lg {{ 'bg-blue-500 text-white' if lang == 'jp' else 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300' }}">JP</a>
+                </div>
+                <button @click="toggleDarkMode()"
+                        class="p-2 rounded-lg bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600">
+                    <span x-show="!darkMode">🌙</span>
+                    <span x-show="darkMode">☀️</span>
+                </button>
+            </div>
+        </div>
+    </header>
 
-        <!-- Contenu principal -->
-        <main class="max-w-7xl mx-auto px-4 py-8">
-            <!-- Informations de l'événement -->
-            <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6 mb-6">
-                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
+    <main class="max-w-7xl mx-auto px-4 py-6">
+
+        <!-- ================================================================
+             BOUTONS D'ACTION (actifs si événement existant, grisés sinon)
+        ================================================================ -->
+        <div class="flex flex-wrap gap-2 mb-6">
+
+            {% if event %}
+            <!-- Participants -->
+            <button @click="showParticipantsModal = true"
+                    class="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-medium text-sm">
+                <span>👥</span>
+                <span>{{ 'Participants' if lang == 'fr' else '参加者' }} (<span x-text="eventParticipants.length"></span>)</span>
+            </button>
+            <!-- Liste d'ingrédients -->
+            {% if recipes %}
+            <a href="/events/{{ event.id }}/shopping-list?lang={{ lang }}"
+               class="inline-flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 font-medium text-sm">
+                <span>📝</span><span>{{ 'Liste d\'ingrédients' if lang == 'fr' else '材料リスト' }}</span>
+            </a>
+            {% else %}
+            <span class="inline-flex items-center gap-2 px-4 py-2 bg-purple-300 dark:bg-purple-900/40 text-white rounded-lg font-medium text-sm opacity-50 cursor-not-allowed"
+                  title="{{ 'Ajoutez d\'abord des recettes' if lang == 'fr' else 'まずレシピを追加してください' }}">
+                <span>📝</span><span>{{ 'Liste d\'ingrédients' if lang == 'fr' else '材料リスト' }}</span>
+            </span>
+            {% endif %}
+            <!-- Budget -->
+            {% if recipes %}
+            <a href="/events/{{ event.id }}/budget?lang={{ lang }}"
+               class="inline-flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium text-sm">
+                <span>💰</span><span>{{ 'Budget' if lang == 'fr' else '予算' }}</span>
+            </a>
+            {% else %}
+            <span class="inline-flex items-center gap-2 px-4 py-2 bg-green-300 dark:bg-green-900/40 text-white rounded-lg font-medium text-sm opacity-50 cursor-not-allowed"
+                  title="{{ 'Ajoutez d\'abord des recettes' if lang == 'fr' else 'まずレシピを追加してください' }}">
+                <span>💰</span><span>{{ 'Budget' if lang == 'fr' else '予算' }}</span>
+            </span>
+            {% endif %}
+            <!-- Organisation -->
+            {% if recipes %}
+            <a href="/events/{{ event.id }}/organization?lang={{ lang }}"
+               class="inline-flex items-center gap-2 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 font-medium text-sm">
+                <span>📅</span><span>{{ 'Organisation' if lang == 'fr' else '企画' }}</span>
+            </a>
+            {% else %}
+            <span class="inline-flex items-center gap-2 px-4 py-2 bg-orange-300 dark:bg-orange-900/40 text-white rounded-lg font-medium text-sm opacity-50 cursor-not-allowed"
+                  title="{{ 'Ajoutez d\'abord des recettes' if lang == 'fr' else 'まずレシピを追加してください' }}">
+                <span>📅</span><span>{{ 'Organisation' if lang == 'fr' else '企画' }}</span>
+            </span>
+            {% endif %}
+            <!-- Copier -->
+            <a href="/events/{{ event.id }}/copy?lang={{ lang }}"
+               class="inline-flex items-center gap-2 px-4 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 font-medium text-sm">
+                <span>📋</span><span>{{ 'Copier' if lang == 'fr' else 'コピー' }}</span>
+            </a>
+            <!-- Supprimer -->
+            <form method="POST" action="/events/{{ event.id }}/delete"
+                  onsubmit="return confirm('{{ 'Êtes-vous sûr de vouloir supprimer cet événement ?' if lang == 'fr' else 'このイベントを削除してもよろしいですか？' }}');">
+                <input type="hidden" name="lang" value="{{ lang }}">
+                <button type="submit"
+                        class="inline-flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 font-medium text-sm">
+                    <span>🗑️</span><span>{{ S('delete') }}</span>
+                </button>
+            </form>
+
+            {% else %}
+            <!-- Nouvel événement : tous les boutons grisés -->
+            <span class="inline-flex items-center gap-2 px-4 py-2 bg-gray-300 dark:bg-gray-700 text-gray-500 dark:text-gray-400 rounded-lg font-medium text-sm opacity-60 cursor-not-allowed"
+                  title="{{ 'Disponible après création de l\'événement' if lang == 'fr' else 'イベント作成後に利用可能' }}">
+                <span>👥</span><span>{{ 'Participants' if lang == 'fr' else '参加者' }}</span>
+            </span>
+            <span class="inline-flex items-center gap-2 px-4 py-2 bg-gray-300 dark:bg-gray-700 text-gray-500 dark:text-gray-400 rounded-lg font-medium text-sm opacity-60 cursor-not-allowed"
+                  title="{{ 'Disponible après création de l\'événement' if lang == 'fr' else 'イベント作成後に利用可能' }}">
+                <span>📝</span><span>{{ 'Liste d\'ingrédients' if lang == 'fr' else '材料リスト' }}</span>
+            </span>
+            <span class="inline-flex items-center gap-2 px-4 py-2 bg-gray-300 dark:bg-gray-700 text-gray-500 dark:text-gray-400 rounded-lg font-medium text-sm opacity-60 cursor-not-allowed"
+                  title="{{ 'Disponible après création de l\'événement' if lang == 'fr' else 'イベント作成後に利用可能' }}">
+                <span>💰</span><span>{{ 'Budget' if lang == 'fr' else '予算' }}</span>
+            </span>
+            <span class="inline-flex items-center gap-2 px-4 py-2 bg-gray-300 dark:bg-gray-700 text-gray-500 dark:text-gray-400 rounded-lg font-medium text-sm opacity-60 cursor-not-allowed"
+                  title="{{ 'Disponible après création de l\'événement' if lang == 'fr' else 'イベント作成後に利用可能' }}">
+                <span>📅</span><span>{{ 'Organisation' if lang == 'fr' else '企画' }}</span>
+            </span>
+            <span class="inline-flex items-center gap-2 px-4 py-2 bg-gray-300 dark:bg-gray-700 text-gray-500 dark:text-gray-400 rounded-lg font-medium text-sm opacity-60 cursor-not-allowed"
+                  title="{{ 'Disponible après création de l\'événement' if lang == 'fr' else 'イベント作成後に利用可能' }}">
+                <span>📋</span><span>{{ 'Copier' if lang == 'fr' else 'コピー' }}</span>
+            </span>
+            <span class="inline-flex items-center gap-2 px-4 py-2 bg-gray-300 dark:bg-gray-700 text-gray-500 dark:text-gray-400 rounded-lg font-medium text-sm opacity-60 cursor-not-allowed"
+                  title="{{ 'Disponible après création de l\'événement' if lang == 'fr' else 'イベント作成後に利用可能' }}">
+                <span>🗑️</span><span>{{ S('delete') }}</span>
+            </span>
+            {% endif %}
+
+        </div>
+
+        <!-- ================================================================
+             FORMULAIRE CARACTÉRISTIQUES
+        ================================================================ -->
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6 mb-6">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+                {{ 'Caractéristiques' if lang == 'fr' else '詳細' }}
+            </h2>
+            <form method="POST" action="{{ '/events/new' if not event else '/events/' + (event.id|string) + '/edit' }}">
+                <input type="hidden" name="lang" value="{{ lang }}">
+                <input type="hidden" name="from_page" value="{{ from_page }}">
+                <input type="hidden" name="event_date" :value="dateDebut">
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                    <!-- Nom -->
                     <div>
-                        <span class="text-sm text-gray-500 dark:text-gray-400">{{ S('event_type') }}</span>
-                        <p class="font-medium text-gray-900 dark:text-white">{{ event.event_type_name_jp if lang == 'jp' else event.event_type_name_fr }}</p>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ S('event_name') }}</label>
+                        <input type="text" name="name" required
+                               value="{{ event.name if event else '' }}"
+                               class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white">
                     </div>
+                    <!-- Type -->
                     <div>
-                        <span class="text-sm text-gray-500 dark:text-gray-400">{{ S('event_date') }}</span>
-                        <p class="font-medium text-gray-900 dark:text-white">{{ event.event_date }}</p>
-                    </div>
-                    <div>
-                        <span class="text-sm text-gray-500 dark:text-gray-400">{{ S('event_location') }}</span>
-                        <p class="font-medium text-gray-900 dark:text-white">{{ event.location }}</p>
-                    </div>
-                    <div>
-                        <span class="text-sm text-gray-500 dark:text-gray-400">{{ S('event_attendees') }}</span>
-                        <p class="font-medium text-gray-900 dark:text-white">{{ event.attendees }}</p>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ S('event_type') }}</label>
+                        <select name="event_type_id" required
+                                class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white">
+                            {% for et in event_types %}
+                            <option value="{{ et.id }}" {{ 'selected' if event and event.event_type_id == et.id else '' }}>
+                                {{ et.name_jp if lang == 'jp' else et.name_fr }}
+                            </option>
+                            {% endfor %}
+                        </select>
                     </div>
                 </div>
 
-                {% if event.notes %}
-                <div class="mt-4">
-                    <span class="text-sm text-gray-500 dark:text-gray-400">{{ S('event_notes') }}</span>
-                    <p class="text-gray-700 dark:text-gray-300 mt-1">{{ event.notes }}</p>
+                <!-- Dates -->
+                <div class="mb-4 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+                    <h3 class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">
+                        {{ 'Dates' if lang == 'fr' else '日程' }}
+                    </h3>
+                    <div class="grid grid-cols-3 gap-3 mb-3">
+                        <div>
+                            <label class="block text-xs text-gray-600 dark:text-gray-400 mb-1">{{ 'Début' if lang == 'fr' else '開始' }}</label>
+                            <input type="date" name="date_debut" required
+                                   value="{{ event.date_debut if event and event.date_debut else prefill_date_debut }}"
+                                   x-model="dateDebut" @change="updateDates()"
+                                   class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white">
+                        </div>
+                        <div>
+                            <label class="block text-xs text-gray-600 dark:text-gray-400 mb-1">{{ 'Fin' if lang == 'fr' else '終了' }}</label>
+                            <input type="date" name="date_fin" required
+                                   value="{{ event.date_fin if event and event.date_fin else prefill_date_fin }}"
+                                   x-model="dateFin" @change="updateDates()"
+                                   class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white">
+                        </div>
+                        <div>
+                            <label class="block text-xs text-gray-600 dark:text-gray-400 mb-1">{{ 'Jours sélectionnés' if lang == 'fr' else '日数' }}</label>
+                            <input type="number" name="nombre_jours" required min="1"
+                                   value="{{ event.nombre_jours if event and event.nombre_jours else 1 }}"
+                                   x-model="nombreJours"
+                                   class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white">
+                        </div>
+                    </div>
+                    <div x-show="dates.length > 0">
+                        <p class="text-xs text-gray-500 dark:text-gray-400 mb-2">
+                            {{ 'Cliquer pour désélectionner un jour' if lang == 'fr' else 'クリックで日を選択解除' }}
+                        </p>
+                        <div class="flex flex-wrap gap-1">
+                            <template x-for="(dateInfo, index) in dates" :key="index">
+                                <span class="inline-flex">
+                                    <button type="button" @click="toggleDate(index)"
+                                            :class="dateInfo.selected
+                                                ? 'bg-blue-500 text-white'
+                                                : 'bg-gray-200 dark:bg-gray-600 text-gray-400 line-through'"
+                                            class="px-2 py-1 rounded text-xs font-medium hover:opacity-80 transition-opacity">
+                                        <span x-text="new Date(dateInfo.date).toLocaleDateString('{{ 'fr-FR' if lang == 'fr' else 'ja-JP' }}', {day: '2-digit', month: '2-digit'})"></span>
+                                    </button>
+                                    <input type="hidden" :name="'event_dates[' + index + '][date]'" :value="dateInfo.date">
+                                    <input type="hidden" :name="'event_dates[' + index + '][selected]'" :value="dateInfo.selected ? '1' : '0'">
+                                </span>
+                            </template>
+                        </div>
+                    </div>
                 </div>
-                {% endif %}
 
-                <div class="mt-4 flex flex-wrap gap-3">
-                    {% if recipes %}
-                    <a href="/events/{{ event.id }}/shopping-list?lang={{ lang }}"
-                       class="inline-flex items-center gap-2 px-6 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 font-medium">
-                        <span>📝</span>
-                        <span>{{ 'Liste d\'ingrédients' if lang == 'fr' else '材料リスト' }}</span>
-                    </a>
-                    <a href="/events/{{ event.id }}/budget?lang={{ lang }}"
-                       class="inline-flex items-center gap-2 px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium">
-                        <span>💰</span>
-                        <span>{{ 'Gérer le budget' if lang == 'fr' else '予算管理' }}</span>
-                    </a>
-                    <a href="/events/{{ event.id }}/organization?lang={{ lang }}"
-                       class="inline-flex items-center gap-2 px-6 py-3 bg-orange-600 text-white rounded-lg hover:bg-orange-700 font-medium">
-                        <span>📅</span>
-                        <span>{{ 'Organisation' if lang == 'fr' else '企画' }}</span>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                    <!-- Lieu -->
+                    <div class="md:col-span-2">
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ S('event_location') }}</label>
+                        <input type="text" name="location" required
+                               value="{{ event.location if event else '' }}"
+                               class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white">
+                    </div>
+                    <!-- Convives -->
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ S('event_attendees') }}</label>
+                        <input type="number" name="attendees" required min="1"
+                               value="{{ event.attendees if event else '4' }}"
+                               class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white">
+                    </div>
+                </div>
+
+                <!-- Notes -->
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ S('event_notes') }}</label>
+                    <textarea name="notes" rows="3"
+                              class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white">{{ event.notes if event else '' }}</textarea>
+                </div>
+
+                <div class="flex justify-end gap-3">
+                    {% if not event %}
+                    <a href="{{ '/calendar?lang=' + lang if from_page == 'calendar' else '/events?lang=' + lang }}"
+                       class="px-6 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700">
+                        {{ S('cancel') }}
                     </a>
                     {% endif %}
-                    <button @click="showParticipantsModal = true"
-                            class="inline-flex items-center gap-2 px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-medium">
-                        <span>👥</span>
-                        <span>{{ 'Participants' if lang == 'fr' else '参加者' }} (<span x-text="eventParticipants.length"></span>)</span>
+                    <button type="submit"
+                            class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium">
+                        {{ ('Créer l\'événement' if lang == 'fr' else 'イベントを作成') if not event else S('save') }}
                     </button>
-                    <a href="/events/{{ event.id }}/edit?lang={{ lang }}"
-                       class="inline-flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium">
-                        <span>✏️</span>
-                        <span>{{ S('edit') }}</span>
-                    </a>
-                    <a href="/events/{{ event.id }}/copy?lang={{ lang }}"
-                       class="inline-flex items-center gap-2 px-6 py-3 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 font-medium">
-                        <span>📋</span>
-                        <span>{{ 'Copier' if lang == 'fr' else 'コピー' }}</span>
-                    </a>
-                    <form method="POST" action="/events/{{ event.id }}/delete"
-                          onsubmit="return confirm('{{ 'Êtes-vous sûr de vouloir supprimer cet événement ?' if lang == 'fr' else 'このイベントを削除してもよろしいですか？' }}');">
+                </div>
+            </form>
+        </div>
+
+        <!-- ================================================================
+             RECETTES (uniquement si événement existant)
+        ================================================================ -->
+        {% if event %}
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6 mb-6">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-xl font-bold text-gray-900 dark:text-white">{{ S('recipes') }}</h2>
+                <div class="flex gap-2">
+                    <form method="POST" action="/events/{{ event.id }}/recipes/add-all-by-type"
+                          onsubmit="return confirm('{% if lang == 'fr' %}Ajouter toutes les recettes {{ event.event_type_name_fr }} ?{% else %}すべての{{ event.event_type_name_jp }}レシピを追加しますか？{% endif %}');">
                         <input type="hidden" name="lang" value="{{ lang }}">
-                        <button type="submit" class="inline-flex items-center gap-2 px-6 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 font-medium">
+                        <button type="submit"
+                                class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm whitespace-nowrap">
+                            ++ {% if lang == 'fr' %}Tout {{ event.event_type_name_fr }}{% else %}すべて{{ event.event_type_name_jp }}{% endif %}
+                        </button>
+                    </form>
+                    <button @click="showAddRecipe = !showAddRecipe"
+                            class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm">
+                        <span x-show="!showAddRecipe">+ {{ S('add_recipe') }}</span>
+                        <span x-show="showAddRecipe">{{ S('cancel') }}</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Formulaire ajout recette -->
+            <div x-show="showAddRecipe" class="mb-6 p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                <form method="POST" action="/events/{{ event.id }}/recipes/add">
+                    <input type="hidden" name="lang" value="{{ lang }}">
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div class="md:col-span-2">
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ S('recipes') }}</label>
+                            <select name="recipe_id" required
+                                    class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-600 dark:text-white">
+                                <option value="">{{ 'Sélectionner une recette' if lang == 'fr' else 'レシピを選択' }}</option>
+                                {% for recipe in all_recipes %}
+                                <option value="{{ recipe.id }}">{{ recipe.name }} ({{ recipe.servings }} {{ S('servings') }})</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ 'Multiplicateur' if lang == 'fr' else '倍数' }}</label>
+                            <input type="number" name="servings_multiplier" value="1.0" step="0.1" min="0.1" required
+                                   class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-600 dark:text-white">
+                        </div>
+                    </div>
+                    <div class="mt-3">
+                        <button type="submit" class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700">
+                            {{ 'Ajouter' if lang == 'fr' else '追加' }}
+                        </button>
+                    </div>
+                </form>
+            </div>
+
+            <!-- Liste des recettes -->
+            {% if recipes %}
+            <div class="space-y-3">
+                {% for recipe in recipes %}
+                <div class="flex items-center justify-between p-4 border border-gray-200 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700">
+                    <div class="flex-1">
+                        <a href="/recipe/{{ recipe.slug }}?lang={{ lang }}&event_id={{ event.id }}"
+                           class="font-medium text-blue-600 dark:text-blue-400 hover:underline">{{ recipe.name }}</a>
+                        <p class="text-sm text-gray-500 dark:text-gray-400">
+                            {{ recipe.servings_default }} × {{ recipe.servings_multiplier }} = {{ (recipe.servings_default * recipe.servings_multiplier)|int }} {{ S('servings') }}
+                        </p>
+                    </div>
+                    <form method="POST" action="/events/{{ event.id }}/recipes/{{ recipe.id }}/remove"
+                          onsubmit="return confirm('{{ 'Retirer cette recette ?' if lang == 'fr' else 'このレシピを削除しますか？' }}');">
+                        <input type="hidden" name="lang" value="{{ lang }}">
+                        <button type="submit"
+                                class="inline-flex items-center gap-1 px-3 py-1 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900 rounded text-sm">
                             <span>🗑️</span>
-                            <span>{{ S('delete') }}</span>
+                            <span>{{ S('remove') }}</span>
                         </button>
                     </form>
                 </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="text-gray-500 dark:text-gray-400 text-center py-8">
+                {{ 'Aucune recette ajoutée' if lang == 'fr' else 'レシピが追加されていません' }}
+            </p>
+            {% endif %}
+        </div>
+        {% endif %}
+
+    </main>
+
+    <!-- ================================================================
+         MODAL PARTICIPANTS (uniquement si événement existant)
+    ================================================================ -->
+    {% if event %}
+    <div x-show="showParticipantsModal"
+         x-cloak
+         class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50"
+         @click.self="showParticipantsModal = false">
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto p-6">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-xl font-semibold text-gray-900 dark:text-white">
+                    {{ 'Gestion des participants' if lang == 'fr' else '参加者管理' }}
+                </h3>
+                <button @click="showParticipantsModal = false"
+                        class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">✕</button>
             </div>
 
-            <!-- Recettes de l'événement -->
-            <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6 mb-6">
-                <div class="flex justify-between items-center mb-4">
-                    <h2 class="text-xl font-bold text-gray-900 dark:text-white">{{ S('recipes') }}</h2>
-                    <div class="flex gap-2">
-                        <form method="POST" action="/events/{{ event.id }}/recipes/add-all-by-type"
-                              onsubmit="return confirm('{% if lang == 'fr' %}Ajouter toutes les recettes {{ event.event_type_name_fr }} ?{% else %}すべての{{ event.event_type_name_jp }}レシピを追加しますか？{% endif %}');">
-                            <input type="hidden" name="lang" value="{{ lang }}">
-                            <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 whitespace-nowrap">
-                                ++ {% if lang == 'fr' %}Ajouter tout {{ event.event_type_name_fr }}{% else %}すべて追加 {{ event.event_type_name_jp }}{% endif %}
-                            </button>
-                        </form>
-                        <button @click="showAddRecipe = !showAddRecipe"
-                                class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700">
-                            <span x-show="!showAddRecipe">+ {{ S('add_recipe') }}</span>
-                            <span x-show="showAddRecipe">{{ S('cancel') }}</span>
-                        </button>
-                    </div>
-                </div>
-
-                <!-- Formulaire d'ajout de recette -->
-                <div x-show="showAddRecipe" class="mb-6 p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
-                    <form method="POST" action="/events/{{ event.id }}/recipes/add">
-                        <input type="hidden" name="lang" value="{{ lang }}">
-                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                            <div class="md:col-span-2">
-                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                                    {{ S('recipes') if lang == 'fr' else 'レシピ' }}
-                                </label>
-                                <select name="recipe_id" required
-                                        class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-600 dark:text-white">
-                                    <option value="">{{ 'Sélectionner une recette' if lang == 'fr' else 'レシピを選択' }}</option>
-                                    {% for recipe in all_recipes %}
-                                    <option value="{{ recipe.id }}">{{ recipe.name }} ({{ recipe.servings }} {{ S('servings') }})</option>
-                                    {% endfor %}
-                                </select>
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                                    {{ 'Multiplicateur' if lang == 'fr' else '倍数' }}
-                                </label>
-                                <input type="number" name="servings_multiplier" value="1.0" step="0.1" min="0.1" required
-                                       class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-600 dark:text-white">
-                            </div>
-                        </div>
-                        <div class="mt-3">
-                            <button type="submit" class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700">
-                                {{ 'Ajouter' if lang == 'fr' else '追加' }}
-                            </button>
-                        </div>
-                    </form>
-                </div>
-
-                <!-- Liste des recettes -->
-                {% if recipes %}
-                <div class="space-y-3">
-                    {% for recipe in recipes %}
-                    <div class="flex items-center justify-between p-4 border border-gray-200 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700">
-                        <div class="flex-1">
-                            <a href="/recipe/{{ recipe.slug }}?lang={{ lang }}&event_id={{ event.id }}" class="font-medium text-blue-600 dark:text-blue-400 hover:underline">
-                                {{ recipe.name }}
-                            </a>
-                            <p class="text-sm text-gray-500 dark:text-gray-400">
-                                {{ recipe.servings_default }} × {{ recipe.servings_multiplier }} = {{ (recipe.servings_default * recipe.servings_multiplier)|int }} {{ S('servings') }}
-                            </p>
-                        </div>
-                        <div class="flex items-center gap-3">
-                            <form method="POST" action="/events/{{ event.id }}/recipes/{{ recipe.id }}/remove"
-                                  onsubmit="return confirm('{{ 'Retirer cette recette ?' if lang == 'fr' else 'このレシピを削除しますか？' }}');">
-                                <input type="hidden" name="lang" value="{{ lang }}">
-                                <button type="submit" class="inline-flex items-center gap-1 px-3 py-1 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900 rounded text-sm">
-                                    <span>🗑️</span>
-                                    <span>{{ S('remove') }}</span>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <!-- Colonne gauche : Ajouter -->
+                <div class="min-h-[400px]">
+                    <div class="mb-6">
+                        <h4 class="font-medium text-gray-900 dark:text-white mb-3">
+                            {{ 'Ajouter un participant' if lang == 'fr' else '参加者を追加' }}
+                        </h4>
+                        <div class="grid grid-cols-1 gap-2 max-h-60 overflow-y-auto">
+                            <template x-for="participant in allParticipants" :key="participant.id">
+                                <button @click="addParticipant(participant.id)"
+                                        class="p-3 text-left bg-gray-50 dark:bg-gray-700 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors">
+                                    <div class="font-medium text-gray-900 dark:text-white"
+                                         x-text="participant.nom + (participant.prenom ? ' ' + participant.prenom : '')"></div>
+                                    <div class="text-sm text-gray-500 dark:text-gray-400"
+                                         x-show="participant.role" x-text="participant.role"></div>
                                 </button>
-                            </form>
+                            </template>
+                            <template x-if="allParticipants.length === 0">
+                                <p class="text-gray-500 dark:text-gray-400 text-center py-4">
+                                    {{ 'Aucun participant disponible' if lang == 'fr' else '利用可能な参加者なし' }}
+                                </p>
+                            </template>
                         </div>
                     </div>
-                    {% endfor %}
-                </div>
-                {% else %}
-                <p class="text-gray-500 dark:text-gray-400 text-center py-8">
-                    {{ 'Aucune recette ajoutée' if lang == 'fr' else 'レシピが追加されていません' }}
-                </p>
-                {% endif %}
-            </div>
-        </main>
-
-        <!-- Modal Gestion des Participants -->
-        <div x-show="showParticipantsModal"
-             x-cloak
-             class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50"
-             @click.self="showParticipantsModal = false">
-            <div class="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto p-6">
-                <div class="flex justify-between items-center mb-4">
-                    <h3 class="text-xl font-semibold text-gray-900 dark:text-white">
-                        {{ 'Gestion des participants' if lang == 'fr' else '参加者管理' }}
-                    </h3>
-                    <button @click="showParticipantsModal = false"
-                            class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
-                        ✕
-                    </button>
-                </div>
-
-                <!-- Disposition en colonnes -->
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <!-- Colonne gauche : Ajouts -->
-                    <div class="min-h-[400px]">
-                        <!-- Ajouter un participant individuel -->
-                        <div class="mb-6">
-                            <h4 class="font-medium text-gray-900 dark:text-white mb-3">
-                                {{ 'Ajouter un participant' if lang == 'fr' else '参加者を追加' }}
-                            </h4>
-                            <div class="grid grid-cols-1 gap-2 max-h-60 overflow-y-auto">
-                                <template x-for="participant in allParticipants" :key="participant.id">
-                                    <button @click="addParticipant(participant.id)"
-                                            class="p-3 text-left bg-gray-50 dark:bg-gray-700 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors">
-                                        <div class="font-medium text-gray-900 dark:text-white" x-text="participant.nom + (participant.prenom ? ' ' + participant.prenom : '')"></div>
-                                        <div class="text-sm text-gray-500 dark:text-gray-400" x-show="participant.role" x-text="participant.role"></div>
-                                    </button>
-                                </template>
-                                <template x-if="allParticipants.length === 0">
-                                    <p class="text-gray-500 dark:text-gray-400 text-center py-4">
-                                        {{ 'Aucun participant disponible' if lang == 'fr' else '利用可能な参加者なし' }}
-                                    </p>
-                                </template>
-                            </div>
-                        </div>
-
-                        <!-- Ajouter un groupe -->
-                        <div>
-                            <h4 class="font-medium text-gray-900 dark:text-white mb-3">
-                                {{ 'Ajouter tous les membres d\'un groupe' if lang == 'fr' else 'グループの全メンバーを追加' }}
-                            </h4>
-                            <div class="grid grid-cols-1 gap-2 max-h-60 overflow-y-auto">
-                                <template x-for="group in allGroups" :key="group.id">
-                                    <button @click="addGroup(group.id)"
-                                            class="p-3 text-left bg-gray-50 dark:bg-gray-700 hover:bg-green-50 dark:hover:bg-green-900/20 rounded-lg transition-colors">
-                                        <div class="font-medium text-gray-900 dark:text-white" x-text="group.nom"></div>
-                                        <div class="text-sm text-gray-500 dark:text-gray-400" x-text="group.member_count + ' {{ 'membre(s)' if lang == 'fr' else 'メンバー' }}'"></div>
-                                    </button>
-                                </template>
-                                <template x-if="allGroups.length === 0">
-                                    <p class="text-gray-500 dark:text-gray-400 text-center py-4">
-                                        {{ 'Aucun groupe disponible' if lang == 'fr' else '利用可能なグループなし' }}
-                                    </p>
-                                </template>
-                            </div>
+                    <div>
+                        <h4 class="font-medium text-gray-900 dark:text-white mb-3">
+                            {{ 'Ajouter un groupe' if lang == 'fr' else 'グループを追加' }}
+                        </h4>
+                        <div class="grid grid-cols-1 gap-2 max-h-60 overflow-y-auto">
+                            <template x-for="group in allGroups" :key="group.id">
+                                <button @click="addGroup(group.id)"
+                                        class="p-3 text-left bg-gray-50 dark:bg-gray-700 hover:bg-green-50 dark:hover:bg-green-900/20 rounded-lg transition-colors">
+                                    <div class="font-medium text-gray-900 dark:text-white" x-text="group.nom"></div>
+                                    <div class="text-sm text-gray-500 dark:text-gray-400"
+                                         x-text="group.member_count + ' {{ 'membre(s)' if lang == 'fr' else 'メンバー' }}'"></div>
+                                </button>
+                            </template>
+                            <template x-if="allGroups.length === 0">
+                                <p class="text-gray-500 dark:text-gray-400 text-center py-4">
+                                    {{ 'Aucun groupe disponible' if lang == 'fr' else '利用可能なグループなし' }}
+                                </p>
+                            </template>
                         </div>
                     </div>
+                </div>
 
-                    <!-- Colonne droite : Gestion des participants -->
-                    <div class="min-h-[400px]">
-                        <!-- Liste des participants actuels -->
-                        <div>
-                            <h4 class="font-medium text-gray-900 dark:text-white mb-3">
-                                {{ 'Participants inscrits' if lang == 'fr' else '登録済み参加者' }} (<span x-text="eventParticipants.length"></span>)
-                            </h4>
-                            <div class="space-y-2 max-h-60 overflow-y-auto">
-                                <template x-if="eventParticipants.length === 0">
-                                    <p class="text-gray-500 dark:text-gray-400 text-center py-4">
-                                        {{ 'Aucun participant' if lang == 'fr' else '参加者なし' }}
-                                    </p>
-                                </template>
-                                <template x-for="participant in eventParticipants" :key="participant.id">
-                                    <div @click="removeParticipant(participant.id)"
-                                         class="cursor-pointer flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors">
-                                        <div>
-                                            <div class="font-medium text-gray-900 dark:text-white" x-text="participant.nom + (participant.prenom ? ' ' + participant.prenom : '')"></div>
-                                            <div class="text-sm text-gray-500 dark:text-gray-400">
-                                                <span x-show="participant.group_name" x-text="'{{ 'via groupe:' if lang == 'fr' else 'グループ経由:' }} ' + participant.group_name"></span>
-                                                <span x-show="!participant.group_name">{{ 'Ajouté individuellement' if lang == 'fr' else '個別に追加' }}</span>
-                                            </div>
-                                        </div>
+                <!-- Colonne droite : Participants inscrits -->
+                <div class="min-h-[400px]">
+                    <h4 class="font-medium text-gray-900 dark:text-white mb-3">
+                        {{ 'Participants inscrits' if lang == 'fr' else '登録済み参加者' }}
+                        (<span x-text="eventParticipants.length"></span>)
+                    </h4>
+                    <div class="space-y-2 max-h-[500px] overflow-y-auto">
+                        <template x-if="eventParticipants.length === 0">
+                            <p class="text-gray-500 dark:text-gray-400 text-center py-4">
+                                {{ 'Aucun participant' if lang == 'fr' else '参加者なし' }}
+                            </p>
+                        </template>
+                        <template x-for="participant in eventParticipants" :key="participant.id">
+                            <div @click="removeParticipant(participant.id)"
+                                 class="cursor-pointer flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors">
+                                <div>
+                                    <div class="font-medium text-gray-900 dark:text-white"
+                                         x-text="participant.nom + (participant.prenom ? ' ' + participant.prenom : '')"></div>
+                                    <div class="text-sm text-gray-500 dark:text-gray-400">
+                                        <span x-show="participant.group_name"
+                                              x-text="'{{ 'via groupe:' if lang == 'fr' else 'グループ経由:' }} ' + participant.group_name"></span>
+                                        <span x-show="!participant.group_name">
+                                            {{ 'Ajouté individuellement' if lang == 'fr' else '個別に追加' }}
+                                        </span>
                                     </div>
-                                </template>
+                                </div>
+                                <span class="text-red-400 text-xs">✕</span>
                             </div>
-                        </div>
+                        </template>
                     </div>
                 </div>
+            </div>
 
-                <div class="mt-6 flex justify-end">
-                    <button @click="showParticipantsModal = false"
-                            class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
-                        {{ 'Fermer' if lang == 'fr' else '閉じる' }}
-                    </button>
-                </div>
+            <div class="mt-6 flex justify-end">
+                <button @click="showParticipantsModal = false"
+                        class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                    {{ 'Fermer' if lang == 'fr' else '閉じる' }}
+                </button>
             </div>
         </div>
     </div>
+    {% endif %}
+
+</div>
 </body>
 </html>

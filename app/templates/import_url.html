@@ -163,12 +163,30 @@
         </div>
         <div>
           <label class="block font-semibold mb-2">
-            {{ 'Pays d\'origine' if lang == 'fr' else '原産国' }}
+            {{ 'Nationalité' if lang == 'fr' else '料理の国籍' }}
           </label>
-          <input
-            type="text"
-            x-model="recipeData.country"
-            class="w-full px-4 py-2 border rounded-lg">
+          <select x-model="recipeData.country" class="w-full px-4 py-2 border rounded-lg">
+            <option value="">— {{ 'Non définie' if lang == 'fr' else '未定義' }} —</option>
+            <option value="fr">🇫🇷 {{ 'Française' if lang == 'fr' else 'フランス料理' }}</option>
+            <option value="jp">🇯🇵 {{ 'Japonaise' if lang == 'fr' else '日本料理' }}</option>
+            <option value="it">🇮🇹 {{ 'Italienne' if lang == 'fr' else 'イタリア料理' }}</option>
+            <option value="es">🇪🇸 {{ 'Espagnole' if lang == 'fr' else 'スペイン料理' }}</option>
+            <option value="cn">🇨🇳 {{ 'Chinoise' if lang == 'fr' else '中国料理' }}</option>
+            <option value="kr">🇰🇷 {{ 'Coréenne' if lang == 'fr' else '韓国料理' }}</option>
+            <option value="in">🇮🇳 {{ 'Indienne' if lang == 'fr' else 'インド料理' }}</option>
+            <option value="th">🇹🇭 {{ 'Thaïlandaise' if lang == 'fr' else 'タイ料理' }}</option>
+            <option value="vn">🇻🇳 {{ 'Vietnamienne' if lang == 'fr' else 'ベトナム料理' }}</option>
+            <option value="mx">🇲🇽 {{ 'Mexicaine' if lang == 'fr' else 'メキシコ料理' }}</option>
+            <option value="us">🇺🇸 {{ 'Américaine' if lang == 'fr' else 'アメリカ料理' }}</option>
+            <option value="gb">🇬🇧 {{ 'Britannique' if lang == 'fr' else 'イギリス料理' }}</option>
+            <option value="de">🇩🇪 {{ 'Allemande' if lang == 'fr' else 'ドイツ料理' }}</option>
+            <option value="be">🇧🇪 {{ 'Belge' if lang == 'fr' else 'ベルギー料理' }}</option>
+            <option value="pt">🇵🇹 {{ 'Portugaise' if lang == 'fr' else 'ポルトガル料理' }}</option>
+            <option value="gr">🇬🇷 {{ 'Grecque' if lang == 'fr' else 'ギリシャ料理' }}</option>
+            <option value="ma">🇲🇦 {{ 'Marocaine' if lang == 'fr' else 'モロッコ料理' }}</option>
+            <option value="lb">🇱🇧 {{ 'Libanaise' if lang == 'fr' else 'レバノン料理' }}</option>
+            <option value="tr">🇹🇷 {{ 'Turque' if lang == 'fr' else 'トルコ料理' }}</option>
+          </select>
         </div>
       </div>
 

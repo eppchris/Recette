@@ -32,8 +32,7 @@ async def recipes_list(request: Request, lang: str = Query("fr"), creator_id: Op
         recipe['event_types'] = db.get_recipe_event_types(recipe['id'])
 
     # Récupérer la liste des utilisateurs pour le filtre
-    from app.models import list_users
-    users = list_users()
+    users = db.list_users()
 
     return templates.TemplateResponse(
         "recipes_list.html",
@@ -70,6 +69,9 @@ async def recipe_detail(request: Request, slug: str, lang: str = Query("fr"), ev
     # Récupérer la liste des utilisateurs pour le sélecteur
     all_users = db.list_users()
 
+    # Récupérer toutes les recettes pour le select "lier à une recette"
+    all_recipes_for_link = db.list_recipes(lang)
+
     return templates.TemplateResponse(
         "recipe_detail.html",
         {
@@ -81,7 +83,8 @@ async def recipe_detail(request: Request, slug: str, lang: str = Query("fr"), ev
             "steps": steps_with_ids,  # Utiliser steps_with_ids au lieu de steps
             "has_translation": has_translation,
             "event_id": event_context,
-            "all_users": all_users
+            "all_users": all_users,
+            "all_recipes_for_link": all_recipes_for_link
         }
     )
 
@@ -502,6 +505,138 @@ async def delete_recipe_image_endpoint(slug: str):
 
         # Mettre à jour la base de données (NULL)
         db.update_recipe_image(recipe_id, None, None)
+
+        return JSONResponse({
+            "success": True,
+            "message": "Image supprimée avec succès"
+        })
+
+    except Exception as e:
+        return JSONResponse(
+            {"success": False, "message": f"Erreur lors de la suppression: {str(e)}"},
+            status_code=500
+        )
+
+
+# --------------------------------------------------------------------
+# API d'images d'étapes
+# --------------------------------------------------------------------
+@router.post("/api/step-image/upload")
+async def upload_step_image_temporary(file: UploadFile = File(...)):
+    """
+    Upload une image d'étape de manière temporaire (sans ID d'étape)
+    Utilisé pour les nouvelles étapes avant qu'elles ne soient sauvegardées
+
+    Args:
+        file: Fichier image uploadé
+
+    Returns:
+        JSON avec l'URL de l'image
+    """
+    from app.services.image_service import save_step_image
+
+    try:
+        # Lire le fichier uploadé
+        file_data = await file.read()
+
+        # Sauvegarder l'image
+        image_url = save_step_image(file_data, file.filename)
+
+        return JSONResponse({
+            "success": True,
+            "image_url": image_url,
+            "message": "Image uploadée avec succès"
+        })
+
+    except ValueError as e:
+        return JSONResponse(
+            {"success": False, "message": str(e)},
+            status_code=400
+        )
+    except Exception as e:
+        return JSONResponse(
+            {"success": False, "message": f"Erreur lors de l'upload: {str(e)}"},
+            status_code=500
+        )
+
+
+@router.post("/api/step/{step_id}/image")
+async def upload_step_image(step_id: int, file: UploadFile = File(...)):
+    """
+    Upload une image pour une étape de recette
+
+    Args:
+        step_id: ID de l'étape
+        file: Fichier image uploadé
+
+    Returns:
+        JSON avec l'URL de l'image
+    """
+    from app.services.image_service import save_step_image, delete_step_image
+
+    try:
+        # Lire le fichier uploadé
+        file_data = await file.read()
+
+        # Récupérer l'ancienne URL pour la supprimer
+        old_image_url = db.get_step_image_url(step_id)
+
+        # Sauvegarder la nouvelle image
+        image_url = save_step_image(file_data, file.filename)
+
+        # Mettre à jour la base de données
+        db.update_step_image(step_id, image_url)
+
+        # Supprimer l'ancienne image si elle existait
+        if old_image_url:
+            delete_step_image(old_image_url)
+
+        return JSONResponse({
+            "success": True,
+            "image_url": image_url,
+            "message": "Image uploadée avec succès"
+        })
+
+    except ValueError as e:
+        return JSONResponse(
+            {"success": False, "message": str(e)},
+            status_code=400
+        )
+    except Exception as e:
+        return JSONResponse(
+            {"success": False, "message": f"Erreur lors de l'upload: {str(e)}"},
+            status_code=500
+        )
+
+
+@router.delete("/api/step/{step_id}/image")
+async def delete_step_image_endpoint(step_id: int):
+    """
+    Supprime l'image d'une étape
+
+    Args:
+        step_id: ID de l'étape
+
+    Returns:
+        JSON avec le statut de la suppression
+    """
+    from app.services.image_service import delete_step_image
+
+    try:
+        # Récupérer l'URL actuelle
+        image_url = db.get_step_image_url(step_id)
+
+        if not image_url:
+            return JSONResponse(
+                {"success": False, "message": "Aucune image à supprimer"},
+                status_code=404
+            )
+
+        # Supprimer le fichier
+        delete_step_image(image_url)
+
+        # Mettre à jour la base de données (NULL)
+        db.update_step_image(step_id, None)
 
         return JSONResponse({
             "success": True,
@@ -1053,12 +1188,14 @@ async def save_pdf_recipe(request: Request, lang: str = Query("fr")):
             # Créer la recette
             servings = data.get('servings', 4)
             country = data.get('country', '')
+            prep_time = int(data.get('prep_time') or 0)
+            cook_time = int(data.get('cook_time') or 0)
             recipe_type = data.get('recipe_type', 'PERSO')
             user_id = request.session.get('user_id')  # Récupérer l'utilisateur connecté
 
             cur.execute(
-                "INSERT INTO recipe (slug, country, servings_default, user_id) VALUES (?, ?, ?, ?)",
-                (slug, country, servings, user_id)
+                "INSERT INTO recipe (slug, country, servings_default, prep_time, cook_time, user_id) VALUES (?, ?, ?, ?, ?, ?)",
+                (slug, country, servings, prep_time, cook_time, user_id)
             )
             recipe_id = cur.lastrowid
 
@@ -1229,6 +1366,8 @@ async def save_url_recipe(request: Request, lang: str = Query("fr")):
             # Créer la recette
             servings = data.get('servings', 4)
             country = data.get('country', '')
+            prep_time = int(data.get('prep_time') or 0)
+            cook_time = int(data.get('cook_time') or 0)
             user_id = request.session.get('user_id')  # Récupérer l'utilisateur connecté
 
             # Mapper recipe_type depuis le format texte vers le format DB
@@ -1244,9 +1383,9 @@ async def save_url_recipe(request: Request, lang: str = Query("fr")):
 
             cur.execute(
                 """INSERT INTO recipe
-                   (slug, country, servings_default, user_id)
-                   VALUES (?, ?, ?, ?)""",
-                (slug, country, servings, user_id)
+                   (slug, country, servings_default, prep_time, cook_time, user_id)
+                   VALUES (?, ?, ?, ?, ?, ?)""",
+                (slug, country, servings, prep_time, cook_time, user_id)
             )
             recipe_id = cur.lastrowid
 

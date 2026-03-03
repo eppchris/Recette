@@ -27,6 +27,8 @@ from .db_recipes import (
     delete_recipe_language,
     update_recipe_image,
     get_recipe_image_urls,
+    update_step_image,
+    get_step_image_url,
     update_servings_default,
     search_recipes_by_filters,
     search_recipes_by_ingredients,
@@ -169,6 +171,7 @@ from .db_users import (
     update_user_password,
     deactivate_user,
     activate_user,
+    update_user_info,
 )
 
 # Import des fonctions de gestion des participants
@@ -200,6 +203,15 @@ from .db_participants import (
 from .db_catalog_maintenance import (
     detect_duplicate_groups,
     merge_ingredient_group,
+)
+
+# Import des fonctions de planification des repas
+from .db_meal_plan import (
+    get_calendar_data,
+    get_day_detail,
+    add_meal,
+    delete_meal,
+    get_todo_recipes,
 )
 
 # Import des fonctions de gestion des tickets de caisse
@@ -360,6 +372,7 @@ __all__ = [
     'update_user_password',
     'deactivate_user',
     'activate_user',
+    'update_user_info',
 
     # Participants
     'list_participants',
@@ -387,6 +400,13 @@ __all__ = [
     # Catalog Maintenance
     'detect_duplicate_groups',
     'merge_ingredient_group',
+
+    # Meal Plan
+    'get_calendar_data',
+    'get_day_detail',
+    'add_meal',
+    'delete_meal',
+    'get_todo_recipes',
 
     # Receipts
     'create_receipt_upload',
@@ -546,6 +566,7 @@ db = SimpleNamespace(
     update_user_password=update_user_password,
     deactivate_user=deactivate_user,
     activate_user=activate_user,
+    update_user_info=update_user_info,
 
     # Participants
     list_participants=list_participants,
@@ -573,6 +594,13 @@ db = SimpleNamespace(
     # Catalog Maintenance
     detect_duplicate_groups=detect_duplicate_groups,
     merge_ingredient_group=merge_ingredient_group,
+
+    # Meal Plan
+    get_calendar_data=get_calendar_data,
+    get_day_detail=get_day_detail,
+    add_meal=add_meal,
+    delete_meal=delete_meal,
+    get_todo_recipes=get_todo_recipes,
 
     # Receipts
     create_receipt_upload=create_receipt_upload,

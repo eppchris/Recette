@@ -27,6 +27,7 @@ data/OLD/
 # Images uploadées par les utilisateurs
 static/images/recipes/
 static/images/recipes/thumbnails/
+static/images/steps/
 
 # Logs
 logs/
@@ -40,6 +41,7 @@ deploy/*.sh
 !deploy/deploy_synology_V1_7.sh
 !deploy/deploy_synology_V2_0.sh
 !deploy/deploy_synology_V2_1.sh
+!deploy/deploy_synology_V3.sh
 
 # Fichiers de service système
 *.service

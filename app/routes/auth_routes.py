@@ -5,7 +5,7 @@ import markdown
 from fastapi import APIRouter, Request, Form, Query
 from fastapi.responses import HTMLResponse, RedirectResponse
 
-from app.models import authenticate_user, create_user, get_user_by_id, update_user_password, verify_password, get_user_by_username, list_users, activate_user, deactivate_user
+from app.models import authenticate_user, create_user, get_user_by_id, update_user_password, verify_password, get_user_by_username, list_users, activate_user, deactivate_user, update_user_info
 from app.template_config import templates
 
 router = APIRouter()
@@ -400,6 +400,80 @@ async def reset_user_password(
 
     success = f"Mot de passe de {username} modifié" if lang == "fr" else f"{username} のパスワードを変更しました"
     return RedirectResponse(url=f"/admin/users?lang={lang}&success={success}", status_code=303)
+
+
+@router.get("/admin/users/{user_id}/edit", response_class=HTMLResponse)
+async def admin_edit_user_form(request: Request, user_id: int, lang: str = Query("fr")):
+    """Affiche le formulaire d'édition d'un utilisateur (admins uniquement)"""
+    admin_user_id = request.session.get("user_id")
+    is_admin = request.session.get("is_admin")
+
+    if not admin_user_id or not is_admin:
+        return RedirectResponse(url=f"/recipes?lang={lang}", status_code=303)
+
+    user = get_user_by_id(user_id)
+    if not user:
+        return RedirectResponse(url=f"/admin/users?lang={lang}", status_code=303)
+
+    return templates.TemplateResponse(
+        "admin_user_edit.html",
+        {"request": request, "lang": lang, "user": user, "error": None, "success": None}
+    )
+
+
+@router.post("/admin/users/{user_id}/edit", response_class=HTMLResponse)
+async def admin_edit_user_save(
+    request: Request,
+    user_id: int,
+    username: str = Form(...),
+    email: str = Form(...),
+    display_name: str = Form(""),
+    is_admin: bool = Form(False),
+    new_password: str = Form(""),
+    new_password_confirm: str = Form(""),
+    lang: str = Query("fr")
+):
+    """Enregistre les modifications d'un utilisateur (admins uniquement)"""
+    admin_user_id = request.session.get("user_id")
+    admin_is_admin = request.session.get("is_admin")
+
+    if not admin_user_id or not admin_is_admin:
+        return RedirectResponse(url=f"/recipes?lang={lang}", status_code=303)
+
+    user = get_user_by_id(user_id)
+    if not user:
+        return RedirectResponse(url=f"/admin/users?lang={lang}", status_code=303)
+
+    # Empêcher de retirer ses propres droits admin
+    if user_id == admin_user_id and not is_admin:
+        error = "Vous ne pouvez pas retirer vos propres droits admin" if lang == "fr" else "自分自身の管理者権限を削除できません"
+        return templates.TemplateResponse("admin_user_edit.html", {"request": request, "lang": lang, "user": user, "error": error, "success": None})
+
+    # Vérifier mot de passe si renseigné
+    if new_password:
+        if new_password != new_password_confirm:
+            error = "Les mots de passe ne correspondent pas" if lang == "fr" else "パスワードが一致しません"
+            return templates.TemplateResponse("admin_user_edit.html", {"request": request, "lang": lang, "user": user, "error": error, "success": None})
+        if len(new_password) < 6:
+            error = "Le mot de passe doit contenir au moins 6 caractères" if lang == "fr" else "パスワードは6文字以上である必要があります"
+            return templates.TemplateResponse("admin_user_edit.html", {"request": request, "lang": lang, "user": user, "error": error, "success": None})
+
+    try:
+        update_user_info(user_id, username, email, display_name or username, is_admin)
+        if new_password:
+            update_user_password(user_id, new_password)
+
+        # Mettre à jour la session si on modifie l'admin courant
+        if user_id == admin_user_id:
+            request.session["username"] = username
+            request.session["is_admin"] = is_admin
+
+        success = f"Utilisateur {username} modifié avec succès" if lang == "fr" else f"ユーザー {username} を更新しました"
+        return RedirectResponse(url=f"/admin/users?lang={lang}&success={success}", status_code=303)
+
+    except ValueError as e:
+        user = get_user_by_id(user_id)
+        return templates.TemplateResponse("admin_user_edit.html", {"request": request, "lang": lang, "user": user, "error": str(e), "success": None})
 
 
 @router.get("/help", response_class=HTMLResponse)

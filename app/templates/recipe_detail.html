@@ -1,8 +1,51 @@
 {% extends 'base.html' %}
 {% block content %}
 <article class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-3 sm:p-6 rounded" x-data="recipeDetail()">
+  <style>
+    /* Print styling: left-align, use wider page, hide UI elements */
+    @media print {
+      @page { size: A4; margin: 8mm; }
+      body { -webkit-print-color-adjust: exact; color-adjust: exact; margin: 0; }
+      .no-print { display: none !important; }
+      article { width: auto !important; max-width: 100% !important; margin: 0 !important; padding: 6mm !important; border: none !important; box-shadow: none !important; background: #fff !important; }
+      header, section, h1, p, table { color: #000 !important; text-align: left !important; }
+      .flex, .flex-col, .flex-row, .items-start, .items-center, .justify-between { display: block !important; }
+      .text-center { text-align: left !important; }
+      /* Make recipe image smaller and float left so text flows */
+      /* Make recipe image even smaller to save vertical space */
+      article img { max-width: 80px !important; height: auto !important; display: inline-block !important; float: left !important; margin: 0 6px 4px 0 !important; }
+      /* Ingredients table: use full width and clear borders for print (compact) */
+      /* More aggressive compaction for the ingredients table */
+      table { width: 100% !important; border-collapse: collapse !important; font-size: 9px !important; }
+      table th, table td { padding: 1px 3px !important; border: 1px solid #000 !important; font-size: 9px !important; }
+      /* Prefer wider first column (ingredient name) and narrow qty/unit columns */
+      table thead th:first-child { width: 62% !important; }
+      table thead th:nth-child(2), table thead th:nth-child(3) { width: 12% !important; }
+      table thead th:nth-child(4) { width: 14% !important; }
+      /* Try to keep table and following steps on the same page */
+      table, table tr, table td, table th { page-break-inside: avoid !important; break-inside: avoid !important; }
+      table + * { page-break-before: avoid !important; }
+      /* Ensure steps header does not force a page break and tighten spacing */
+      h2, h3 { page-break-after: avoid !important; margin-top: 6px !important; margin-bottom: 6px !important; }
+      .rounded, .rounded-lg { border-radius: 0 !important; }
+      /* Remove interactive elements */
+      button, a[role="button"], .no-print, .inline-flex { display: none !important; }
+      /* Avoid large gaps */
+      .my-3, .my-4, .mb-6, .mb-4 { margin-top: 0 !important; margin-bottom: 6px !important; }
+      /* Compact steps: reduce spacing and badge sizes */
+      .space-y-4 > * + * { margin-top: 2px !important; }
+      .space-y-4 .flex-shrink-0 { width: 12px !important; height: 12px !important; font-size: 8px !important; line-height: 12px !important; }
+      .space-y-4 p { margin: 0 !important; font-size: 10px !important; line-height: 1.1 !important; }
+      /* Ensure steps section doesn't force a page break */
+      section.mb-8 { page-break-inside: avoid !important; }
+      /* Ensure lightbox overlay hidden */
+      [x-cloak] { display: none !important; }
+      /* Page breaks for long recipes */
+      .page-break { page-break-after: always; }
+    }
+  </style>
   <!-- Bouton retour -->
-  <div class="mb-4">
+  <div class="mb-4 no-print">
     {% if event_id %}
       <a href="/events/{{ event_id }}/organization?lang={{ lang }}"
          class="inline-flex items-center gap-2 px-3 py-2
@@ -26,14 +69,22 @@
 
   <!-- En-tête de la recette -->
   <header class="mb-6 pb-4 border-b border-gray-200 dark:border-gray-700">
-    <div class="flex flex-col sm:flex-row justify-between items-start gap-3 mb-3">
-      <h1 class="text-2xl sm:text-3xl font-bold">{{ rec['name'] }}</h1>
+    <div class="mb-3">
+      <h1 class="text-2xl sm:text-3xl font-bold mb-3">{{ rec['name'] }}</h1>
+      <div class="flex flex-wrap gap-2 no-print">
+        <!-- Bouton d'impression -->
+        <button
+          @click="window.print()"
+          class="inline-flex items-center justify-center gap-2 px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded font-semibold transition-colors"
+        >
+          <span>🖨️</span>
+          <span>{{ '印刷' if lang == 'jp' else 'Imprimer' }}</span>
+        </button>
 
-      <div class="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
         <!-- Bouton de modification -->
         <button
           @click="openEditModal()"
-          class="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded font-semibold transition-colors"
+          class="inline-flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded font-semibold transition-colors"
         >
           <span>✏️</span>
           <span>{{ '編集' if lang == 'jp' else 'Modifier' }}</span>
@@ -43,7 +94,7 @@
         <button
           @click="translateRecipe()"
           :disabled="translating"
-          class="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded font-semibold disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          class="inline-flex items-center justify-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded font-semibold disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
         >
           {% if lang == 'jp' %}
           <span x-show="!translating">{{ '🔄 FR → JP 再翻訳' if has_translation else '🌐 FR → JP 翻訳' }}</span>
@@ -67,6 +118,29 @@
         <span class="font-semibold">{{ S('servings') }}:</span>
         <span class="bg-green-100 text-green-800 px-2 py-1 rounded">{{ rec['servings'] or '-' }}</span>
       </div>
+      {% if rec.get('prep_time') %}
+      <div>
+        <span class="font-semibold">{{ '⏱ Prép.' if lang == 'fr' else '⏱ 準備' }}:</span>
+        <span class="bg-blue-100 dark:bg-blue-900/40 text-blue-800 dark:text-blue-200 px-2 py-1 rounded">{{ rec['prep_time'] }} min</span>
+      </div>
+      {% endif %}
+      {% if rec.get('cook_time') %}
+      <div>
+        <span class="font-semibold">{{ '🔥 Cuisson' if lang == 'fr' else '🔥 調理' }}:</span>
+        <span class="bg-orange-100 dark:bg-orange-900/40 text-orange-800 dark:text-orange-200 px-2 py-1 rounded">{{ rec['cook_time'] }} min</span>
+      </div>
+      {% endif %}
+      {% if rec.get('prep_time') and rec.get('cook_time') %}
+      <div>
+        <span class="font-semibold">{{ '⏳ Total' if lang == 'fr' else '⏳ 合計' }}:</span>
+        <span class="bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200 px-2 py-1 rounded">{{ rec['prep_time'] + rec['cook_time'] }} min</span>
+      </div>
+      {% endif %}
+      {% if rec.get('country') %}
+      <div>
+        <span class="text-2xl leading-none" title="{{ rec['country'] }}" x-text="countryCodeToFlag('{{ rec.get('country', '') }}')"></span>
+      </div>
+      {% endif %}
       {% if rec['creator_username'] %}
       <div>
         <span class="font-semibold">👤 {{ 'Créateur' if lang == 'fr' else '作成者' }}:</span>
@@ -78,6 +152,13 @@
         <span class="font-semibold">{{ S('source') }}:</span>
         <a class="text-blue-600 hover:underline" href="{{ rec['source'] }}" target="_blank">lien</a>
       </div>
+      {% endif %}
+    </div>
+
+    <!-- Image pour l'impression uniquement -->
+    <div class="hidden print-only mt-4 mb-4">
+      {% if rec['image_url'] %}
+      <img src="{{ rec['image_url'] }}" alt="{{ rec['name'] }}" class="print-recipe-image rounded-lg shadow-md">
       {% endif %}
     </div>
 
@@ -132,13 +213,13 @@
   <div x-show="message"
        x-transition
        :class="messageType === 'success' ? 'bg-green-100 border-green-400 text-green-700' : 'bg-red-100 border-red-400 text-red-700'"
-       class="border px-4 py-3 rounded mb-4"
+       class="border px-4 py-3 rounded mb-4 no-print"
        role="alert">
     <p x-text="message"></p>
   </div>
 
   <!-- Section Conversion de recette -->
-  <section class="mb-8">
+  <section class="mb-8 no-print">
     <div class="bg-gradient-to-r from-green-50 to-blue-50 dark:from-green-900/30 dark:to-blue-900/30 border border-green-200 dark:border-green-700 rounded-lg p-3 sm:p-4">
       <div class="flex flex-col gap-3 sm:gap-4">
         <div class="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4">
@@ -209,6 +290,13 @@
           <tr class="hover:bg-gray-50 dark:hover:bg-gray-700" x-show="!showingConversion">
             <td class="border border-gray-300 dark:border-gray-600 px-2 py-1.5 sm:px-3 sm:py-2">
               {{ ig['name'] or '-' }}
+              {% if ig['linked_recipe_slug'] %}
+              <a href="/recipe/{{ ig['linked_recipe_slug'] }}?lang={{ lang }}"
+                 class="ml-1.5 inline-flex items-center gap-0.5 text-xs text-blue-600 dark:text-blue-400 hover:underline"
+                 title="{{ ig['linked_recipe_name'] }}">
+                🔗 <span class="hidden sm:inline">{{ ig['linked_recipe_name'] }}</span>
+              </a>
+              {% endif %}
               {% if ig['notes'] %}
               <span class="block sm:hidden text-xs text-gray-500 dark:text-gray-400 mt-0.5">{{ ig['notes'] }}</span>
               {% endif %}
@@ -232,6 +320,11 @@
                 <span x-show="ing.is_negligible" class="ml-1 text-xs bg-yellow-200 text-yellow-800 px-1.5 py-0.5 rounded">
                   {{ 'négligeable' if lang == 'fr' else '無視可能' }}
                 </span>
+                <a x-show="ing.linked_recipe_slug"
+                   :href="'/recipe/' + ing.linked_recipe_slug + '?lang={{ lang }}'"
+                   class="ml-1.5 inline-flex items-center gap-0.5 text-xs text-blue-600 dark:text-blue-400 hover:underline">
+                  🔗 <span class="hidden sm:inline" x-text="ing.linked_recipe_name"></span>
+                </a>
                 <span class="block sm:hidden text-xs text-gray-500 mt-0.5" x-show="ing.notes" x-text="ing.notes"></span>
               </td>
               <td class="border border-gray-300 dark:border-gray-600 px-2 py-1.5 sm:px-3 sm:py-2 text-center font-semibold text-green-700 dark:text-green-400">
@@ -251,22 +344,63 @@
   </section>
 
   <!-- Section Étapes -->
-  <section class="mb-8">
+  <section class="mb-8" x-data="{ stepNumber: 0 }">
     <h2 class="text-xl font-bold mb-3">{{ S('steps') }}</h2>
-    <ol class="space-y-3">
+    <div class="space-y-4">
       {% for s in steps %}
-      <li class="flex gap-3">
-        <span class="flex-shrink-0 w-8 h-8 bg-blue-600 text-white rounded-full flex items-center justify-center font-semibold text-sm">
-          {{ loop.index }}
-        </span>
-        <p class="flex-1 pt-1">{{ s['text'] }}</p>
-      </li>
+        {% if s.get('type', 'text') == 'text' %}
+        <!-- Étape texte avec numéro -->
+        <div class="flex gap-3" x-init="stepNumber++">
+          <span class="flex-shrink-0 w-8 h-8 bg-blue-600 text-white rounded-full flex items-center justify-center font-semibold text-sm" x-text="stepNumber"></span>
+          <p class="flex-1 pt-1">{{ s['text'] }}</p>
+        </div>
+        {% else %}
+        <!-- Étape image sans numéro -->
+        {% if s.get('image_url') %}
+        <div class="flex justify-center my-3" x-data="{ showLightbox: false, imageError: false }">
+          <div class="relative cursor-pointer max-w-xs w-full group overflow-hidden" @click="!imageError && (showLightbox = true)">
+            <img src="{{ s['image_url'] }}"
+                 alt="Étape photo"
+                 @error="imageError = true"
+                 class="w-full h-auto rounded-lg shadow-md group-hover:shadow-lg transition-shadow border border-gray-300 dark:border-gray-700 block"
+                 loading="lazy">
+
+            <!-- Message d'erreur si l'image ne charge pas -->
+            <div x-show="imageError" class="p-8 bg-red-50 dark:bg-red-900/20 border-2 border-red-300 dark:border-red-600 rounded-lg text-center">
+              <p class="text-red-600 dark:text-red-400 font-semibold">
+                ❌ {{ 'Image non disponible' if lang == 'fr' else '画像が利用できません' }}
+              </p>
+              <p class="text-sm text-red-500 dark:text-red-400 mt-2">{{ s['image_url'] }}</p>
+            </div>
+
+            <!-- Overlay texte survol - utilise group-hover au lieu de x-show -->
+            <div class="absolute inset-0 bg-gradient-to-b from-black/0 to-black/40 opacity-0 group-hover:opacity-100 transition-opacity rounded-lg flex items-center justify-center">
+              <span class="text-white text-sm font-semibold bg-black/60 px-3 py-1 rounded">
+                🔍 {{ 'Cliquer pour agrandir' if lang == 'fr' else 'クリックして拡大' }}
+              </span>
+            </div>
+          </div>
+
+          <!-- Lightbox -->
+          <div x-show="showLightbox && !imageError"
+               x-cloak
+               @click="showLightbox = false"
+               @keydown.escape.window="showLightbox = false"
+               class="fixed inset-0 bg-black bg-opacity-90 z-50 flex items-center justify-center p-4">
+            <img src="{{ s['image_url'] }}" alt="Étape photo" class="max-w-full max-h-full object-contain">
+            <button @click="showLightbox = false" class="absolute top-4 right-4 text-white text-4xl font-bold hover:text-gray-300">
+              ×
+            </button>
+          </div>
+        </div>
+        {% endif %}
+        {% endif %}
       {% endfor %}
-    </ol>
+    </div>
   </section>
 
   <!-- Section Image et informations -->
-  <section class="mb-8">
+  <section class="mb-8 no-print">
     <div class="flex flex-col md:flex-row gap-6 items-start">
       <!-- Affichage de l'image -->
       <div class="w-full md:w-1/2">
@@ -281,6 +415,14 @@
             class="w-full rounded-lg shadow-md object-cover"
             style="max-height: 400px"
           >
+          <!-- Info photo sur placeholder (quand pas d'image) -->
+          <div x-show="!recipeImage && !isDragging"
+               class="absolute inset-0 bg-black/40 rounded-lg flex flex-col items-center justify-center text-white text-center p-4 pointer-events-none">
+            <div class="text-3xl mb-2">📷</div>
+            <p class="text-sm font-medium mb-1">{{ 'Formats: JPG, PNG, WebP • Max 5 MB' if lang == 'fr' else '形式: JPG、PNG、WebP • 最大 5 MB' }}</p>
+            <p class="text-xs opacity-80">{{ 'Ctrl+V ou glisser-déposer pour ajouter une photo' if lang == 'fr' else 'Ctrl+V またはドラッグ&ドロップで写真を追加' }}</p>
+          </div>
+
           <!-- Overlay pour drag & drop -->
           <div x-show="isDragging" class="absolute inset-0 bg-blue-500 bg-opacity-20 rounded-lg flex items-center justify-center">
             <div class="text-white text-xl font-bold">
@@ -321,27 +463,28 @@
         </div>
       </div>
 
-      <!-- Informations photo -->
+      <!-- Conseils sur la recette -->
       <div class="w-full md:w-1/2">
-        <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
-          <h3 class="font-semibold text-blue-900 mb-2">📷 {{ 'Photo de la recette' if lang == 'fr' else 'レシピ写真' }}</h3>
-          <ul class="text-sm text-blue-800 space-y-1">
-            <li>✓ {{ 'Formats acceptés: JPG, PNG, WebP, GIF' if lang == 'fr' else '対応形式: JPG、PNG、WebP、GIF' }}</li>
-            <li>✓ {{ 'Taille max: 5 MB' if lang == 'fr' else '最大サイズ: 5 MB' }}</li>
-            <li>⌨️ {{ 'Coller une image: Ctrl+V ou Cmd+V' if lang == 'fr' else '画像を貼り付け: Ctrl+V または Cmd+V' }}</li>
-            <li>🖱️ {{ 'Ou glisser-déposer sur l\'image' if lang == 'fr' else 'または画像にドラッグ&ドロップ' }}</li>
-            <li>💡 {{ 'Conseil: optimisez vos images avant upload' if lang == 'fr' else 'ヒント: アップロード前に画像を最適化してください' }}</li>
-          </ul>
-          <p class="mt-3 text-sm text-gray-700">
-            {{ 'Survolez l\'image pour afficher les options de modification.' if lang == 'fr' else '画像にカーソルを合わせると編集オプションが表示されます。' }}
+        {% if rec.get('tips') %}
+        <div class="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-lg p-4 h-full">
+          <h3 class="font-semibold text-amber-900 dark:text-amber-200 mb-3">
+            💡 {{ 'Conseils' if lang == 'fr' else 'アドバイス' }}
+          </h3>
+          <p class="text-gray-800 dark:text-gray-200 whitespace-pre-line text-sm leading-relaxed">{{ rec['tips'] }}</p>
+        </div>
+        {% else %}
+        <div class="bg-gray-50 dark:bg-gray-700 border border-dashed border-gray-300 dark:border-gray-500 rounded-lg p-4 h-full flex items-center justify-center">
+          <p class="text-gray-400 dark:text-gray-500 text-sm text-center italic">
+            💡 {{ 'Aucun conseil pour cette recette.<br>Cliquez sur "Modifier" pour en ajouter.' if lang == 'fr' else 'このレシピへのアドバイスはありません。<br>「編集」をクリックして追加できます。' }}
           </p>
         </div>
+        {% endif %}
       </div>
     </div>
   </section>
 
   <!-- Section Catégories et Tags (affichage en bas de page) -->
-  <section class="mb-8 p-6 bg-gradient-to-br from-blue-50 to-purple-50 rounded-lg border border-blue-200">
+  <section class="mb-8 p-6 bg-gradient-to-br from-blue-50 to-purple-50 rounded-lg border border-blue-200 no-print">
     <h2 class="text-2xl font-bold mb-4 text-gray-800">
       {{ 'カテゴリーとタグ' if lang == 'jp' else 'Classification' }}
     </h2>
@@ -408,7 +551,7 @@
   </section>
 
   <!-- Bouton retour -->
-  <div class="mt-8 pt-4 border-t">
+  <div class="mt-8 pt-4 border-t no-print">
     <a href="/recipes?lang={{ lang }}" class="text-blue-600 hover:underline">
       ← {{ S('back') if S('back') != 'back' else 'Retour' }}
     </a>
@@ -431,6 +574,23 @@
       <!-- Section Informations générales -->
       <div class="mb-6 sm:mb-8 p-3 sm:p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
         <h3 class="text-lg sm:text-xl font-bold mb-3 sm:mb-4 text-gray-900 dark:text-gray-100">{{ '基本情報' if lang == 'jp' else 'Informations générales' }}</h3>
+
+        <!-- Titre de la recette -->
+        <div class="mb-4 p-3 bg-blue-50 dark:bg-blue-900/30 border-l-4 border-blue-500 rounded">
+          <label class="block text-sm font-semibold mb-1 text-blue-900 dark:text-blue-200">
+            📝 {{ 'レシピ名' if lang == 'jp' else 'Titre de la recette' }}
+            <span class="text-xs font-normal text-blue-700 dark:text-blue-300">
+              ({{ 'Langue: ' + ('日本語' if lang == 'jp' else 'Français') }})
+            </span>
+          </label>
+          <input
+            type="text"
+            x-model="editData.recipe_name"
+            placeholder="{{ 'レシピ名を入力してください' if lang == 'jp' else 'Entrez le nom de la recette' }}"
+            class="w-full px-3 py-2 border-2 border-blue-300 dark:border-blue-500 rounded bg-white dark:bg-gray-600 text-gray-900 dark:text-gray-100 focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+          />
+        </div>
+
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
           <div>
             <label class="block text-sm font-semibold mb-1 text-gray-700 dark:text-gray-200">
@@ -457,6 +617,60 @@
           </div>
           <div>
             <label class="block text-sm font-semibold mb-1 text-gray-700 dark:text-gray-200">
+              ⏱ {{ '準備時間 (分)' if lang == 'jp' else 'Temps de préparation (min)' }}
+            </label>
+            <input
+              type="number"
+              min="0"
+              x-model.number="editData.prep_time"
+              placeholder="0"
+              class="w-full px-3 py-2 border border-gray-300 dark:border-gray-500 rounded bg-white dark:bg-gray-600 text-gray-900 dark:text-gray-100"
+            />
+          </div>
+          <div>
+            <label class="block text-sm font-semibold mb-1 text-gray-700 dark:text-gray-200">
+              🔥 {{ '調理時間 (分)' if lang == 'jp' else 'Temps de cuisson (min)' }}
+            </label>
+            <input
+              type="number"
+              min="0"
+              x-model.number="editData.cook_time"
+              placeholder="0"
+              class="w-full px-3 py-2 border border-gray-300 dark:border-gray-500 rounded bg-white dark:bg-gray-600 text-gray-900 dark:text-gray-100"
+            />
+          </div>
+          <div>
+            <label class="block text-sm font-semibold mb-1 text-gray-700 dark:text-gray-200">
+              🌍 {{ '料理の国籍' if lang == 'jp' else 'Nationalité' }}
+            </label>
+            <select
+              x-model="editData.country"
+              class="w-full px-3 py-2 border border-gray-300 dark:border-gray-500 rounded bg-white dark:bg-gray-600 text-gray-900 dark:text-gray-100"
+            >
+              <option value="">— {{ '未定義' if lang == 'jp' else 'Non définie' }} —</option>
+              <option value="fr">🇫🇷 {{ 'Française' if lang == 'fr' else 'フランス料理' }}</option>
+              <option value="jp">🇯🇵 {{ 'Japonaise' if lang == 'fr' else '日本料理' }}</option>
+              <option value="it">🇮🇹 {{ 'Italienne' if lang == 'fr' else 'イタリア料理' }}</option>
+              <option value="es">🇪🇸 {{ 'Espagnole' if lang == 'fr' else 'スペイン料理' }}</option>
+              <option value="cn">🇨🇳 {{ 'Chinoise' if lang == 'fr' else '中国料理' }}</option>
+              <option value="kr">🇰🇷 {{ 'Coréenne' if lang == 'fr' else '韓国料理' }}</option>
+              <option value="in">🇮🇳 {{ 'Indienne' if lang == 'fr' else 'インド料理' }}</option>
+              <option value="th">🇹🇭 {{ 'Thaïlandaise' if lang == 'fr' else 'タイ料理' }}</option>
+              <option value="vn">🇻🇳 {{ 'Vietnamienne' if lang == 'fr' else 'ベトナム料理' }}</option>
+              <option value="mx">🇲🇽 {{ 'Mexicaine' if lang == 'fr' else 'メキシコ料理' }}</option>
+              <option value="us">🇺🇸 {{ 'Américaine' if lang == 'fr' else 'アメリカ料理' }}</option>
+              <option value="gb">🇬🇧 {{ 'Britannique' if lang == 'fr' else 'イギリス料理' }}</option>
+              <option value="de">🇩🇪 {{ 'Allemande' if lang == 'fr' else 'ドイツ料理' }}</option>
+              <option value="be">🇧🇪 {{ 'Belge' if lang == 'fr' else 'ベルギー料理' }}</option>
+              <option value="pt">🇵🇹 {{ 'Portugaise' if lang == 'fr' else 'ポルトガル料理' }}</option>
+              <option value="gr">🇬🇷 {{ 'Grecque' if lang == 'fr' else 'ギリシャ料理' }}</option>
+              <option value="ma">🇲🇦 {{ 'Marocaine' if lang == 'fr' else 'モロッコ料理' }}</option>
+              <option value="lb">🇱🇧 {{ 'Libanaise' if lang == 'fr' else 'レバノン料理' }}</option>
+              <option value="tr">🇹🇷 {{ 'Turque' if lang == 'fr' else 'トルコ料理' }}</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-sm font-semibold mb-1 text-gray-700 dark:text-gray-200">
               👤 {{ '作成者' if lang == 'jp' else 'Créateur' }}
             </label>
             <select
@@ -480,6 +694,19 @@
             x-model="editData.description"
             rows="3"
             placeholder="{{ '短い説明（1〜2文）' if lang == 'jp' else 'Courte description (1-2 phrases)' }}"
+            class="w-full px-3 py-2 border border-gray-300 dark:border-gray-500 rounded bg-white dark:bg-gray-600 text-gray-900 dark:text-gray-100 resize-y"
+          ></textarea>
+        </div>
+
+        <!-- Conseils -->
+        <div class="mt-3 sm:mt-4">
+          <label class="block text-sm font-semibold mb-1 text-gray-700 dark:text-gray-200">
+            💡 {{ 'アドバイス' if lang == 'jp' else 'Conseils' }}
+          </label>
+          <textarea
+            x-model="editData.tips"
+            rows="4"
+            placeholder="{{ 'アドバイス、バリエーション、準備のコツなど...' if lang == 'jp' else 'Astuces, variantes, conseils de préparation...' }}"
             class="w-full px-3 py-2 border border-gray-300 dark:border-gray-500 rounded bg-white dark:bg-gray-600 text-gray-900 dark:text-gray-100 resize-y"
           ></textarea>
         </div>
@@ -629,6 +856,19 @@
                     class="px-2 py-1 bg-red-500 hover:bg-red-600 text-white rounded text-xs font-semibold transition-colors">✕</button>
                 </div>
               </div>
+              <!-- Lien recette (desktop) -->
+              <div class="hidden sm:flex items-center gap-2 px-2 pb-2 ml-[calc(8.33%+0.5rem)]">
+                <span class="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">🔗 {{ 'Lier à une recette' if lang == 'fr' else 'レシピにリンク' }} :</span>
+                <select x-model="ing.linked_recipe_id"
+                  class="flex-1 px-2 py-0.5 text-xs border border-gray-300 dark:border-gray-500 rounded bg-white dark:bg-gray-600 text-gray-900 dark:text-gray-100">
+                  <option value="">— {{ 'Aucun lien' if lang == 'fr' else 'リンクなし' }} —</option>
+                  {% for r in all_recipes_for_link %}
+                  {% if r['slug'] != rec['slug'] %}
+                  <option value="{{ r['id'] }}">{{ r['name'] }}</option>
+                  {% endif %}
+                  {% endfor %}
+                </select>
+              </div>
 
               <!-- Mobile: layout empilé -->
               <div class="sm:hidden p-3">
@@ -650,6 +890,19 @@
                     </div>
                     <input type="text" x-model="ing.notes" placeholder="{{ 'Notes' if lang == 'fr' else '備考' }}"
                       class="w-full px-2 py-1.5 border border-gray-300 dark:border-gray-500 rounded bg-white dark:bg-gray-600 text-gray-900 dark:text-gray-100 text-base" />
+                    <!-- Lien recette (mobile) -->
+                    <div class="flex items-center gap-2">
+                      <span class="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">🔗</span>
+                      <select x-model="ing.linked_recipe_id"
+                        class="flex-1 px-2 py-1 text-xs border border-gray-300 dark:border-gray-500 rounded bg-white dark:bg-gray-600 text-gray-900 dark:text-gray-100">
+                        <option :value="null">— {{ 'Aucun lien' if lang == 'fr' else 'リンクなし' }} —</option>
+                        {% for r in all_recipes_for_link %}
+                        {% if r['slug'] != rec['slug'] %}
+                        <option value="{{ r['id'] }}">{{ r['name'] }}</option>
+                        {% endif %}
+                        {% endfor %}
+                      </select>
+                    </div>
                   </div>
                   <div class="flex flex-col gap-1 pt-1">
                     <button @click="addIngredientAt(index + 1)" type="button"
@@ -668,23 +921,34 @@
       <div class="mb-6 sm:mb-8">
         <div class="flex justify-between items-center mb-3">
           <h3 class="text-lg sm:text-xl font-bold text-gray-900 dark:text-gray-100">{{ S('steps') }}</h3>
-          <button
-            @click="addStep()"
-            type="button"
-            class="px-3 sm:px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded font-semibold transition-colors text-sm sm:text-base"
-          >
-            + {{ 'Ajouter' if lang == 'fr' else '追加' }}
-          </button>
+          <div class="flex gap-2">
+            <button
+              @click="addStep('text')"
+              type="button"
+              class="px-3 sm:px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded font-semibold transition-colors text-sm sm:text-base"
+            >
+              📝 {{ 'Texte' if lang == 'fr' else 'テキスト' }}
+            </button>
+            <button
+              @click="addStep('image')"
+              type="button"
+              class="px-3 sm:px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded font-semibold transition-colors text-sm sm:text-base"
+            >
+              📷 {{ 'Photo' if lang == 'fr' else '写真' }}
+            </button>
+          </div>
         </div>
         <div class="space-y-3">
           <template x-for="(step, index) in editData.steps" :key="index">
             <div class="border border-gray-300 dark:border-gray-600 rounded p-2 sm:p-3 bg-white dark:bg-gray-700">
-              <div class="flex gap-2 sm:gap-3 items-start">
+
+              <!-- Étape TEXTE -->
+              <div x-show="step.type === 'text'" class="flex gap-2 sm:gap-3 items-start">
                 <!-- Numéro et contrôles d'ordre -->
                 <div class="flex-shrink-0 flex flex-col items-center gap-1 sm:gap-2">
                   <button @click="moveStepUp(index)" type="button" :disabled="index === 0"
                     class="px-1.5 sm:px-2 py-1 text-gray-600 dark:text-gray-300 hover:text-blue-600 disabled:opacity-30 disabled:cursor-not-allowed text-sm">▲</button>
-                  <span class="w-7 h-7 sm:w-8 sm:h-8 bg-blue-600 text-white rounded-full flex items-center justify-center font-semibold text-xs sm:text-sm" x-text="index + 1"></span>
+                  <span class="w-7 h-7 sm:w-8 sm:h-8 bg-green-600 text-white rounded-full flex items-center justify-center font-semibold text-xs sm:text-sm">📝</span>
                   <button @click="moveStepDown(index)" type="button" :disabled="index === editData.steps.length - 1"
                     class="px-1.5 sm:px-2 py-1 text-gray-600 dark:text-gray-300 hover:text-blue-600 disabled:opacity-30 disabled:cursor-not-allowed text-sm">▼</button>
                 </div>
@@ -694,17 +958,67 @@
                   x-model="step.text"
                   rows="3"
                   class="flex-1 px-2 sm:px-3 py-2 border border-gray-300 dark:border-gray-500 rounded bg-white dark:bg-gray-600 text-gray-900 dark:text-gray-100 resize-y text-base"
-                  :placeholder="'{{ 'Étape' if lang == 'fr' else 'ステップ' }} ' + (index + 1)"
+                  :placeholder="'{{ 'Étape' if lang == 'fr' else 'ステップ' }}'"
                 ></textarea>
 
                 <!-- Boutons d'action -->
                 <div class="flex-shrink-0 flex flex-col gap-1 sm:gap-2">
-                  <button @click="addStepAt(index + 1)" type="button"
-                    class="px-2 sm:px-3 py-1.5 sm:py-2 bg-blue-500 hover:bg-blue-600 text-white rounded font-semibold transition-colors text-xs sm:text-sm">+</button>
+                  <button @click="addStepAt(index + 1, 'text')" type="button"
+                    class="px-2 sm:px-3 py-1.5 sm:py-2 bg-green-500 hover:bg-green-600 text-white rounded font-semibold transition-colors text-xs sm:text-sm">📝</button>
+                  <button @click="addStepAt(index + 1, 'image')" type="button"
+                    class="px-2 sm:px-3 py-1.5 sm:py-2 bg-blue-500 hover:bg-blue-600 text-white rounded font-semibold transition-colors text-xs sm:text-sm">📷</button>
                   <button @click="removeStep(index)" type="button"
                     class="px-2 sm:px-3 py-1.5 sm:py-2 bg-red-500 hover:bg-red-600 text-white rounded font-semibold transition-colors text-xs sm:text-sm">✕</button>
                 </div>
               </div>
+
+              <!-- Étape IMAGE -->
+              <div x-show="step.type === 'image'" class="flex gap-2 sm:gap-3 items-start">
+                <!-- Contrôles d'ordre -->
+                <div class="flex-shrink-0 flex flex-col items-center gap-1 sm:gap-2">
+                  <button @click="moveStepUp(index)" type="button" :disabled="index === 0"
+                    class="px-1.5 sm:px-2 py-1 text-gray-600 dark:text-gray-300 hover:text-blue-600 disabled:opacity-30 disabled:cursor-not-allowed text-sm">▲</button>
+                  <span class="w-7 h-7 sm:w-8 sm:h-8 bg-blue-600 text-white rounded-full flex items-center justify-center font-semibold text-xs sm:text-sm">📷</span>
+                  <button @click="moveStepDown(index)" type="button" :disabled="index === editData.steps.length - 1"
+                    class="px-1.5 sm:px-2 py-1 text-gray-600 dark:text-gray-300 hover:text-blue-600 disabled:opacity-30 disabled:cursor-not-allowed text-sm">▼</button>
+                </div>
+
+                <!-- Zone d'image -->
+                <div class="flex-1">
+                  <div x-show="!step.image_url"
+                       @paste="handleStepImagePaste($event, index)"
+                       @click="focusStepForPaste(index)"
+                       tabindex="0"
+                       class="border-2 border-dashed border-blue-300 dark:border-blue-600 rounded-lg p-8 text-center cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"
+                       :class="activeStepForPaste === index ? 'ring-2 ring-blue-500' : ''">
+                    <p class="text-blue-600 dark:text-blue-400 font-semibold mb-1">
+                      📋 {{ 'Coller une image (Ctrl+V ou Cmd+V)' if lang == 'fr' else '画像を貼り付け (Ctrl+V または Cmd+V)' }}
+                    </p>
+                    <p class="text-sm text-gray-500 dark:text-gray-400">
+                      {{ 'Cliquez ici puis collez votre image' if lang == 'fr' else 'ここをクリックして画像を貼り付けてください' }}
+                    </p>
+                  </div>
+
+                  <div x-show="step.image_url" class="relative max-w-xs">
+                    <img :src="step.image_url" alt="Step image" class="w-full h-auto rounded-lg border border-gray-300 dark:border-gray-600 shadow-md">
+                  </div>
+
+                  <div x-show="step.uploading" class="flex items-center justify-center p-8">
+                    <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                  </div>
+                </div>
+
+                <!-- Boutons d'action -->
+                <div class="flex-shrink-0 flex flex-col gap-1 sm:gap-2">
+                  <button @click="addStepAt(index + 1, 'text')" type="button"
+                    class="px-2 sm:px-3 py-1.5 sm:py-2 bg-green-500 hover:bg-green-600 text-white rounded font-semibold transition-colors text-xs sm:text-sm">📝</button>
+                  <button @click="addStepAt(index + 1, 'image')" type="button"
+                    class="px-2 sm:px-3 py-1.5 sm:py-2 bg-blue-500 hover:bg-blue-600 text-white rounded font-semibold transition-colors text-xs sm:text-sm">📷</button>
+                  <button @click="removeStep(index)" type="button"
+                    class="px-2 sm:px-3 py-1.5 sm:py-2 bg-red-500 hover:bg-red-600 text-white rounded font-semibold transition-colors text-xs sm:text-sm">✕</button>
+                </div>
+              </div>
+
             </div>
           </template>
         </div>
@@ -733,6 +1047,197 @@
 
 <style>
   [x-cloak] { display: none !important; }
+
+  /* Styles pour l'impression PDF */
+  @media print {
+    /* Afficher les éléments réservés à l'impression */
+    .print-only {
+      display: block !important;
+    }
+
+    /* Cacher les éléments non nécessaires */
+    .no-print,
+    .no-print *,
+    button:not(.print-only),
+    nav,
+    header a,
+    footer a,
+    .fixed,
+    [x-cloak] {
+      display: none !important;
+    }
+
+    /* Optimiser la mise en page */
+    body {
+      background: white !important;
+      color: black !important;
+      font-size: 12pt;
+      line-height: 1.5;
+    }
+
+    article {
+      border: none !important;
+      box-shadow: none !important;
+      padding: 0 !important;
+      margin: 0 !important;
+    }
+
+    /* En-tête de la recette */
+    h1 {
+      font-size: 24pt !important;
+      margin-bottom: 10pt !important;
+      color: black !important;
+    }
+
+    h2 {
+      font-size: 18pt !important;
+      margin-top: 15pt !important;
+      margin-bottom: 10pt !important;
+      color: black !important;
+      page-break-after: avoid;
+    }
+
+    h3 {
+      font-size: 14pt !important;
+      margin-top: 12pt !important;
+      margin-bottom: 8pt !important;
+      color: black !important;
+    }
+
+    /* Description */
+    .bg-blue-50 {
+      background: #f0f0f0 !important;
+      border-left: 3pt solid #666 !important;
+      padding: 10pt !important;
+      margin-bottom: 15pt !important;
+    }
+
+    /* Badges et métadonnées */
+    .bg-green-100,
+    .bg-purple-100,
+    .bg-blue-100 {
+      background: #e0e0e0 !important;
+      color: black !important;
+      padding: 2pt 6pt !important;
+      border: 1pt solid #ccc !important;
+    }
+
+    /* Tables (ingrédients) */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 15pt;
+      page-break-inside: avoid;
+    }
+
+    th, td {
+      border: 1pt solid #666 !important;
+      padding: 6pt 8pt !important;
+      text-align: left;
+      background: white !important;
+      color: black !important;
+    }
+
+    th {
+      background: #e0e0e0 !important;
+      font-weight: bold;
+    }
+
+    /* Étapes */
+    .space-y-4 > div {
+      margin-bottom: 12pt;
+      page-break-inside: avoid;
+    }
+
+    /* Numéros d'étapes */
+    .bg-blue-600 {
+      background: #666 !important;
+      color: white !important;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+
+    /* Images */
+    img {
+      max-width: 100%;
+      page-break-inside: avoid;
+      page-break-after: auto;
+    }
+
+    /* Image principale de la recette */
+    .print-recipe-image {
+      width: 40%;
+      max-width: 350pt;
+      height: auto;
+      display: block;
+      margin: 0 0 10pt 0;
+    }
+
+    /* Images d'étapes - alignées à gauche */
+    .flex.justify-center {
+      justify-content: flex-start !important;
+    }
+
+    .max-w-xs {
+      max-width: 50% !important;
+    }
+
+    /* Éviter les coupures de page */
+    section {
+      page-break-inside: avoid;
+    }
+
+    /* Tags et catégories */
+    .rounded-full {
+      border: 1pt solid #666 !important;
+      padding: 3pt 8pt !important;
+      margin: 2pt !important;
+      background: #f0f0f0 !important;
+      color: black !important;
+    }
+
+    /* Supprimer les ombres et effets */
+    * {
+      box-shadow: none !important;
+      text-shadow: none !important;
+    }
+
+    /* Forcer les couleurs pour l'impression */
+    .text-white {
+      color: white !important;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+
+    /* Marges de page */
+    @page {
+      margin: 1.5cm;
+      size: A4;
+    }
+
+    /* Utiliser toute la largeur */
+    .container,
+    article {
+      max-width: 100% !important;
+      width: 100% !important;
+    }
+
+    /* Tables - utiliser toute la largeur */
+    table {
+      width: 100% !important;
+      font-size: 10pt;
+    }
+
+    /* Réduire les espacements pour gagner de la place */
+    section {
+      margin-bottom: 12pt !important;
+    }
+
+    .space-y-2 > *,
+    .space-y-4 > * {
+      margin-bottom: 8pt !important;
+    }
+  }
 </style>
 
 <script>
@@ -766,6 +1271,7 @@
       selectedTags: [],
       selectedEventTypes: [],
       lang: '{{ lang }}',
+      activeStepForPaste: null,
 
       async init() {
         // Vérifier le statut de l'API pour la traduction/retraduction
@@ -780,6 +1286,11 @@
 
       setupPasteListener() {
         document.addEventListener('paste', (event) => {
+          // Ne pas intercepter si on est dans le modal d'édition ou sur une étape image
+          if (this.editMode || event.target.closest('[tabindex="0"]')) {
+            return;
+          }
+
           const items = (event.clipboardData || event.originalEvent.clipboardData).items;
           for (let item of items) {
             if (item.type.indexOf('image') !== -1) {
@@ -794,13 +1305,22 @@
 
       initEditData() {
         // Récupérer les données actuelles depuis le DOM
+        const rawIngs = {{ ings | tojson | safe }};
         this.originalData = {
-          ingredients: {{ ings | tojson | safe }},
+          ingredients: rawIngs.map(ing => ({
+            ...ing,
+            linked_recipe_id: ing.linked_recipe_id ? String(ing.linked_recipe_id) : ''
+          })),
           steps: {{ steps | tojson | safe }},
+          recipe_name: '{{ rec["name"] | replace("'", "\\'") | replace("\n", "\\n") }}',
           recipe_type: '{{ rec["type"] or "" }}',
           servings_default: {{ rec['servings'] or 'null' }},
+          prep_time: {{ rec.get('prep_time') or 0 }},
+          cook_time: {{ rec.get('cook_time') or 0 }},
+          country: '{{ rec.get("country", "") or "" }}',
           user_id: {{ rec['user_id'] or 'null' }},
-          description: '{{ rec.get("description", "") | replace("'", "\\'") | replace("\n", "\\n") }}'
+          description: '{{ rec.get("description", "") | replace("'", "\\'") | replace("\n", "\\n") }}',
+          tips: '{{ rec.get("tips", "") | replace("'", "\\'") | replace("\n", "\\n") }}'
         };
       },
 
@@ -912,9 +1432,14 @@
         this.editData = {
           ingredients: JSON.parse(JSON.stringify(this.originalData.ingredients)),
           steps: JSON.parse(JSON.stringify(this.originalData.steps)),
+          recipe_name: this.originalData.recipe_name || '',
           recipe_type: this.originalData.recipe_type,
           servings_default: this.originalData.servings_default,
+          prep_time: this.originalData.prep_time || 0,
+          cook_time: this.originalData.cook_time || 0,
+          country: this.originalData.country || '',
           description: this.originalData.description || '',
+          tips: this.originalData.tips || '',
           user_id: this.originalData.user_id || null
         };
         this.editMode = true;
@@ -955,10 +1480,15 @@
             body: JSON.stringify({
               ingredients: this.editData.ingredients,
               steps: this.editData.steps,
+              recipe_name: this.editData.recipe_name,
               recipe_type: this.editData.recipe_type,
               servings_default: this.editData.servings_default,
+              prep_time: this.editData.prep_time || 0,
+              cook_time: this.editData.cook_time || 0,
+              country: this.editData.country || '',
               user_id: this.editData.user_id,
-              description: this.editData.description
+              description: this.editData.description,
+              tips: this.editData.tips
             })
           });
 
@@ -1162,7 +1692,8 @@
           name: '',
           quantity: null,
           unit: '',
-          notes: ''
+          notes: '',
+          linked_recipe_id: ''
         });
       },
 
@@ -1172,7 +1703,8 @@
           name: '',
           quantity: null,
           unit: '',
-          notes: ''
+          notes: '',
+          linked_recipe_id: ''
         });
       },
 
@@ -1199,17 +1731,23 @@
       },
 
       // Gestion des étapes
-      addStep() {
+      addStep(type = 'text') {
         this.editData.steps.push({
           id: null,
-          text: ''
+          type: type,
+          text: type === 'text' ? '' : null,
+          image_url: type === 'image' ? null : undefined,
+          uploading: false
         });
       },
 
-      addStepAt(index) {
+      addStepAt(index, type = 'text') {
         this.editData.steps.splice(index, 0, {
           id: null,
-          text: ''
+          type: type,
+          text: type === 'text' ? '' : null,
+          image_url: type === 'image' ? null : undefined,
+          uploading: false
         });
       },
 
@@ -1233,8 +1771,111 @@
           this.editData.steps[index] = this.editData.steps[index + 1];
           this.editData.steps[index + 1] = temp;
         }
+      },
+
+      // Gestion des images d'étapes
+      focusStepForPaste(index) {
+        this.activeStepForPaste = index;
+      },
+
+      async handleStepImagePaste(event, index) {
+        const items = (event.clipboardData || event.originalEvent.clipboardData).items;
+        for (let item of items) {
+          if (item.type.indexOf('image') !== -1) {
+            event.preventDefault();
+            const file = item.getAsFile();
+            await this.uploadStepImage(file, index);
+            break;
+          }
+        }
+      },
+
+      async uploadStepImage(file, stepIndex) {
+        const step = this.editData.steps[stepIndex];
+        if (!step || step.type !== 'image') return;
+
+        step.uploading = true;
+        this.message = '';
+
+        try {
+          const formData = new FormData();
+          formData.append('file', file);
+
+          // Pour les nouvelles étapes (sans ID), utiliser l'endpoint temporaire
+          // Pour les étapes existantes (avec ID), utiliser l'endpoint avec step_id
+          const uploadUrl = step.id
+            ? `/api/step/${step.id}/image`
+            : '/api/step-image/upload';
+
+          const response = await fetch(uploadUrl, {
+            method: 'POST',
+            body: formData
+          });
+
+          const data = await response.json();
+
+          if (data.success) {
+            step.image_url = data.image_url;
+            this.message = data.message;
+            this.messageType = 'success';
+          } else {
+            this.message = data.message;
+            this.messageType = 'error';
+          }
+        } catch (error) {
+          console.error('Erreur lors de l\'upload:', error);
+          this.message = '{{ "Erreur lors de l\\'upload" if lang == "fr" else "アップロードエラー" }}';
+          this.messageType = 'error';
+        } finally {
+          step.uploading = false;
+        }
+      },
+
+      async removeStepImage(index) {
+        const step = this.editData.steps[index];
+        if (!step || step.type !== 'image') return;
+
+        if (!confirm('{{ "Supprimer cette image ?" if lang == "fr" else "この画像を削除しますか？" }}')) {
+          return;
+        }
+
+        // Si l'étape a un ID (étape existante), supprimer via l'API
+        if (step.id && step.image_url) {
+          try {
+            const response = await fetch(`/api/step/${step.id}/image`, {
+              method: 'DELETE'
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+              step.image_url = null;
+              this.message = data.message;
+              this.messageType = 'success';
+            } else {
+              this.message = data.message;
+              this.messageType = 'error';
+            }
+          } catch (error) {
+            console.error('Erreur lors de la suppression:', error);
+            this.message = '{{ "Erreur lors de la suppression" if lang == "fr" else "削除エラー" }}';
+            this.messageType = 'error';
+          }
+        } else {
+          // Nouvelle étape : juste retirer l'URL
+          // Note: l'image reste sur le serveur mais sera orpheline
+          // Une tâche de nettoyage pourrait supprimer les images orphelines
+          step.image_url = null;
+        }
       }
     }
   }
+
+function countryCodeToFlag(code) {
+  if (!code || code.length !== 2) return '';
+  return [...code.toUpperCase()].map(c =>
+    String.fromCodePoint(c.charCodeAt(0) + 127397)
+  ).join('');
+}
 </script>
 {% endblock %}

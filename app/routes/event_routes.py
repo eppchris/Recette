@@ -47,19 +47,36 @@ async def events_list(request: Request, lang: str = "fr"):
 
 
 @router.get("/events/new", response_class=HTMLResponse)
-async def event_new(request: Request, lang: str = "fr"):
+async def event_new(
+    request: Request,
+    lang: str = "fr",
+    date_debut: str = "",
+    date_fin: str = "",
+    from_page: str = ""
+):
     """
-    Formulaire de création d'un nouvel événement
+    Écran unifié de création d'événement (même template que la fiche événement).
+    Accepte date_debut, date_fin et from_page (ex: 'calendar') en query params.
     """
     event_types = db.list_event_types()
 
     return templates.TemplateResponse(
-        "event_form.html",
+        "event_detail.html",
         {
             "request": request,
             "lang": lang,
+            "event": None,
             "event_types": event_types,
-            "event": None
+            "event_dates": None,
+            "prefill_date_debut": date_debut,
+            "prefill_date_fin": date_fin or date_debut,
+            "from_page": from_page,
+            "recipes": [],
+            "all_recipes": [],
+            "has_shopping_list": False,
+            "event_participants": [],
+            "all_participants": [],
+            "all_groups": [],
         }
     )
 
@@ -76,10 +93,12 @@ async def event_create(
     nombre_jours: int = Form(1),
     location: str = Form(...),
     attendees: int = Form(...),
-    notes: str = Form("")
+    notes: str = Form(""),
+    from_page: str = Form("")
 ):
     """
-    Crée un nouvel événement avec gestion multi-jours
+    Crée un nouvel événement avec gestion multi-jours.
+    Si from_page='calendar', redirige vers le calendrier après création.
     """
     user_id = request.session.get('user_id')
 
@@ -111,16 +130,23 @@ async def event_create(
     if dates:
         db.save_event_dates(event_id, dates)
 
-    return RedirectResponse(
-        url=f"/events/{event_id}?lang={lang}",
-        status_code=303
-    )
+    # Toujours aller sur la fiche événement pour permettre d'ajouter participants/recettes.
+    # from_page est transmis pour que le bouton "Retour" soit correct (ex: calendrier).
+    redirect_url = f"/events/{event_id}?lang={lang}"
+    if from_page:
+        redirect_url += f"&from_page={from_page}"
+    return RedirectResponse(url=redirect_url, status_code=303)
 
 
 @router.get("/events/{event_id}", response_class=HTMLResponse)
-async def event_detail(request: Request, event_id: int, lang: str = "fr"):
+async def event_detail(
+    request: Request,
+    event_id: int,
+    lang: str = "fr",
+    from_page: str = ""
+):
     """
-    Affiche les détails d'un événement avec ses recettes
+    Écran unifié : affiche et permet de modifier un événement existant.
     """
     event = db.get_event_by_id(event_id)
     if not event:
@@ -128,12 +154,12 @@ async def event_detail(request: Request, event_id: int, lang: str = "fr"):
 
     recipes = db.get_event_recipes(event_id, lang)
     all_recipes = db.list_recipes(lang)
+    event_types = db.list_event_types()
+    event_dates = db.get_event_dates(event_id)
 
-    # Vérifier si une shopping list existe pour cet événement
     shopping_list_items = db.get_shopping_list_items(event_id, lang)
     has_shopping_list = len(shopping_list_items) > 0
 
-    # Récupérer les participants et groupes (avec gestion d'erreur si tables non migrées)
     user_id = request.session.get('user_id')
     username = request.session.get('username')
     is_admin = (username == 'admin')
@@ -143,7 +169,6 @@ async def event_detail(request: Request, event_id: int, lang: str = "fr"):
         all_participants = db.list_participants(user_id=user_id, is_admin=is_admin)
         all_groups = db.list_groups(user_id=user_id, is_admin=is_admin)
     except Exception:
-        # Tables participants pas encore migrées
         event_participants = []
         all_participants = []
         all_groups = []
@@ -154,12 +179,17 @@ async def event_detail(request: Request, event_id: int, lang: str = "fr"):
             "request": request,
             "lang": lang,
             "event": event,
+            "event_types": event_types,
+            "event_dates": event_dates,
+            "prefill_date_debut": "",
+            "prefill_date_fin": "",
+            "from_page": from_page,
             "recipes": recipes,
             "all_recipes": all_recipes,
             "has_shopping_list": has_shopping_list,
             "event_participants": event_participants,
             "all_participants": all_participants,
-            "all_groups": all_groups
+            "all_groups": all_groups,
         }
     )
 
@@ -167,27 +197,9 @@ async def event_detail(request: Request, event_id: int, lang: str = "fr"):
 @router.get("/events/{event_id}/edit", response_class=HTMLResponse)
 async def event_edit(request: Request, event_id: int, lang: str = "fr"):
     """
-    Formulaire d'édition d'un événement
+    Redirige vers la fiche événement unifiée (création+édition fusionnées).
     """
-    event = db.get_event_by_id(event_id)
-    if not event:
-        raise HTTPException(status_code=404, detail="Événement non trouvé")
-
-    event_types = db.list_event_types()
-
-    # Récupérer les dates de l'événement
-    event_dates = db.get_event_dates(event_id)
-
-    return templates.TemplateResponse(
-        "event_form.html",
-        {
-            "request": request,
-            "lang": lang,
-            "event_types": event_types,
-            "event": event,
-            "event_dates": event_dates
-        }
-    )
+    return RedirectResponse(url=f"/events/{event_id}?lang={lang}", status_code=302)
 
 
 @router.post("/events/{event_id}/edit")
@@ -203,7 +215,8 @@ async def event_update(
     nombre_jours: int = Form(1),
     location: str = Form(...),
     attendees: int = Form(...),
-    notes: str = Form("")
+    notes: str = Form(""),
+    from_page: str = Form("")
 ):
     """
     Met à jour un événement existant avec gestion multi-jours
@@ -260,15 +273,14 @@ async def event_update(
 
             if recipes_data:
                 # Régénérer la liste de courses avec les nouvelles quantités
-                from app.services.ingredient_aggregator import get_ingredient_aggregator
                 aggregator = get_ingredient_aggregator()
                 aggregated_ingredients = aggregator.aggregate_ingredients(recipes_data, lang)
                 db.save_shopping_list_items(event_id, aggregated_ingredients)
 
-    return RedirectResponse(
-        url=f"/events/{event_id}?lang={lang}",
-        status_code=303
-    )
+    redirect_url = f"/events/{event_id}?lang={lang}"
+    if from_page:
+        redirect_url += f"&from_page={from_page}"
+    return RedirectResponse(url=redirect_url, status_code=303)
 
 
 @router.get("/events/{event_id}/copy", response_class=HTMLResponse)
@@ -633,7 +645,6 @@ async def event_budget_view(request: Request, event_id: int, lang: str = "fr"):
     if not shopping_list:
         recipes_data = db.get_event_recipes_with_ingredients(event_id, lang)
         if recipes_data:
-            from app.services.ingredient_aggregator import get_ingredient_aggregator
             aggregator = get_ingredient_aggregator()
             aggregated_ingredients = aggregator.aggregate_ingredients(recipes_data, lang)
             db.save_shopping_list_items(event_id, aggregated_ingredients)
@@ -649,7 +660,6 @@ async def event_budget_view(request: Request, event_id: int, lang: str = "fr"):
             # Régénérer la liste dans la bonne langue
             recipes_data = db.get_event_recipes_with_ingredients(event_id, lang)
             if recipes_data:
-                from app.services.ingredient_aggregator import get_ingredient_aggregator
                 aggregator = get_ingredient_aggregator()
                 aggregated_ingredients = aggregator.aggregate_ingredients(recipes_data, lang)
                 db.save_shopping_list_items(event_id, aggregated_ingredients)

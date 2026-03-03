@@ -273,3 +273,38 @@ def activate_user(user_id: int):
             WHERE id = ?
         """, (user_id,))
         conn.commit()
+
+
+def update_user_info(user_id: int, username: str, email: str, display_name: str, is_admin: bool) -> None:
+    """
+    Met à jour les informations d'un utilisateur (hors mot de passe)
+
+    Args:
+        user_id: ID de l'utilisateur
+        username: Nouveau nom d'utilisateur
+        email: Nouvel email
+        display_name: Nouveau nom d'affichage
+        is_admin: Nouveau statut admin
+
+    Raises:
+        ValueError: Si le username ou l'email est déjà utilisé par un autre utilisateur
+    """
+    with get_db() as conn:
+        cursor = conn.cursor()
+
+        # Vérifier unicité username
+        cursor.execute("SELECT id FROM user WHERE username = ? AND id != ?", (username, user_id))
+        if cursor.fetchone():
+            raise ValueError(f"Le nom d'utilisateur '{username}' est déjà utilisé")
+
+        # Vérifier unicité email
+        cursor.execute("SELECT id FROM user WHERE email = ? AND id != ?", (email, user_id))
+        if cursor.fetchone():
+            raise ValueError(f"L'email '{email}' est déjà utilisé")
+
+        cursor.execute("""
+            UPDATE user
+            SET username = ?, email = ?, display_name = ?, is_admin = ?
+            WHERE id = ?
+        """, (username, email, display_name, 1 if is_admin else 0, user_id))
+        conn.commit()

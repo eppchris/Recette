@@ -13,7 +13,8 @@ def create_receipt_upload(
     store_name: Optional[str] = None,
     receipt_date: Optional[str] = None,
     currency: str = "EUR",
-    user_id: Optional[int] = None
+    user_id: Optional[int] = None,
+    file_path: Optional[str] = None
 ) -> int:
     """
     Crée un nouvel enregistrement de ticket de caisse uploadé
@@ -25,6 +26,7 @@ def create_receipt_upload(
         receipt_date: Date du ticket (format YYYY-MM-DD)
         currency: Devise (EUR, JPY, etc.)
         user_id: ID de l'utilisateur qui a uploadé
+        file_path: Chemin vers le fichier PDF conservé
 
     Returns:
         ID du receipt créé
@@ -33,9 +35,9 @@ def create_receipt_upload(
         cursor = conn.cursor()
         cursor.execute("""
             INSERT INTO receipt_upload_history (
-                filename, receipt_name, store_name, receipt_date, currency, user_id, status
-            ) VALUES (?, ?, ?, ?, ?, ?, 'pending')
-        """, (filename, receipt_name, store_name, receipt_date, currency, user_id))
+                filename, receipt_name, store_name, receipt_date, currency, user_id, file_path, status
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, 'pending')
+        """, (filename, receipt_name, store_name, receipt_date, currency, user_id, file_path))
         conn.commit()
         return cursor.lastrowid
 
@@ -167,13 +169,15 @@ def get_receipt_with_matches(receipt_id: int, lang: str = "fr") -> Optional[Dict
         return receipt_dict
 
 
-def list_all_receipts(lang: str = "fr", limit: int = 50) -> List[Dict]:
+def list_all_receipts(lang: str = "fr", limit: int = 50, user_id: Optional[int] = None, is_admin: bool = False) -> List[Dict]:
     """
-    Liste tous les tickets uploadés (les plus récents en premier)
+    Liste les tickets uploadés (les plus récents en premier)
 
     Args:
         lang: Langue pour l'affichage
         limit: Nombre maximum de résultats
+        user_id: Filtre par utilisateur (ignoré si is_admin=True)
+        is_admin: Si True, retourne tous les tickets sans filtre
 
     Returns:
         Liste des receipts avec leurs statistiques
@@ -181,29 +185,57 @@ def list_all_receipts(lang: str = "fr", limit: int = 50) -> List[Dict]:
     with get_db() as conn:
         cursor = conn.cursor()
 
-        cursor.execute("""
-            SELECT
-                r.id,
-                r.filename,
-                r.receipt_name,
-                r.store_name,
-                r.receipt_date,
-                r.upload_date,
-                r.processed_at,
-                r.status,
-                r.currency,
-                r.total_items,
-                r.matched_items,
-                r.validated_items,
-                r.error_message,
-                u.username,
-                ROUND(CAST(r.matched_items AS REAL) / NULLIF(r.total_items, 0) * 100, 1) as match_percentage,
-                ROUND(CAST(r.validated_items AS REAL) / NULLIF(r.total_items, 0) * 100, 1) as validation_percentage
-            FROM receipt_upload_history r
-            LEFT JOIN user u ON r.user_id = u.id
-            ORDER BY r.upload_date DESC
-            LIMIT ?
-        """, (limit,))
+        if is_admin:
+            cursor.execute("""
+                SELECT
+                    r.id,
+                    r.filename,
+                    r.receipt_name,
+                    r.store_name,
+                    r.receipt_date,
+                    r.upload_date,
+                    r.processed_at,
+                    r.status,
+                    r.currency,
+                    r.total_items,
+                    r.matched_items,
+                    r.validated_items,
+                    r.error_message,
+                    r.file_path,
+                    u.username,
+                    ROUND(CAST(r.matched_items AS REAL) / NULLIF(r.total_items, 0) * 100, 1) as match_percentage,
+                    ROUND(CAST(r.validated_items AS REAL) / NULLIF(r.total_items, 0) * 100, 1) as validation_percentage
+                FROM receipt_upload_history r
+                LEFT JOIN user u ON r.user_id = u.id
+                ORDER BY r.upload_date DESC
+                LIMIT ?
+            """, (limit,))
+        else:
+            cursor.execute("""
+                SELECT
+                    r.id,
+                    r.filename,
+                    r.receipt_name,
+                    r.store_name,
+                    r.receipt_date,
+                    r.upload_date,
+                    r.processed_at,
+                    r.status,
+                    r.currency,
+                    r.total_items,
+                    r.matched_items,
+                    r.validated_items,
+                    r.error_message,
+                    r.file_path,
+                    u.username,
+                    ROUND(CAST(r.matched_items AS REAL) / NULLIF(r.total_items, 0) * 100, 1) as match_percentage,
+                    ROUND(CAST(r.validated_items AS REAL) / NULLIF(r.total_items, 0) * 100, 1) as validation_percentage
+                FROM receipt_upload_history r
+                LEFT JOIN user u ON r.user_id = u.id
+                WHERE r.user_id = ?
+                ORDER BY r.upload_date DESC
+                LIMIT ?
+            """, (user_id, limit))
 
         return [dict(row) for row in cursor.fetchall()]
 

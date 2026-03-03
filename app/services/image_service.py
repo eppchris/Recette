@@ -14,10 +14,12 @@ ALLOWED_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.webp', '.gif'}
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 IMAGES_DIR = BASE_DIR / "static" / "images" / "recipes"
 THUMBNAILS_DIR = BASE_DIR / "static" / "images" / "recipes" / "thumbnails"
+STEPS_IMAGES_DIR = BASE_DIR / "static" / "images" / "steps"
 
 # Créer les répertoires s'ils n'existent pas
 IMAGES_DIR.mkdir(parents=True, exist_ok=True)
 THUMBNAILS_DIR.mkdir(parents=True, exist_ok=True)
+STEPS_IMAGES_DIR.mkdir(parents=True, exist_ok=True)
 
 
 def is_allowed_file(filename: str) -> bool:
@@ -106,3 +108,62 @@ def get_default_image_url() -> str:
         URL de l'image placeholder
     """
     return "/static/images/recipe-placeholder.jpg"
+
+
+def save_step_image(file_data: bytes, filename: str) -> str:
+    """
+    Sauvegarde une image d'étape de recette
+
+    Args:
+        file_data: Données du fichier image
+        filename: Nom original du fichier
+
+    Returns:
+        URL relative de l'image pour la base de données
+
+    Raises:
+        ValueError: Si le fichier est invalide
+    """
+    # Vérifier l'extension
+    if not is_allowed_file(filename):
+        raise ValueError(f"Extension de fichier non autorisée. Formats acceptés: {', '.join(ALLOWED_EXTENSIONS)}")
+
+    # Vérifier la taille
+    if len(file_data) > MAX_FILE_SIZE:
+        raise ValueError(f"Fichier trop volumineux. Taille maximale: {MAX_FILE_SIZE // (1024*1024)}MB")
+
+    # Générer un nom de fichier unique
+    unique_id = uuid.uuid4().hex[:12]
+    file_extension = Path(filename).suffix.lower()
+    image_filename = f"step_{unique_id}{file_extension}"
+
+    # Chemin complet
+    image_path = STEPS_IMAGES_DIR / image_filename
+
+    try:
+        # Sauvegarder l'image
+        with open(image_path, 'wb') as f:
+            f.write(file_data)
+
+        # Retourner l'URL relative
+        image_url = f"/static/images/steps/{image_filename}"
+        return image_url
+
+    except Exception as e:
+        # Nettoyer en cas d'erreur
+        if image_path.exists():
+            image_path.unlink()
+        raise ValueError(f"Erreur lors de la sauvegarde de l'image: {str(e)}")
+
+
+def delete_step_image(image_url: Optional[str]):
+    """
+    Supprime le fichier image d'une étape
+
+    Args:
+        image_url: URL de l'image à supprimer
+    """
+    if image_url:
+        image_path = BASE_DIR / image_url.lstrip('/')
+        if image_path.exists():
+            image_path.unlink()

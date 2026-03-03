@@ -1,7 +1,10 @@
 """
 Module de gestion des recettes
 """
+from typing import Optional
 from .db_core import get_db
+from app.services.ingredient_aggregator import get_ingredient_aggregator
+from app.services.cost_calculator import compute_estimated_cost_for_ingredient
 
 
 def list_recipes(lang: str, user_id: int = None):
@@ -24,6 +27,8 @@ def list_recipes(lang: str, user_id: int = None):
                 r.country,
                 r.image_url,
                 r.thumbnail_url,
+                r.prep_time,
+                r.cook_time,
                 COALESCE(rt.name, r.slug) AS name,
                 rt.recipe_type AS type,
                 r.user_id,
@@ -67,6 +72,8 @@ def list_recipes_by_type(recipe_type: str, lang: str):
                 r.country,
                 r.image_url,
                 r.thumbnail_url,
+                r.prep_time,
+                r.cook_time,
                 COALESCE(rt.name, r.slug) AS name,
                 rt.recipe_type AS type
             FROM recipe r
@@ -104,6 +111,8 @@ def list_recipes_by_event_types(event_type_ids: list, lang: str):
                 r.country,
                 r.image_url,
                 r.thumbnail_url,
+                r.prep_time,
+                r.cook_time,
                 COALESCE(rt.name, r.slug) AS name,
                 rt.recipe_type AS type
             FROM recipe r
@@ -138,9 +147,12 @@ def get_recipe_by_slug(slug: str, lang: str):
                 r.country,
                 r.image_url,
                 r.thumbnail_url,
+                r.prep_time,
+                r.cook_time,
                 COALESCE(rt.name, r.slug) AS name,
                 rt.recipe_type AS type,
                 rt.description,
+                rt.tips,
                 r.user_id,
                 u.username AS creator_username,
                 u.display_name AS creator_display_name
@@ -162,19 +174,25 @@ def get_recipe_by_slug(slug: str, lang: str):
                 ri.id,
                 ri.position,
                 ri.quantity,
+                ri.linked_recipe_id,
                 COALESCE(rit.name, '') AS name,
                 COALESCE(rit.unit, '') AS unit,
                 COALESCE(rit.notes, '') AS notes,
-                COALESCE(rit_fr.name, rit.name, '') AS name_fr
+                COALESCE(rit_fr.name, rit.name, '') AS name_fr,
+                r_linked.slug AS linked_recipe_slug,
+                COALESCE(rt_linked.name, r_linked.slug, '') AS linked_recipe_name
             FROM recipe_ingredient ri
             LEFT JOIN recipe_ingredient_translation rit
                 ON rit.recipe_ingredient_id = ri.id AND rit.lang = ?
             LEFT JOIN recipe_ingredient_translation rit_fr
                 ON rit_fr.recipe_ingredient_id = ri.id AND rit_fr.lang = 'fr'
+            LEFT JOIN recipe r_linked ON r_linked.id = ri.linked_recipe_id
+            LEFT JOIN recipe_translation rt_linked
+                ON rt_linked.recipe_id = ri.linked_recipe_id AND rt_linked.lang = ?
             WHERE ri.recipe_id = ?
             ORDER BY ri.position
         """
-        ingredients = con.execute(ingredients_sql, (lang, recipe['id'])).fetchall()
+        ingredients = con.execute(ingredients_sql, (lang, lang, recipe['id'])).fetchall()
 
         # Convertir en dictionnaires pour faciliter la manipulation
         ingredients_list = [dict(ing) for ing in ingredients]
@@ -204,13 +222,15 @@ def get_recipe_steps_with_ids(recipe_id: int, lang: str):
         lang: Langue des traductions
 
     Returns:
-        Liste de dictionnaires contenant id, position et text
+        Liste de dictionnaires contenant id, position, text, type et image_url
     """
     with get_db() as con:
         sql = """
             SELECT
                 s.id,
                 s.position,
+                COALESCE(s.type, 'text') AS type,
+                s.image_url,
                 COALESCE(st.text, '') AS text
             FROM step s
             LEFT JOIN step_translation st ON st.step_id = s.id AND st.lang = ?
@@ -277,7 +297,7 @@ def update_recipe_complete(recipe_id: int, lang: str, data: dict):
     Args:
         recipe_id: ID de la recette
         lang: Code de langue
-        data: Dictionnaire contenant recipe_type, servings_default, ingredients, steps
+        data: Dictionnaire contenant recipe_name, recipe_type, description, servings_default, user_id, ingredients, steps
     """
     with get_db() as con:
         # Mettre à jour le type de recette et la description (traduction)
@@ -294,11 +314,44 @@ def update_recipe_complete(recipe_id: int, lang: str, data: dict):
                 (data.get('description', ''), recipe_id, lang)
             )
 
+        # Mettre à jour les conseils
+        if 'tips' in data:
+            con.execute(
+                "UPDATE recipe_translation SET tips = ? WHERE recipe_id = ? AND lang = ?",
+                (data.get('tips', ''), recipe_id, lang)
+            )
+
+        # Mettre à jour le nom de la recette (titre)
+        if 'recipe_name' in data and data['recipe_name']:
+            con.execute(
+                "UPDATE recipe_translation SET name = ? WHERE recipe_id = ? AND lang = ?",
+                (data['recipe_name'], recipe_id, lang)
+            )
+
         # Mettre à jour le nombre de personnes par défaut
         if 'servings_default' in data and data['servings_default'] is not None:
             con.execute(
                 "UPDATE recipe SET servings_default = ? WHERE id = ?",
                 (data['servings_default'], recipe_id)
+            )
+
+        # Mettre à jour la nationalité du plat
+        if 'country' in data:
+            con.execute(
+                "UPDATE recipe SET country = ? WHERE id = ?",
+                (data.get('country', '') or '', recipe_id)
+            )
+
+        # Mettre à jour les temps de préparation et cuisson
+        if 'prep_time' in data:
+            con.execute(
+                "UPDATE recipe SET prep_time = ? WHERE id = ?",
+                (int(data.get('prep_time') or 0), recipe_id)
+            )
+        if 'cook_time' in data:
+            con.execute(
+                "UPDATE recipe SET cook_time = ? WHERE id = ?",
+                (int(data.get('cook_time') or 0), recipe_id)
             )
 
         # Mettre à jour l'utilisateur créateur
@@ -331,12 +384,18 @@ def update_recipe_complete(recipe_id: int, lang: str, data: dict):
 
         # Mettre à jour ou insérer les ingrédients
         for order, ing in enumerate(data.get('ingredients', []), start=1):
+            linked_recipe_id = ing.get('linked_recipe_id') or None
+            if linked_recipe_id is not None:
+                try:
+                    linked_recipe_id = int(linked_recipe_id)
+                except (ValueError, TypeError):
+                    linked_recipe_id = None
+
             if ing.get('id'):
                 # Mettre à jour un ingrédient existant
-                # Mettre à jour la quantité et la position (indépendants de la langue)
                 con.execute(
-                    "UPDATE recipe_ingredient SET quantity = ?, position = ? WHERE id = ?",
-                    (ing.get('quantity'), order, ing['id'])
+                    "UPDATE recipe_ingredient SET quantity = ?, position = ?, linked_recipe_id = ? WHERE id = ?",
+                    (ing.get('quantity'), order, linked_recipe_id, ing['id'])
                 )
 
                 # Mettre à jour la traduction (nom, unité, notes)
@@ -349,8 +408,8 @@ def update_recipe_complete(recipe_id: int, lang: str, data: dict):
             else:
                 # Insérer un nouvel ingrédient
                 cur = con.execute(
-                    "INSERT INTO recipe_ingredient (recipe_id, quantity, position) VALUES (?, ?, ?)",
-                    (recipe_id, ing.get('quantity'), order)
+                    "INSERT INTO recipe_ingredient (recipe_id, quantity, position, linked_recipe_id) VALUES (?, ?, ?, ?)",
+                    (recipe_id, ing.get('quantity'), order, linked_recipe_id)
                 )
                 new_ing_id = cur.lastrowid
 
@@ -385,30 +444,69 @@ def update_recipe_complete(recipe_id: int, lang: str, data: dict):
 
         # Mettre à jour ou insérer les étapes
         for order, step in enumerate(data.get('steps', []), start=1):
+            step_type = step.get('type', 'text')
+            image_url = step.get('image_url', None)
+
             if step.get('id'):
                 # Mettre à jour une étape existante
                 con.execute(
-                    "UPDATE step SET position = ? WHERE id = ?",
-                    (order, step['id'])
+                    "UPDATE step SET position = ?, type = ?, image_url = ? WHERE id = ?",
+                    (order, step_type, image_url, step['id'])
                 )
 
-                con.execute(
-                    "UPDATE step_translation SET text = ? WHERE step_id = ? AND lang = ?",
-                    (step.get('text', ''), step['id'], lang)
-                )
+                # Mettre à jour la traduction (uniquement pour les étapes texte)
+                if step_type == 'text':
+                    con.execute(
+                        "UPDATE step_translation SET text = ? WHERE step_id = ? AND lang = ?",
+                        (step.get('text', ''), step['id'], lang)
+                    )
             else:
                 # Insérer une nouvelle étape
                 cur = con.execute(
-                    "INSERT INTO step (recipe_id, position) VALUES (?, ?)",
-                    (recipe_id, order)
+                    "INSERT INTO step (recipe_id, position, type, image_url) VALUES (?, ?, ?, ?)",
+                    (recipe_id, order, step_type, image_url)
                 )
                 new_step_id = cur.lastrowid
 
-                # Insérer la traduction
-                con.execute(
-                    "INSERT INTO step_translation (step_id, lang, text) VALUES (?, ?, ?)",
-                    (new_step_id, lang, step.get('text', ''))
-                )
+                # Insérer la traduction (uniquement pour les étapes texte)
+                if step_type == 'text':
+                    con.execute(
+                        "INSERT INTO step_translation (step_id, lang, text) VALUES (?, ?, ?)",
+                        (new_step_id, lang, step.get('text', ''))
+                    )
+
+
+def update_step_image(step_id: int, image_url: Optional[str]):
+    """
+    Met à jour l'URL de l'image d'une étape
+
+    Args:
+        step_id: ID de l'étape
+        image_url: URL de l'image (ou None pour supprimer)
+    """
+    with get_db() as con:
+        con.execute(
+            "UPDATE step SET image_url = ? WHERE id = ?",
+            (image_url, step_id)
+        )
+
+
+def get_step_image_url(step_id: int) -> Optional[str]:
+    """
+    Récupère l'URL de l'image d'une étape
+
+    Args:
+        step_id: ID de l'étape
+
+    Returns:
+        URL de l'image ou None
+    """
+    with get_db() as con:
+        row = con.execute(
+            "SELECT image_url FROM step WHERE id = ?",
+            (step_id,)
+        ).fetchone()
+        return row['image_url'] if row else None
 
 
 def delete_recipe(slug: str):
@@ -606,10 +704,10 @@ def search_recipes_by_ingredients(ingredients: list, lang: str = 'fr'):
 def search_recipes_by_filters(search_text: str = None, category_ids: list = None,
                               tag_ids: list = None, lang: str = 'fr'):
     """
-    Recherche avancée de recettes avec filtres multiples
+    Recherche avancée de recettes avec filtres multiples.
 
     Args:
-        search_text: Texte à rechercher dans le titre/ingrédients
+        search_text: Texte à rechercher dans le titre ou les ingrédients
         category_ids: Liste d'IDs de catégories (OU logique)
         tag_ids: Liste d'IDs de tags (OU logique)
         lang: Langue pour l'affichage
@@ -617,53 +715,50 @@ def search_recipes_by_filters(search_text: str = None, category_ids: list = None
     Returns:
         Liste de recettes correspondantes
     """
-    with get_db() as conn:
-        cursor = conn.cursor()
+    # Les params SQLite sont positionnels (?). Les ? dans les JOINs viennent
+    # avant les ? dans le WHERE — on sépare donc join_params et where_params.
+    joins = []
+    join_params = [lang]   # 1er ? : lang pour recipe_translation
+    where_conds = []
+    where_params = []
 
-        # Construction de la requête dynamique
-        query = """
-            SELECT DISTINCT r.id, r.title_fr, r.title_jp, r.image_url, r.created_at
-            FROM recipe r
-        """
+    if category_ids:
+        placeholders = ','.join('?' * len(category_ids))
+        joins.append("JOIN recipe_category rc ON rc.recipe_id = r.id")
+        where_conds.append(f"rc.category_id IN ({placeholders})")
+        where_params.extend(category_ids)
 
-        conditions = []
-        params = []
+    if tag_ids:
+        placeholders = ','.join('?' * len(tag_ids))
+        joins.append("JOIN recipe_tag rtag ON rtag.recipe_id = r.id")
+        where_conds.append(f"rtag.tag_id IN ({placeholders})")
+        where_params.extend(tag_ids)
 
-        # Filtre par catégories
-        if category_ids and len(category_ids) > 0:
-            placeholders = ','.join('?' * len(category_ids))
-            query += f"""
-                JOIN recipe_category rc ON r.id = rc.recipe_id
-            """
-            conditions.append(f"rc.category_id IN ({placeholders})")
-            params.extend(category_ids)
+    if search_text:
+        joins.append(
+            "LEFT JOIN recipe_ingredient ri_s ON ri_s.recipe_id = r.id "
+            "LEFT JOIN recipe_ingredient_translation rit_s "
+            "    ON rit_s.recipe_ingredient_id = ri_s.id AND rit_s.lang = ?"
+        )
+        join_params.append(lang)   # 2e ? dans le SQL (JOIN, avant WHERE)
+        search_pattern = f"%{search_text}%"
+        where_conds.append("(rt.name LIKE ? OR rit_s.name LIKE ?)")
+        where_params.extend([search_pattern, search_pattern])
 
-        # Filtre par tags
-        if tag_ids and len(tag_ids) > 0:
-            placeholders = ','.join('?' * len(tag_ids))
-            query += f"""
-                JOIN recipe_tag rt ON r.id = rt.recipe_id
-            """
-            conditions.append(f"rt.tag_id IN ({placeholders})")
-            params.extend(tag_ids)
+    query = (
+        "SELECT DISTINCT r.id, r.slug, r.thumbnail_url, r.created_at, "
+        "COALESCE(rt.name, r.slug) AS name "
+        "FROM recipe r "
+        "LEFT JOIN recipe_translation rt ON rt.recipe_id = r.id AND rt.lang = ? "
+        + " ".join(joins)
+    )
+    if where_conds:
+        query += " WHERE " + " AND ".join(where_conds)
+    query += " ORDER BY name COLLATE NOCASE"
 
-        # Recherche textuelle
-        if search_text:
-            if lang == 'jp':
-                conditions.append("(r.title_jp LIKE ? OR r.ingredients_jp LIKE ?)")
-            else:
-                conditions.append("(r.title_fr LIKE ? OR r.ingredients_fr LIKE ?)")
-            search_pattern = f"%{search_text}%"
-            params.extend([search_pattern, search_pattern])
-
-        # Ajouter les conditions WHERE si nécessaire
-        if conditions:
-            query += " WHERE " + " AND ".join(conditions)
-
-        query += " ORDER BY r.created_at DESC"
-
-        cursor.execute(query, params)
-        return [dict(row) for row in cursor.fetchall()]
+    params = join_params + where_params
+    with get_db() as con:
+        return [dict(row) for row in con.execute(query, params).fetchall()]
 
 def calculate_recipe_cost(slug: str, lang: str, servings: int = None):
     """
@@ -678,10 +773,6 @@ def calculate_recipe_cost(slug: str, lang: str, servings: int = None):
     Returns:
         Dict contenant les ingrédients avec prix et le total
     """
-    from app.services.ingredient_aggregator import get_ingredient_aggregator
-    from app.services.cost_calculator import compute_estimated_cost_for_ingredient
-    from .db_core import get_db
-
     result = get_recipe_by_slug(slug, lang)
     if not result:
         return None

@@ -86,7 +86,7 @@ Retourne un JSON avec cette structure EXACTE:
   "prep_time": 15,
   "cook_time": 30,
   "recipe_type": "plat",
-  "country": "France",
+  "country": "fr",
   "ingredients": [
     {{"quantity": 200, "unit": "g", "name": "farine", "notes": ""}},
     {{"quantity": 2, "unit": "", "name": "œufs", "notes": ""}},
@@ -106,7 +106,7 @@ RÈGLES IMPORTANTES:
 - Les étapes doivent être claires et numérotées
 - Traduis TOUT en {lang_name} si nécessaire
 - recipe_type doit être l'un de: apéritif, entrée, plat, dessert, autre
-- country: nom du pays d'origine de la recette
+- country: code ISO 2 lettres du pays d'origine (ex: fr, jp, it, cn, kr, th, us, de, es, pt, vn, in, mx, ma, lb, gr, be, gb, tr). Laisser vide si inconnu.
 
 CONTENU DE LA PAGE:
 {page_content}
@@ -190,7 +190,7 @@ Réponds UNIQUEMENT avec le JSON, sans texte avant ou après."""
             'prep_time': int(data.get('prep_time', 0)),
             'cook_time': int(data.get('cook_time', 0)),
             'recipe_type': data.get('recipe_type', 'autre'),
-            'country': data.get('country', 'France'),
+            'country': data.get('country', ''),
             'source_url': data.get('source_url', ''),
             'ingredients': [],
             'steps': []

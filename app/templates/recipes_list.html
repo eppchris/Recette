@@ -7,6 +7,13 @@
 <script>
   // Données des recettes pour Alpine
   window.recipesData = {{ rows | tojson | safe }};
+
+  function countryCodeToFlag(code) {
+    if (!code || code.length !== 2) return '';
+    return [...code.toUpperCase()].map(c =>
+      String.fromCodePoint(c.charCodeAt(0) + 127397)
+    ).join('');
+  }
 </script>
 
 <div x-data="{
@@ -585,8 +592,15 @@
             <span x-text="r.type"></span>
           </div>
 
-          <div class="flex items-center justify-end text-sm text-gray-600 mb-3">
-            <span x-show="r.servings">👥 <span x-text="r.servings"></span></span>
+          <div class="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400 mb-3 flex-wrap gap-1">
+            <div class="flex items-center gap-2">
+              <span x-show="r.prep_time" class="flex items-center gap-0.5">⏱ <span x-text="r.prep_time + ' min'"></span></span>
+              <span x-show="r.cook_time" class="flex items-center gap-0.5">🔥 <span x-text="r.cook_time + ' min'"></span></span>
+            </div>
+            <div class="flex items-center gap-2">
+              <span x-show="r.country" class="text-base leading-none" x-text="countryCodeToFlag(r.country)"></span>
+              <span x-show="r.servings" class="text-sm">👥 <span x-text="r.servings"></span></span>
+            </div>
           </div>
 
           <!-- Event type badges -->
@@ -598,12 +612,21 @@
           </div>
 
           <!-- Actions -->
-          <button
-            @click="confirmDelete(r)"
-            class="w-full text-red-600 hover:text-red-800 hover:bg-red-50 py-2 rounded transition text-sm"
-          >
-            🗑️ {{ 'Supprimer' if lang == 'fr' else '削除' }}
-          </button>
+          <div class="flex justify-end">
+            <div class="relative group/tip">
+              <button
+                @click="confirmDelete(r)"
+                class="p-1.5 rounded hover:bg-red-50 dark:hover:bg-red-900/30 text-red-600 dark:text-red-400 inline-flex transition"
+              >
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                </svg>
+              </button>
+              <span class="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 px-2 py-0.5 text-xs bg-gray-800 text-white rounded whitespace-nowrap opacity-0 group-hover/tip:opacity-100 transition-opacity z-20">
+                {{ 'Supprimer' if lang == 'fr' else '削除' }}
+              </span>
+            </div>
+          </div>
         </div>
       </div>
     </template>
@@ -697,16 +720,28 @@
               <span x-text="r.creator_name || '-'"></span>
             </td>
             <td class="px-4 py-3 text-sm text-gray-500 dark:text-gray-400 text-center hidden lg:table-cell">
-              <span x-show="r.servings">👥 <span x-text="r.servings"></span></span>
-              <span x-show="!r.servings">-</span>
+              <div class="flex flex-col items-center gap-0.5 text-xs">
+                <span x-show="r.country" class="text-base leading-none" x-text="countryCodeToFlag(r.country)"></span>
+                <span x-show="r.servings">👥 <span x-text="r.servings"></span></span>
+                <span x-show="r.prep_time">⏱ <span x-text="r.prep_time + ' min'"></span></span>
+                <span x-show="r.cook_time">🔥 <span x-text="r.cook_time + ' min'"></span></span>
+                <span x-show="!r.country && !r.servings && !r.prep_time && !r.cook_time">-</span>
+              </div>
             </td>
             <td class="px-4 py-3 text-right">
-              <button
-                @click="confirmDelete(r)"
-                class="text-red-600 hover:text-red-800 dark:hover:text-red-400 transition text-sm"
-              >
-                🗑️
-              </button>
+              <div class="relative group/tip inline-flex">
+                <button
+                  @click="confirmDelete(r)"
+                  class="p-1.5 rounded hover:bg-red-50 dark:hover:bg-red-900/30 text-red-600 dark:text-red-400 inline-flex transition"
+                >
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                  </svg>
+                </button>
+                <span class="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 px-2 py-0.5 text-xs bg-gray-800 text-white rounded whitespace-nowrap opacity-0 group-hover/tip:opacity-100 transition-opacity z-20">
+                  {{ 'Supprimer' if lang == 'fr' else '削除' }}
+                </span>
+              </div>
             </td>
           </tr>
         </template>
