@@ -1459,3 +1459,42 @@ async def save_url_recipe(request: Request, lang: str = Query("fr")):
             {"success": False, "error": str(e)},
             status_code=500
         )
+
+
+# ============================================================================
+# Import de recettes depuis texte (copier/coller)
+# ============================================================================
+
+@router.get("/import-text", response_class=HTMLResponse)
+async def import_text_form(request: Request, lang: str = Query("fr")):
+    """Affiche le formulaire d'import depuis texte libre"""
+    return templates.TemplateResponse(
+        "import_text.html",
+        {"request": request, "lang": lang}
+    )
+
+
+@router.post("/api/import-text/analyze")
+async def analyze_text_recipe(
+    request: Request,
+    text: str = Form(...),
+    target_lang: str = Form("fr")
+):
+    """Analyse un texte collé et extrait les informations de la recette avec l'IA"""
+    try:
+        importer = get_web_recipe_importer()
+        recipe_data = importer.extract_recipe_with_ai(text, target_lang)
+        recipe_data = importer._validate_recipe_data(recipe_data)
+
+        return JSONResponse({
+            "success": True,
+            "recipe": recipe_data
+        })
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JSONResponse(
+            {"success": False, "error": str(e)},
+            status_code=500
+        )

@@ -11,7 +11,7 @@
   </div>
 
   <!-- Choix du type d'import -->
-  <div x-show="!importType" class="grid md:grid-cols-3 gap-6">
+  <div x-show="!importType" class="grid md:grid-cols-4 gap-6">
     <!-- Option CSV -->
     <div @click="selectType('csv')"
          class="bg-white p-8 rounded-lg shadow-lg border-2 border-gray-200 hover:border-blue-500 cursor-pointer transition group">
@@ -62,6 +62,26 @@
           <li>✓ {{ 'Simple et rapide' if lang == 'fr' else 'シンプルで迅速' }}</li>
           <li>✓ {{ 'Support des sites de recettes' if lang == 'fr' else 'レシピサイト対応' }}</li>
           <li>✓ {{ 'Extraction automatique' if lang == 'fr' else '自動抽出' }}</li>
+        </ul>
+      </div>
+    </a>
+
+    <!-- Option Texte -->
+    <a href="/import-text?lang={{ lang }}"
+       class="bg-white p-8 rounded-lg shadow-lg border-2 border-gray-200 hover:border-orange-500 cursor-pointer transition group block">
+      <div class="text-center">
+        <div class="text-6xl mb-4">📋</div>
+        <h3 class="text-xl font-bold mb-2">
+          {{ 'Import Texte (IA)' if lang == 'fr' else 'テキストインポート (AI)' }}
+          <span class="text-xs bg-orange-100 text-orange-600 px-2 py-1 rounded ml-2">NEW</span>
+        </h3>
+        <p class="text-gray-600 text-sm">
+          {{ 'Copier/coller n\'importe quel texte de recette' if lang == 'fr' else 'レシピテキストをコピー＆ペースト' }}
+        </p>
+        <ul class="mt-4 text-sm text-left space-y-2">
+          <li>✓ {{ 'Livre, site, notes...' if lang == 'fr' else '本・サイト・メモ...' }}</li>
+          <li>✓ {{ 'Traduction automatique' if lang == 'fr' else '自動翻訳' }}</li>
+          <li>✓ {{ 'Extraction intelligente' if lang == 'fr' else 'インテリジェントな抽出' }}</li>
         </ul>
       </div>
     </a>

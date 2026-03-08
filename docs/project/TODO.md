@@ -8,11 +8,11 @@
 - [ ] Aide: Mise à jour automatique avec versions
 - [ X] Revoir les performance de la liste des recettes qui commence à être lente.
 - [ ] Mettre dans les événements, les personnes participant à un événement 
-- [ ] Recettes composées (recette comme ingrédient)
+- [x] Recettes composées (recette comme ingrédient)
 - [ ] Images dans les étapes de recette
 - [ ] Clarifier système de versioning
 - [ ] Scan ticket de caisse pour prix - 🔵 À SPÉCIFIER
-- [ ] Harmoniser navigation (boutons retour, icônes, cohérence UI)
+- [x] Harmoniser navigation (boutons retour, icônes, cohérence UI)
 - [ ] Export PDF planification
 - [ ] Notifications événements
 - [ ] Copie événements avec planning
