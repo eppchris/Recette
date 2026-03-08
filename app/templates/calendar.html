@@ -105,11 +105,20 @@
             <!-- Repas du jour (noms + drapeaux) -->
             <template x-if="cell.date">
               <div class="px-1.5 pb-1.5 space-y-0.5">
-                <!-- Événements : badge avec nom de l'événement -->
+                <!-- Événements : badge avec nom de l'événement + recettes -->
                 <template x-for="(evt, ei) in getUniqueEvents(cellData(cell.date).events).slice(0, 2)" :key="'eb'+ei">
-                  <div class="flex items-center gap-1 min-w-0">
-                    <span class="text-[11px] leading-none flex-shrink-0">📅</span>
-                    <span class="text-[10px] leading-tight text-purple-600 dark:text-purple-400 truncate font-medium" x-text="evt.event_name"></span>
+                  <div>
+                    <div class="flex items-center gap-1 min-w-0">
+                      <span class="text-[11px] leading-none flex-shrink-0">📅</span>
+                      <span class="text-[10px] leading-tight text-purple-600 dark:text-purple-400 truncate font-medium" x-text="evt.event_name"></span>
+                    </div>
+                    <!-- Recettes de l'événement ce jour -->
+                    <template x-for="(r, ri) in cellData(cell.date).events.filter(e => e.event_id === evt.event_id && e.slug).slice(0, 2)" :key="'ecr'+ri">
+                      <div class="flex items-center gap-1 min-w-0 pl-3">
+                        <span class="text-[10px] leading-none flex-shrink-0" x-text="r.country ? countryCodeToFlag(r.country) : '🍽️'"></span>
+                        <span class="text-[10px] leading-tight text-gray-600 dark:text-gray-400 truncate" x-text="r.name"></span>
+                      </div>
+                    </template>
                   </div>
                 </template>
                 <!-- Personnels -->
@@ -121,9 +130,9 @@
                   </div>
                 </template>
                 <!-- Overflow -->
-                <template x-if="cell.date && (cellData(cell.date).personal.length + getUniqueEvents(cellData(cell.date).events).length) > 3">
+                <template x-if="cell.date && (cellData(cell.date).personal.length + cellData(cell.date).events.filter(e => e.slug).length + getUniqueEvents(cellData(cell.date).events).length) > 3">
                   <div class="text-[10px] text-gray-400 dark:text-gray-500 pl-3"
-                       x-text="'+' + (cellData(cell.date).personal.length + getUniqueEvents(cellData(cell.date).events).length - 3)">
+                       x-text="'+' + (cellData(cell.date).personal.length + cellData(cell.date).events.filter(e => e.slug).length + getUniqueEvents(cellData(cell.date).events).length - 3)">
                   </div>
                 </template>
               </div>
