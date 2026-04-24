@@ -151,6 +151,153 @@ def list_ingredient_catalog(search: str = None, lang: str = 'fr'):
         return catalog_items
 
 
+def list_lexique(search: str = None, lang: str = 'fr'):
+    """
+    Liste tous les ingrédients du catalogue comme lexique bilingue FR/JP.
+    Retourne toujours les deux noms (FR + JP) et la lecture phonétique.
+
+    Args:
+        search: Terme de recherche (cherche dans FR et JP)
+        lang: Langue active (détermine l'ordre de tri)
+
+    Returns:
+        Liste de dicts avec id, ingredient_name_fr, ingredient_name_jp,
+        ingredient_name_jp_reading
+    """
+    with get_db() as conn:
+        cursor = conn.cursor()
+
+        sort_col = 'ingredient_name_jp' if lang == 'jp' else 'ingredient_name_fr'
+
+        base_query = """
+            SELECT
+                id,
+                ingredient_name_fr,
+                ingredient_name_jp,
+                ingredient_name_jp_reading
+            FROM ingredient_price_catalog
+        """
+
+        if search:
+            cursor.execute(
+                base_query + f"""
+                WHERE ingredient_name_fr LIKE ?
+                   OR ingredient_name_jp LIKE ?
+                   OR ingredient_name_jp_reading LIKE ?
+                ORDER BY {sort_col}
+                """,
+                (f'%{search}%', f'%{search}%', f'%{search}%')
+            )
+        else:
+            cursor.execute(base_query + f"ORDER BY {sort_col}")
+
+        return [dict(row) for row in cursor.fetchall()]
+
+
+def update_lexique_translation(
+    catalog_id: int,
+    old_name_fr: str,
+    new_name_fr: str,
+    new_name_jp: str,
+    new_name_jp_reading: str = None
+):
+    """
+    Met à jour les noms FR/JP dans le catalogue ET propage dans toutes les recettes.
+
+    La propagation suit la même logique que merge_ingredient_group :
+    - Mise à jour du catalogue (source de vérité)
+    - Propagation dans recipe_ingredient_translation (lang='fr' et lang='jp')
+    - Mise à jour de ingredient_specific_conversions si le nom FR change
+
+    Args:
+        catalog_id: ID de l'entrée dans ingredient_price_catalog
+        old_name_fr: Ancien nom FR (pour retrouver les recettes à mettre à jour)
+        new_name_fr: Nouveau nom FR
+        new_name_jp: Nouveau nom JP
+        new_name_jp_reading: Lecture phonétique hiragana (optionnel)
+
+    Returns:
+        Dict avec le nombre de recettes impactées
+    """
+    with get_db() as conn:
+        cursor = conn.cursor()
+
+        # 1. Mettre à jour le catalogue
+        cursor.execute("""
+            UPDATE ingredient_price_catalog
+            SET ingredient_name_fr = ?,
+                ingredient_name_jp = ?,
+                ingredient_name_jp_reading = ?,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+        """, (new_name_fr, new_name_jp or None, new_name_jp_reading or None, catalog_id))
+
+        # 2. Propager le nom FR dans les recettes
+        fr_updated = 0
+        if new_name_fr != old_name_fr:
+            cursor.execute("""
+                UPDATE recipe_ingredient_translation
+                SET name = ?
+                WHERE lang = 'fr' AND LOWER(name) = LOWER(?)
+            """, (new_name_fr, old_name_fr))
+            fr_updated = cursor.rowcount
+
+            # Mettre à jour ingredient_specific_conversions (FK sur ingredient_name_fr)
+            # On gère les conflits potentiels de contrainte UNIQUE
+            cursor.execute("""
+                UPDATE OR IGNORE ingredient_specific_conversions
+                SET ingredient_name_fr = ?
+                WHERE LOWER(ingredient_name_fr) = LOWER(?)
+            """, (new_name_fr, old_name_fr))
+
+        # 3. Propager le nom JP dans les recettes (on cherche l'ancien nom JP)
+        # D'abord récupérer l'ancien nom JP
+        cursor.execute(
+            "SELECT ingredient_name_jp FROM ingredient_price_catalog WHERE id = ?",
+            (catalog_id,)
+        )
+        # Note: on vient de faire l'UPDATE donc on relit depuis la table
+        # On utilise old_name_fr pour retrouver l'ancien JP avant update...
+        # En pratique, on met à jour toutes les lignes JP qui correspondent
+        # à l'ingrédient via son nom FR (lien indirect)
+        jp_updated = 0
+        if new_name_jp:
+            # Chercher les recettes ayant cet ingrédient en JP
+            # via les lignes FR déjà identifiées (même recipe_ingredient_id)
+            cursor.execute("""
+                UPDATE recipe_ingredient_translation
+                SET name = ?
+                WHERE lang = 'jp'
+                AND recipe_ingredient_id IN (
+                    SELECT DISTINCT rit_fr.recipe_ingredient_id
+                    FROM recipe_ingredient_translation rit_fr
+                    WHERE rit_fr.lang = 'fr'
+                    AND LOWER(rit_fr.name) = LOWER(?)
+                )
+            """, (new_name_jp, new_name_fr))
+            jp_updated = cursor.rowcount
+
+        conn.commit()
+
+        return {
+            'fr_recipes_updated': fr_updated,
+            'jp_recipes_updated': jp_updated
+        }
+
+
+def get_lexique_entry(catalog_id: int):
+    """Récupère une entrée du lexique par son ID."""
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT id, ingredient_name_fr, ingredient_name_jp, ingredient_name_jp_reading
+            FROM ingredient_price_catalog
+            WHERE id = ?
+        """, (catalog_id,))
+        row = cursor.fetchone()
+        return dict(row) if row else None
+
+
 def get_ingredient_from_catalog(ingredient_id: int = None, ingredient_name: str = None):
     """
     Récupère un ingrédient du catalogue par son ID ou son nom

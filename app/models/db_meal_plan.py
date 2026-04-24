@@ -62,6 +62,7 @@ def get_calendar_data(year: int, month: int, lang: str, user_id: int) -> dict:
         # même si aucune recette n'est encore assignée (LEFT JOIN).
         event_rows = con.execute(
             """
+            -- Dates avec planification explicite (event_recipe_planning)
             SELECT
                 ed.date,
                 e.id AS event_id,
@@ -80,9 +81,36 @@ def get_calendar_data(year: int, month: int, lang: str, user_id: int) -> dict:
             WHERE ed.date LIKE ?
               AND ed.is_selected = 1
               AND e.user_id = ?
-            ORDER BY ed.date, e.id, erp.position
+
+            UNION ALL
+
+            -- Événements SANS aucune planification : afficher les recettes globales sur toutes les dates
+            SELECT
+                ed.date,
+                e.id AS event_id,
+                e.name AS event_name,
+                r.id AS recipe_id,
+                r.slug,
+                r.thumbnail_url,
+                r.country,
+                rt.name AS recipe_name,
+                er.position
+            FROM event_date ed
+            JOIN event e ON e.id = ed.event_id
+            JOIN event_recipe er ON er.event_id = e.id
+            JOIN recipe r ON r.id = er.recipe_id
+            LEFT JOIN recipe_translation rt ON rt.recipe_id = r.id AND rt.lang = ?
+            WHERE ed.date LIKE ?
+              AND ed.is_selected = 1
+              AND e.user_id = ?
+              AND NOT EXISTS (
+                  SELECT 1 FROM event_recipe_planning erp2
+                  WHERE erp2.event_id = e.id
+              )
+
+            ORDER BY date, event_id, position
             """,
-            (lang, month_prefix, user_id)
+            (lang, month_prefix, user_id, lang, month_prefix, user_id)
         ).fetchall()
 
         # Déduplique : une seule entrée par (date, event_id) si pas de recette
@@ -135,6 +163,7 @@ def get_day_detail(date: str, lang: str, user_id: int) -> dict:
 
         event_rows = con.execute(
             """
+            -- Dates avec planification explicite (event_recipe_planning)
             SELECT
                 e.id AS event_id,
                 e.name AS event_name,
@@ -152,9 +181,35 @@ def get_day_detail(date: str, lang: str, user_id: int) -> dict:
             WHERE ed.date = ?
               AND ed.is_selected = 1
               AND e.user_id = ?
-            ORDER BY e.id, erp.position
+
+            UNION ALL
+
+            -- Événements SANS aucune planification : afficher les recettes globales sur toutes les dates
+            SELECT
+                e.id AS event_id,
+                e.name AS event_name,
+                r.id AS recipe_id,
+                r.slug,
+                r.thumbnail_url,
+                r.country,
+                rt.name AS recipe_name,
+                er.position
+            FROM event_date ed
+            JOIN event e ON e.id = ed.event_id
+            JOIN event_recipe er ON er.event_id = e.id
+            JOIN recipe r ON r.id = er.recipe_id
+            LEFT JOIN recipe_translation rt ON rt.recipe_id = r.id AND rt.lang = ?
+            WHERE ed.date = ?
+              AND ed.is_selected = 1
+              AND e.user_id = ?
+              AND NOT EXISTS (
+                  SELECT 1 FROM event_recipe_planning erp2
+                  WHERE erp2.event_id = e.id
+              )
+
+            ORDER BY event_id, position
             """,
-            (lang, date, user_id)
+            (lang, date, user_id, lang, date, user_id)
         ).fetchall()
 
     personal = [

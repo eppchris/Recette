@@ -141,6 +141,10 @@
                 </div>
 
                 <div class="flex flex-wrap gap-3">
+                    <a href="/lexique?lang={{ lang }}"
+                       class="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700">
+                        📖 {{ 'Lexique FR/JP' if lang == 'fr' else '語彙集 FR/JP' }}
+                    </a>
                     <a href="/ingredient-catalog/maintenance?lang={{ lang }}"
                        class="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700">
                         🔧 {{ 'Maintenance' if lang == 'fr' else 'メンテナンス' }}

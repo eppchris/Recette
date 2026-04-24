@@ -228,6 +228,18 @@
                         </div>
                     </div>
                     <div class="flex gap-1">
+                        <!-- Plats servis -->
+                        <div class="relative group/tip">
+                            <button onclick="openPlatsServis({{ group.id }}, '{{ group.nom }}')"
+                                    class="p-1.5 rounded hover:bg-orange-50 dark:hover:bg-orange-900/30 text-orange-500 dark:text-orange-400 inline-flex transition-colors">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"/>
+                                </svg>
+                            </button>
+                            <span class="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 px-2 py-0.5 text-xs bg-gray-800 text-white rounded whitespace-nowrap opacity-0 group-hover/tip:opacity-100 transition-opacity z-20">
+                                Plats servis
+                            </span>
+                        </div>
                         <div class="relative group/tip">
                             <a href="/participants/groups/{{ group.id }}?lang={{ lang }}"
                                class="p-1.5 rounded hover:bg-blue-50 dark:hover:bg-blue-900/30 text-blue-600 dark:text-blue-400 inline-flex transition-colors">

@@ -120,7 +120,40 @@ def list_events(user_id: int = None):
                 e.user_id,
                 et.id AS event_type_id,
                 et.name_fr AS event_type_name_fr,
-                et.name_jp AS event_type_name_jp
+                et.name_jp AS event_type_name_jp,
+                (SELECT GROUP_CONCAT(g.nom, ', ')
+                 FROM (SELECT DISTINCT pg.nom
+                       FROM event_participant ep
+                       JOIN participant_group pg ON ep.added_via_group_id = pg.id
+                       WHERE ep.event_id = e.id) g
+                ) AS groups,
+                (SELECT GROUP_CONCAT(g.id || ':' || g.nom, '||')
+                 FROM (SELECT DISTINCT pg.id, pg.nom
+                       FROM event_participant ep
+                       JOIN participant_group pg ON ep.added_via_group_id = pg.id
+                       WHERE ep.event_id = e.id) g
+                ) AS groups_raw,
+                (SELECT GROUP_CONCAT(
+                     CASE WHEN p.prenom IS NOT NULL AND p.prenom != ''
+                          THEN p.prenom || ' ' || p.nom
+                          ELSE p.nom
+                     END, ', ')
+                 FROM event_participant ep
+                 JOIN participant p ON p.id = ep.participant_id
+                 WHERE ep.event_id = e.id
+                ) AS participants,
+                (SELECT GROUP_CONCAT(r.slug || '::' || COALESCE(rt.name, r.slug), '||')
+                 FROM event_recipe er
+                 JOIN recipe r ON r.id = er.recipe_id
+                 LEFT JOIN recipe_translation rt ON rt.recipe_id = r.id AND rt.lang = 'fr'
+                 WHERE er.event_id = e.id
+                ) AS recipes_raw,
+                (SELECT ep.photo_url
+                 FROM event_photo ep
+                 WHERE ep.event_id = e.id
+                 ORDER BY ep.position, ep.id
+                 LIMIT 1
+                ) AS first_photo
             FROM event e
             JOIN event_type et ON et.id = e.event_type_id
         """
@@ -854,3 +887,42 @@ def copy_event(event_id: int, new_name: str, new_event_type_id: int, new_date_de
 
         conn.commit()
         return new_event_id
+
+
+# ============================================================================
+# Gestion des photos d'événement
+# ============================================================================
+
+def get_event_photos(event_id: int) -> list:
+    with get_db() as con:
+        rows = con.execute(
+            "SELECT id, photo_url, position FROM event_photo WHERE event_id = ? ORDER BY position",
+            (event_id,)
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+
+def add_event_photo(event_id: int, photo_url: str) -> int:
+    with get_db() as con:
+        pos = con.execute(
+            "SELECT COALESCE(MAX(position), -1) + 1 FROM event_photo WHERE event_id = ?",
+            (event_id,)
+        ).fetchone()[0]
+        cursor = con.execute(
+            "INSERT INTO event_photo (event_id, photo_url, position) VALUES (?, ?, ?)",
+            (event_id, photo_url, pos)
+        )
+        return cursor.lastrowid
+
+
+def delete_event_photo(photo_id: int, event_id: int):
+    """Retourne l'URL de la photo supprimée (pour effacer le fichier)."""
+    with get_db() as con:
+        row = con.execute(
+            "SELECT photo_url FROM event_photo WHERE id = ? AND event_id = ?",
+            (photo_id, event_id)
+        ).fetchone()
+        if not row:
+            return None
+        con.execute("DELETE FROM event_photo WHERE id = ?", (photo_id,))
+        return row["photo_url"]

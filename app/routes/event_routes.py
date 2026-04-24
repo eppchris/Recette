@@ -1,5 +1,5 @@
 # app/routes/event_routes.py
-from fastapi import APIRouter, Request, Form, HTTPException
+from fastapi import APIRouter, Request, Form, HTTPException, UploadFile, File
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 from typing import Optional
 from datetime import datetime
@@ -25,13 +25,34 @@ async def events_list(request: Request, lang: str = "fr"):
     - Les autres utilisateurs voient uniquement leurs événements
     """
     user_id = request.session.get('user_id')
-    username = request.session.get('username')
+    is_admin = bool(request.session.get('is_admin', False))
 
-    # Si l'utilisateur est 'admin', afficher tous les événements, sinon filtrer par user_id
-    if username == 'admin':
+    if is_admin:
         events = db.list_events()
     else:
         events = db.list_events(user_id=user_id)
+
+    # Enrichir chaque événement
+    for ev in events:
+        # groups_data (pour Plats servis)
+        raw = ev.pop("groups_raw", None)
+        ev["groups_data"] = []
+        if raw:
+            for part in raw.split("||"):
+                if ":" in part:
+                    gid, gnom = part.split(":", 1)
+                    ev["groups_data"].append({"id": int(gid), "nom": gnom})
+
+        # recipes_data (slug + nom pour liens cliquables)
+        recipes_raw = ev.pop("recipes_raw", None)
+        ev["recipes_data"] = []
+        ev["recipes"] = ""  # pour la recherche texte
+        if recipes_raw:
+            for part in recipes_raw.split("||"):
+                if "::" in part:
+                    slug, name = part.split("::", 1)
+                    ev["recipes_data"].append({"slug": slug, "name": name})
+            ev["recipes"] = " · ".join(r["name"] for r in ev["recipes_data"])
 
     event_types = db.list_event_types()
 
@@ -161,8 +182,7 @@ async def event_detail(
     has_shopping_list = len(shopping_list_items) > 0
 
     user_id = request.session.get('user_id')
-    username = request.session.get('username')
-    is_admin = (username == 'admin')
+    is_admin = bool(request.session.get('is_admin', False))
 
     try:
         event_participants = db.get_event_participants(event_id)
@@ -172,6 +192,8 @@ async def event_detail(
         event_participants = []
         all_participants = []
         all_groups = []
+
+    event_photos = db.get_event_photos(event_id)
 
     return templates.TemplateResponse(
         "event_detail.html",
@@ -190,6 +212,7 @@ async def event_detail(
             "event_participants": event_participants,
             "all_participants": all_participants,
             "all_groups": all_groups,
+            "event_photos": event_photos,
         }
     )
 
@@ -226,6 +249,13 @@ async def event_update(
     # Récupérer l'ancien événement pour comparer le nombre de participants
     old_event = db.get_event_by_id(event_id)
     old_attendees = old_event['attendees'] if old_event else None
+
+    # Fallback : si event_date vide (Alpine pas encore initialisé), utiliser date_debut
+    if not event_date:
+        event_date = date_debut
+
+    import logging
+    logging.getLogger(__name__).info(f"[event_update] id={event_id} name='{name}' event_date='{event_date}'")
 
     # Mettre à jour l'événement
     db.update_event(
@@ -1347,3 +1377,41 @@ async def event_planning_save(
         url=f"/events/{event_id}/organization?lang={lang}",
         status_code=303
     )
+
+
+# ============================================================================
+# Routes photos d'événement
+# ============================================================================
+
+@router.post("/api/events/{event_id}/photos/upload")
+async def upload_event_photo(request: Request, event_id: int, file: UploadFile = File(...)):
+    from app.services.image_service import save_event_photo
+    user_id = request.session.get('user_id')
+    if not user_id:
+        return JSONResponse({"error": "Non authentifié"}, status_code=401)
+
+    existing = db.get_event_photos(event_id)
+    if len(existing) >= 2:
+        return JSONResponse({"error": "Maximum 2 photos par événement"}, status_code=400)
+
+    try:
+        file_data = await file.read()
+        photo_url = save_event_photo(file_data, file.filename)
+        photo_id = db.add_event_photo(event_id, photo_url)
+        return JSONResponse({"id": photo_id, "photo_url": photo_url})
+    except ValueError as e:
+        return JSONResponse({"error": str(e)}, status_code=400)
+
+
+@router.post("/api/events/{event_id}/photos/{photo_id}/delete")
+async def delete_event_photo(request: Request, event_id: int, photo_id: int):
+    from app.services.image_service import delete_event_photo_file
+    user_id = request.session.get('user_id')
+    if not user_id:
+        return JSONResponse({"error": "Non authentifié"}, status_code=401)
+
+    photo_url = db.delete_event_photo(photo_id, event_id)
+    if photo_url is None:
+        return JSONResponse({"error": "Photo introuvable"}, status_code=404)
+    delete_event_photo_file(photo_url)
+    return JSONResponse({"ok": True})

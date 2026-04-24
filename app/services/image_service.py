@@ -15,11 +15,13 @@ BASE_DIR = Path(__file__).resolve().parent.parent.parent
 IMAGES_DIR = BASE_DIR / "static" / "images" / "recipes"
 THUMBNAILS_DIR = BASE_DIR / "static" / "images" / "recipes" / "thumbnails"
 STEPS_IMAGES_DIR = BASE_DIR / "static" / "images" / "steps"
+EVENTS_IMAGES_DIR = BASE_DIR / "static" / "images" / "events"
 
 # Créer les répertoires s'ils n'existent pas
 IMAGES_DIR.mkdir(parents=True, exist_ok=True)
 THUMBNAILS_DIR.mkdir(parents=True, exist_ok=True)
 STEPS_IMAGES_DIR.mkdir(parents=True, exist_ok=True)
+EVENTS_IMAGES_DIR.mkdir(parents=True, exist_ok=True)
 
 
 def is_allowed_file(filename: str) -> bool:
@@ -167,3 +169,33 @@ def delete_step_image(image_url: Optional[str]):
         image_path = BASE_DIR / image_url.lstrip('/')
         if image_path.exists():
             image_path.unlink()
+
+
+def save_event_photo(file_data: bytes, filename: str) -> str:
+    """
+    Sauvegarde une photo d'événement.
+
+    Returns:
+        URL relative de la photo (ex: /static/images/events/uuid.jpg)
+    """
+    if not is_allowed_file(filename):
+        raise ValueError(f"Extension non autorisée. Formats acceptés : {', '.join(ALLOWED_EXTENSIONS)}")
+    if len(file_data) > MAX_FILE_SIZE:
+        raise ValueError(f"Fichier trop volumineux (max {MAX_FILE_SIZE // (1024*1024)} MB)")
+
+    ext = Path(filename).suffix.lower()
+    unique_name = f"{uuid.uuid4().hex}{ext}"
+    photo_path = EVENTS_IMAGES_DIR / unique_name
+
+    with open(photo_path, "wb") as f:
+        f.write(file_data)
+
+    return f"/static/images/events/{unique_name}"
+
+
+def delete_event_photo_file(photo_url: Optional[str]):
+    """Supprime le fichier photo d'un événement."""
+    if photo_url:
+        photo_path = BASE_DIR / photo_url.lstrip('/')
+        if photo_path.exists():
+            photo_path.unlink()

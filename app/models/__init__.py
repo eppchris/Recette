@@ -71,6 +71,9 @@ from .db_events import (
     save_recipe_planning,
     get_recipe_planning,
     copy_event,
+    get_event_photos,
+    add_event_photo,
+    delete_event_photo,
 )
 
 # Import des fonctions de gestion des listes de courses
@@ -116,6 +119,9 @@ from .db_catalog import (
     get_all_ingredients_from_catalog,
     get_ingredient_price_for_currency,
     calculate_ingredient_price,
+    list_lexique,
+    update_lexique_translation,
+    get_lexique_entry,
 )
 
 # Import des fonctions de conversion d'unites
@@ -325,6 +331,9 @@ __all__ = [
     'get_all_ingredients_from_catalog',
     'get_ingredient_price_for_currency',
     'calculate_ingredient_price',
+    'list_lexique',
+    'update_lexique_translation',
+    'get_lexique_entry',
 
     # Conversions
     'convert_unit',
@@ -480,6 +489,9 @@ db = SimpleNamespace(
     save_recipe_planning=save_recipe_planning,
     get_recipe_planning=get_recipe_planning,
     copy_event=copy_event,
+    get_event_photos=get_event_photos,
+    add_event_photo=add_event_photo,
+    delete_event_photo=delete_event_photo,
 
     # Shopping
     get_shopping_list_items=get_shopping_list_items,
@@ -519,6 +531,9 @@ db = SimpleNamespace(
     get_all_ingredients_from_catalog=get_all_ingredients_from_catalog,
     get_ingredient_price_for_currency=get_ingredient_price_for_currency,
     calculate_ingredient_price=calculate_ingredient_price,
+    list_lexique=list_lexique,
+    update_lexique_translation=update_lexique_translation,
+    get_lexique_entry=get_lexique_entry,
 
     # Conversions
     convert_unit=convert_unit,

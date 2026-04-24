@@ -30,6 +30,46 @@ async def ingredient_catalog(
     })
 
 
+# ============================================================================
+# LEXIQUE BILINGUE FR/JP
+# ============================================================================
+
+@router.get("/lexique")
+async def lexique(
+    request: Request,
+    lang: str = "fr",
+    search: Optional[str] = None
+):
+    """Page lexique bilingue des ingrédients (FR ↔ JP)"""
+    ingredients = db.list_lexique(search, lang)
+    return templates.TemplateResponse("lexique.html", {
+        "request": request,
+        "lang": lang,
+        "ingredients": ingredients,
+        "search": search or ""
+    })
+
+
+@router.post("/lexique/{ingredient_id}/update")
+async def update_lexique_entry(
+    ingredient_id: int,
+    lang: str = Form("fr"),
+    old_name_fr: str = Form(...),
+    new_name_fr: str = Form(...),
+    new_name_jp: Optional[str] = Form(None),
+    new_name_jp_reading: Optional[str] = Form(None)
+):
+    """Met à jour une traduction et propage dans toutes les recettes"""
+    result = db.update_lexique_translation(
+        catalog_id=ingredient_id,
+        old_name_fr=old_name_fr,
+        new_name_fr=new_name_fr.strip(),
+        new_name_jp=new_name_jp.strip() if new_name_jp else None,
+        new_name_jp_reading=new_name_jp_reading.strip() if new_name_jp_reading else None
+    )
+    return RedirectResponse(f"/lexique?lang={lang}", status_code=303)
+
+
 @router.post("/ingredient-catalog/sync")
 async def sync_catalog(lang: str = Form("fr")):
     """

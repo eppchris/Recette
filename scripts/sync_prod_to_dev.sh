@@ -1,94 +1,102 @@
 #!/bin/bash
 # Script de synchronisation PRODUCTION → DEV
-# Copie la base de données et les images de production vers l'environnement de dev local
+# Copie la base de données, les images et les tickets de caisse de production vers l'environnement de dev local
 # Usage: ./scripts/sync_prod_to_dev.sh
 
-SYNOLOGY_USER="admin"
-SYNOLOGY_HOST="192.168.1.14"
-PROD_PATH="recette"
+PROD_SERVER="prod-server"
+PROD_PATH="apps/recette"
+LOCAL_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+LOCAL_DB="${LOCAL_ROOT}/data/recette.sqlite3"
+LOCAL_IMAGES="${LOCAL_ROOT}/static/images"
+LOCAL_RECEIPTS="${LOCAL_ROOT}/data/receipts"
 
 echo "🔄 Synchronisation PRODUCTION → DEV"
 echo "======================================"
 echo ""
 
 # Backup local avant synchronisation
-echo "💾 Étape 1/4 : Backup de la base locale actuelle..."
-BACKUP_DIR="backups"
-mkdir -p "$BACKUP_DIR"
-if [ -f "data/recette.sqlite3" ]; then
-    BACKUP_FILE="${BACKUP_DIR}/recette_dev_backup_$(date +%Y%m%d_%H%M%S).sqlite3"
-    cp data/recette.sqlite3 "$BACKUP_FILE"
-    echo "✅ Backup local créé: $BACKUP_FILE"
+echo "💾 Étape 1/5 : Backup de la base locale actuelle..."
+mkdir -p "${LOCAL_ROOT}/backups"
+if [ -f "${LOCAL_DB}" ]; then
+    BACKUP_FILE="${LOCAL_ROOT}/backups/recette_dev_backup_$(date +%Y%m%d_%H%M%S).sqlite3"
+    cp "${LOCAL_DB}" "${BACKUP_FILE}"
+    echo "   ✅ Backup local créé : ${BACKUP_FILE}"
 else
-    echo "⚠️  Aucune base locale à sauvegarder"
+    echo "   ⚠️  Aucune base locale à sauvegarder"
 fi
 echo ""
 
 # Téléchargement de la base de production
-echo "📥 Étape 2/4 : Téléchargement de la base de production..."
-scp ${SYNOLOGY_USER}@${SYNOLOGY_HOST}:${PROD_PATH}/data/recette.sqlite3 data/recette.sqlite3
+echo "📥 Étape 2/5 : Téléchargement de la base de production..."
+scp ${PROD_SERVER}:${PROD_PATH}/data/recette.sqlite3 "${LOCAL_DB}"
 
 if [ $? -eq 0 ]; then
-    DB_SIZE=$(du -h data/recette.sqlite3 | cut -f1)
-    echo "✅ Base de données téléchargée (${DB_SIZE})"
+    DB_SIZE=$(du -h "${LOCAL_DB}" | cut -f1)
+    RECIPE_COUNT=$(sqlite3 "${LOCAL_DB}" "SELECT COUNT(*) FROM recipe;" 2>/dev/null)
+    echo "   ✅ Base de données téléchargée (${DB_SIZE}, ${RECIPE_COUNT} recettes)"
 else
-    echo "❌ Erreur lors du téléchargement de la base"
+    echo "   ❌ Erreur lors du téléchargement de la base"
     exit 1
 fi
 echo ""
 
-# Téléchargement des images
-echo "🖼️  Étape 3/4 : Synchronisation des images de recettes..."
-mkdir -p static/images/recipes
+# Synchronisation des images de recettes
+echo "🖼️  Étape 3/5 : Synchronisation des images de recettes..."
+mkdir -p "${LOCAL_IMAGES}/recipes/thumbnails" "${LOCAL_IMAGES}/steps"
 
-# Compter les images en production
-PROD_IMAGE_COUNT=$(ssh ${SYNOLOGY_USER}@${SYNOLOGY_HOST} "ls -1 ${PROD_PATH}/static/images/recipes/*.png 2>/dev/null | wc -l" | tr -d ' ')
+rsync -a --progress \
+    ${PROD_SERVER}:~/${PROD_PATH}/static/images/recipes/ \
+    "${LOCAL_IMAGES}/recipes/"
+NB_RECIPES=$(find "${LOCAL_IMAGES}/recipes/" -maxdepth 1 -type f 2>/dev/null | wc -l | tr -d ' ')
+NB_THUMBS=$(find "${LOCAL_IMAGES}/recipes/thumbnails/" -type f 2>/dev/null | wc -l | tr -d ' ')
+echo "   ✅ Images recettes      : ${NB_RECIPES} fichiers"
+echo "   ✅ Thumbnails recettes  : ${NB_THUMBS} fichiers"
 
-if [ "$PROD_IMAGE_COUNT" -gt 0 ]; then
-    echo "   → ${PROD_IMAGE_COUNT} images à télécharger..."
+rsync -a --progress \
+    ${PROD_SERVER}:~/${PROD_PATH}/static/images/steps/ \
+    "${LOCAL_IMAGES}/steps/"
+NB_STEPS=$(find "${LOCAL_IMAGES}/steps/" -type f 2>/dev/null | wc -l | tr -d ' ')
+echo "   ✅ Images étapes        : ${NB_STEPS} fichiers"
+echo ""
 
-    # Télécharger toutes les images
-    scp ${SYNOLOGY_USER}@${SYNOLOGY_HOST}:${PROD_PATH}/static/images/recipes/*.png static/images/recipes/ 2>/dev/null
+# Synchronisation des tickets de caisse
+echo "🧾 Étape 4/5 : Synchronisation des tickets de caisse..."
+mkdir -p "${LOCAL_RECEIPTS}"
 
-    LOCAL_IMAGE_COUNT=$(ls -1 static/images/recipes/*.png 2>/dev/null | wc -l | tr -d ' ')
-    echo "✅ ${LOCAL_IMAGE_COUNT} images synchronisées"
+rsync -a --progress \
+    ${PROD_SERVER}:~/${PROD_PATH}/data/receipts/ \
+    "${LOCAL_RECEIPTS}/"
+
+if [ $? -eq 0 ]; then
+    NB_RECEIPTS=$(find "${LOCAL_RECEIPTS}" -type f 2>/dev/null | wc -l | tr -d ' ')
+    echo "   ✅ Tickets de caisse : ${NB_RECEIPTS} fichiers"
 else
-    echo "ℹ️  Aucune image en production"
+    echo "   ⚠️  Erreur lors de la sync des tickets (dossier peut-être vide)"
 fi
 echo ""
 
-# Vérification
-echo "🔍 Étape 4/4 : Vérification..."
-
-# Vérifier la base de données
-sqlite3 data/recette.sqlite3 "SELECT COUNT(*) FROM recipe;" > /tmp/recipe_count.txt 2>/dev/null
-if [ $? -eq 0 ]; then
-    RECIPE_COUNT=$(cat /tmp/recipe_count.txt)
-    echo "✅ Base de données fonctionnelle"
-    echo "   → ${RECIPE_COUNT} recettes en base"
-    rm /tmp/recipe_count.txt
+# Vérification finale
+echo "🔍 Étape 5/5 : Vérification de l'intégrité..."
+INTEGRITY=$(sqlite3 "${LOCAL_DB}" "PRAGMA integrity_check;" 2>/dev/null)
+if [ "$INTEGRITY" = "ok" ]; then
+    echo "   ✅ Base de données OK"
 else
-    echo "❌ Erreur: Base de données corrompue"
+    echo "   ❌ Base de données corrompue : ${INTEGRITY}"
     exit 1
 fi
 
-# Vérifier les images
-LOCAL_IMAGES=$(ls -1 static/images/recipes/*.png 2>/dev/null | wc -l | tr -d ' ')
-echo "   → ${LOCAL_IMAGES} images dans static/images/recipes/"
-
 echo ""
 echo "✅ ========================================"
-echo "✅ Synchronisation terminée avec succès!"
+echo "✅ Synchronisation terminée avec succès !"
 echo "✅ ========================================"
 echo ""
-echo "📊 Résumé:"
-echo "   • Base de données: ${DB_SIZE}"
-echo "   • Recettes: ${RECIPE_COUNT}"
-echo "   • Images: ${LOCAL_IMAGES}"
+echo "📊 Résumé :"
+echo "   • Base de données      : ${DB_SIZE} (${RECIPE_COUNT} recettes)"
+echo "   • Images recettes      : ${NB_RECIPES} fichiers"
+echo "   • Thumbnails recettes  : ${NB_THUMBS} fichiers"
+echo "   • Images étapes        : ${NB_STEPS} fichiers"
+echo "   • Tickets de caisse    : ${NB_RECEIPTS} fichiers"
 echo ""
-echo "📁 Backup local disponible dans:"
-echo "   → ${BACKUP_DIR}/"
-echo ""
-echo "💡 Pour démarrer l'app en dev:"
-echo "   uvicorn app.main:app --reload --port 8000"
+echo "💡 Pour démarrer l'app en dev :"
+echo "   uvicorn main:app --reload --port 8000"
 echo ""

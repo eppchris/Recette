@@ -26,7 +26,7 @@ async def participants_index(request: Request, lang: str = "fr"):
     if not user_id:
         return RedirectResponse(url=f"/login?lang={lang}", status_code=303)
 
-    is_admin = (username == 'admin')
+    is_admin = bool(request.session.get('is_admin', False))
 
     # Filtrer par user_id sauf pour admin
     participants = db.list_participants(user_id=user_id, is_admin=is_admin)
@@ -386,3 +386,13 @@ async def api_remove_participant_from_event(
     db.remove_participant_from_event(event_id, participant_id)
 
     return JSONResponse(content={"success": True})
+
+
+@router.get("/api/group/{group_id}/plats-servis")
+async def api_group_meal_history(group_id: int):
+    """
+    API : Historique des plats servis à un groupe
+    Retourne la liste des événements + recettes, triée par date décroissante.
+    """
+    history = db.get_group_meal_history(group_id)
+    return JSONResponse(content={"history": history})

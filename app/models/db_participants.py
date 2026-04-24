@@ -576,3 +576,35 @@ def get_participant_events(participant_id: int):
         """
         rows = con.execute(sql, (participant_id,)).fetchall()
         return [dict(row) for row in rows]
+
+
+def get_group_meal_history(group_id: int):
+    """
+    Retourne l'historique des plats servis à un groupe.
+    Cherche tous les événements où AU MOINS UN membre du groupe était présent,
+    quelle que soit la façon dont il a été ajouté (via groupe ou individuellement).
+    """
+    with get_db() as con:
+        sql = """
+            SELECT
+                e.id          AS event_id,
+                e.name        AS event_name,
+                e.event_date,
+                e.notes,
+                (
+                    SELECT GROUP_CONCAT(rt.name, ' · ')
+                    FROM event_recipe er
+                    JOIN recipe_translation rt ON rt.recipe_id = er.recipe_id AND rt.lang = 'fr'
+                    WHERE er.event_id = e.id
+                ) AS recipes
+            FROM event e
+            WHERE e.id IN (
+                SELECT DISTINCT ep.event_id
+                FROM event_participant ep
+                JOIN participant_group_member pgm ON pgm.participant_id = ep.participant_id
+                WHERE pgm.group_id = ?
+            )
+            ORDER BY e.event_date DESC
+        """
+        rows = con.execute(sql, (group_id,)).fetchall()
+        return [dict(row) for row in rows]

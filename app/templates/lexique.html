@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="{{ lang }}">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ 'Lexique des ingrédients' if lang == 'fr' else '食材語彙集' }} - Recette</title>
+
+    <link rel="icon" type="image/x-icon" href="/static/favicon.ico?v=2">
+    <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-32x32.png?v=2">
+    <link rel="icon" type="image/png" sizes="16x16" href="/static/favicon-16x16.png?v=2">
+    <link rel="apple-touch-icon" sizes="64x64" href="/static/favicon-64x64.png?v=2">
+    <script src="/static/css/tailwind.min.js"></script>
+    <script defer src="/static/css/alpine.min.js"></script>
+    <style>
+        ruby rt {
+            font-size: 0.55em;
+            color: #6b7280;
+        }
+        .dark ruby rt {
+            color: #9ca3af;
+        }
+    </style>
+</head>
+<body class="bg-gray-50" x-data="lexiqueData()" x-init="init()">
+    <script>
+        function lexiqueData() {
+            return {
+                darkMode: false,
+                sortBy: '{{ "jp" if lang == "jp" else "fr" }}',
+                sortOrder: 'asc',
+                allIngredients: {{ ingredients | tojson | safe }},
+                sortedIngredients: [],
+                editingId: null,
+
+                init() {
+                    this.sortIngredients();
+                },
+
+                sortIngredients() {
+                    this.sortedIngredients = [...this.allIngredients].sort((a, b) => {
+                        let aVal = (this.sortBy === 'jp'
+                            ? (a.ingredient_name_jp || a.ingredient_name_fr)
+                            : a.ingredient_name_fr
+                        ).toLowerCase();
+                        let bVal = (this.sortBy === 'jp'
+                            ? (b.ingredient_name_jp || b.ingredient_name_fr)
+                            : b.ingredient_name_fr
+                        ).toLowerCase();
+                        const cmp = aVal.localeCompare(bVal);
+                        return this.sortOrder === 'asc' ? cmp : -cmp;
+                    });
+                },
+
+                toggleSort(col) {
+                    if (this.sortBy === col) {
+                        this.sortOrder = this.sortOrder === 'asc' ? 'desc' : 'asc';
+                    } else {
+                        this.sortBy = col;
+                        this.sortOrder = 'asc';
+                    }
+                    this.sortIngredients();
+                },
+
+                startEdit(id) {
+                    this.editingId = id;
+                },
+
+                cancelEdit() {
+                    this.editingId = null;
+                }
+            }
+        }
+    </script>
+
+    <div :class="darkMode ? 'dark bg-gray-900' : 'bg-gray-50'" class="min-h-screen">
+
+        <!-- Header -->
+        <header class="bg-white dark:bg-gray-800 shadow-sm border-b border-gray-200 dark:border-gray-700">
+            <div class="max-w-5xl mx-auto px-4 py-4">
+                <div class="flex justify-between items-center">
+                    <div class="flex items-center gap-4">
+                        <a href="/ingredient-catalog?lang={{ lang }}"
+                           class="text-blue-600 dark:text-blue-400 hover:underline">
+                            ← {{ 'Catalogue' if lang == 'fr' else 'カタログ' }}
+                        </a>
+                        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">
+                            📖 {{ 'Lexique des ingrédients' if lang == 'fr' else '食材語彙集' }}
+                        </h1>
+                    </div>
+
+                    <div class="flex items-center gap-3">
+                        <!-- Sélecteur de langue -->
+                        <div class="flex gap-2">
+                            <a href="?lang=fr&search={{ search }}"
+                               class="px-3 py-1.5 rounded-lg text-sm font-medium {{ 'bg-blue-500 text-white' if lang == 'fr' else 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300' }}">
+                                FR
+                            </a>
+                            <a href="?lang=jp&search={{ search }}"
+                               class="px-3 py-1.5 rounded-lg text-sm font-medium {{ 'bg-blue-500 text-white' if lang == 'jp' else 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300' }}">
+                                JP
+                            </a>
+                        </div>
+
+                        <!-- Mode sombre -->
+                        <button @click="darkMode = !darkMode"
+                                class="p-2 rounded-lg bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600">
+                            <span x-show="!darkMode">🌙</span>
+                            <span x-show="darkMode">☀️</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <main class="max-w-5xl mx-auto px-4 py-8">
+
+            <!-- Info + compteur -->
+            <div class="flex justify-between items-center mb-6">
+                <p class="text-sm text-gray-500 dark:text-gray-400">
+                    💡 {{ 'Modifiez les traductions ici — les changements se propagent automatiquement dans toutes les recettes.' if lang == 'fr' else 'ここで翻訳を編集すると、変更はすべてのレシピに自動的に反映されます。' }}
+                </p>
+                <span class="text-sm text-gray-600 dark:text-gray-400">
+                    <span x-text="sortedIngredients.length"></span>
+                    {{ ' ingrédient(s)' if lang == 'fr' else ' 食材' }}
+                </span>
+            </div>
+
+            <!-- Recherche -->
+            <form method="GET" class="flex gap-2 mb-6">
+                <input type="hidden" name="lang" value="{{ lang }}">
+                <input type="text"
+                       name="search"
+                       value="{{ search }}"
+                       placeholder="{{ 'Rechercher (français ou japonais)...' if lang == 'fr' else '検索（日本語またはフランス語）...' }}"
+                       class="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white">
+                <button type="submit"
+                        class="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700">
+                    🔍
+                </button>
+                {% if search %}
+                <a href="?lang={{ lang }}"
+                   class="px-4 py-2 bg-gray-300 dark:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-400">
+                    ✕
+                </a>
+                {% endif %}
+            </form>
+
+            <!-- Tableau -->
+            <div class="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
+                <table class="w-full">
+                    <thead class="bg-gray-50 dark:bg-gray-700">
+                        <tr>
+                            <!-- Colonne principale : langue active en premier -->
+                            <th class="px-5 py-3 text-left text-sm font-medium text-gray-700 dark:text-gray-300 w-4/12">
+                                <button @click="toggleSort('{{ 'fr' if lang == 'fr' else 'jp' }}')"
+                                        class="flex items-center gap-1 hover:text-blue-600 dark:hover:text-blue-400">
+                                    {% if lang == 'fr' %}
+                                        🇫🇷 Français
+                                    {% else %}
+                                        🇯🇵 日本語
+                                    {% endif %}
+                                    <span x-show="sortBy === '{{ 'fr' if lang == 'fr' else 'jp' }}'">
+                                        <span x-show="sortOrder === 'asc'">▲</span>
+                                        <span x-show="sortOrder === 'desc'">▼</span>
+                                    </span>
+                                </button>
+                            </th>
+
+                            <!-- Colonne secondaire : l'autre langue -->
+                            <th class="px-5 py-3 text-left text-sm font-medium text-gray-700 dark:text-gray-300 w-4/12">
+                                <button @click="toggleSort('{{ 'jp' if lang == 'fr' else 'fr' }}')"
+                                        class="flex items-center gap-1 hover:text-blue-600 dark:hover:text-blue-400">
+                                    {% if lang == 'fr' %}
+                                        🇯🇵 日本語
+                                    {% else %}
+                                        🇫🇷 Français
+                                    {% endif %}
+                                    <span x-show="sortBy === '{{ 'jp' if lang == 'fr' else 'fr' }}'">
+                                        <span x-show="sortOrder === 'asc'">▲</span>
+                                        <span x-show="sortOrder === 'desc'">▼</span>
+                                    </span>
+                                </button>
+                            </th>
+
+                            <!-- Colonne Hiragana -->
+                            <th class="px-5 py-3 text-left text-sm font-medium text-gray-700 dark:text-gray-300 w-3/12">
+                                {{ 'Hiragana (よみがな)' if lang == 'fr' else 'ひらがな（読み方）' }}
+                            </th>
+
+                            <th class="px-4 py-3 text-center text-sm font-medium text-gray-700 dark:text-gray-300 w-1/12">
+                                {{ 'Actions' if lang == 'fr' else 'アクション' }}
+                            </th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-200 dark:divide-gray-600">
+                        <template x-for="ing in sortedIngredients" :key="ing.id">
+                            <tr class="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+
+                                <!-- Formulaire caché associé à la ligne (id=form-N) -->
+                                <template x-if="editingId === ing.id">
+                                    <td style="display:none">
+                                        <form :id="`form-${ing.id}`"
+                                              method="POST"
+                                              :action="`/lexique/${ing.id}/update`">
+                                            <input type="hidden" name="lang" value="{{ lang }}">
+                                            <input type="hidden" name="old_name_fr" :value="ing.ingredient_name_fr">
+                                        </form>
+                                    </td>
+                                </template>
+
+                                <!-- ── COL 1 : langue active ── -->
+                                <td class="px-5 py-3 text-sm font-medium text-gray-900 dark:text-white"
+                                    :class="editingId === ing.id ? 'bg-blue-50 dark:bg-blue-900/20 py-2' : ''">
+                                    <template x-if="editingId !== ing.id">
+                                        {% if lang == 'fr' %}
+                                            <span x-text="ing.ingredient_name_fr"></span>
+                                        {% else %}
+                                            <span x-text="ing.ingredient_name_jp || ing.ingredient_name_fr"
+                                                  :class="!ing.ingredient_name_jp ? 'text-gray-400 italic' : ''"></span>
+                                        {% endif %}
+                                    </template>
+                                    <template x-if="editingId === ing.id">
+                                        {% if lang == 'fr' %}
+                                            <input type="text"
+                                                   :form="`form-${ing.id}`"
+                                                   name="new_name_fr"
+                                                   :value="ing.ingredient_name_fr"
+                                                   required
+                                                   class="w-full px-3 py-1.5 border border-blue-300 dark:border-blue-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white text-sm">
+                                        {% else %}
+                                            <input type="text"
+                                                   :form="`form-${ing.id}`"
+                                                   name="new_name_jp"
+                                                   :value="ing.ingredient_name_jp || ''"
+                                                   placeholder="日本語名"
+                                                   class="w-full px-3 py-1.5 border border-blue-300 dark:border-blue-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white text-sm">
+                                        {% endif %}
+                                    </template>
+                                </td>
+
+                                <!-- ── COL 2 : autre langue ── -->
+                                <td class="px-5 py-3 text-sm text-gray-600 dark:text-gray-400"
+                                    :class="editingId === ing.id ? 'bg-blue-50 dark:bg-blue-900/20 py-2' : ''">
+                                    <template x-if="editingId !== ing.id">
+                                        {% if lang == 'fr' %}
+                                            <span x-text="ing.ingredient_name_jp || '—'"
+                                                  :class="!ing.ingredient_name_jp ? 'text-gray-400 italic' : ''"></span>
+                                        {% else %}
+                                            <span x-text="ing.ingredient_name_fr"></span>
+                                        {% endif %}
+                                    </template>
+                                    <template x-if="editingId === ing.id">
+                                        {% if lang == 'fr' %}
+                                            <input type="text"
+                                                   :form="`form-${ing.id}`"
+                                                   name="new_name_jp"
+                                                   :value="ing.ingredient_name_jp || ''"
+                                                   placeholder="日本語名"
+                                                   class="w-full px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white text-sm">
+                                        {% else %}
+                                            <input type="text"
+                                                   :form="`form-${ing.id}`"
+                                                   name="new_name_fr"
+                                                   :value="ing.ingredient_name_fr"
+                                                   required
+                                                   class="w-full px-3 py-1.5 border border-blue-300 dark:border-blue-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white text-sm">
+                                        {% endif %}
+                                    </template>
+                                </td>
+
+                                <!-- ── COL 3 : Hiragana ── -->
+                                <td class="px-5 py-3 text-sm text-indigo-700 dark:text-indigo-300"
+                                    :class="editingId === ing.id ? 'bg-blue-50 dark:bg-blue-900/20 py-2' : ''">
+                                    <template x-if="editingId !== ing.id">
+                                        <span x-text="ing.ingredient_name_jp_reading || ''"
+                                              :class="!ing.ingredient_name_jp_reading ? 'text-gray-300 dark:text-gray-600' : ''">
+                                        </span>
+                                    </template>
+                                    <template x-if="editingId === ing.id">
+                                        <input type="text"
+                                               :form="`form-${ing.id}`"
+                                               name="new_name_jp_reading"
+                                               :value="ing.ingredient_name_jp_reading || ''"
+                                               placeholder="よみがな"
+                                               class="w-full px-3 py-1.5 border border-indigo-200 dark:border-indigo-700 rounded-lg dark:bg-gray-700 dark:text-indigo-300 text-indigo-700 text-sm">
+                                    </template>
+                                </td>
+
+                                <!-- ── COL 4 : Actions ── -->
+                                <td class="px-3 py-3 text-center"
+                                    :class="editingId === ing.id ? 'bg-blue-50 dark:bg-blue-900/20 py-2' : ''">
+                                    <template x-if="editingId !== ing.id">
+                                        <button type="button"
+                                                @click="startEdit(ing.id)"
+                                                class="p-1.5 rounded hover:bg-blue-50 dark:hover:bg-blue-900/30 text-blue-600 dark:text-blue-400"
+                                                title="{{ 'Modifier' if lang == 'fr' else '編集' }}">
+                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                                      d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+                                            </svg>
+                                        </button>
+                                    </template>
+                                    <template x-if="editingId === ing.id">
+                                        <div class="flex flex-col gap-1">
+                                            <button type="submit"
+                                                    :form="`form-${ing.id}`"
+                                                    class="px-2 py-1 bg-green-600 text-white rounded text-xs hover:bg-green-700 whitespace-nowrap">
+                                                💾 {{ 'Sauver' if lang == 'fr' else '保存' }}
+                                            </button>
+                                            <button type="button"
+                                                    @click="cancelEdit()"
+                                                    class="px-2 py-1 bg-gray-400 text-white rounded text-xs hover:bg-gray-500">
+                                                {{ 'Annuler' if lang == 'fr' else 'キャンセル' }}
+                                            </button>
+                                        </div>
+                                    </template>
+                                </td>
+
+                            </tr>
+                        </template>
+                    </tbody>
+                </table>
+
+                {% if not ingredients %}
+                <div class="px-4 py-12 text-center text-gray-500 dark:text-gray-400">
+                    {% if search %}
+                        {{ 'Aucun ingrédient trouvé pour cette recherche.' if lang == 'fr' else '検索結果が見つかりません。' }}
+                    {% else %}
+                        {{ 'Le catalogue est vide. Synchronisez depuis le catalogue des prix.' if lang == 'fr' else 'カタログが空です。価格カタログから同期してください。' }}
+                    {% endif %}
+                </div>
+                {% endif %}
+            </div>
+
+            <!-- Note furigana -->
+            <div class="mt-6 p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-lg text-sm text-amber-800 dark:text-amber-300">
+                💡 {{ 'La colonne <strong>Hiragana</strong> contient la lecture phonétique (よみがな) de chaque nom japonais. Exemple : 鶏肉 → とりにく. Cliquez sur ✏️ pour la renseigner.' if lang == 'fr' else '<strong>ひらがな</strong>列には、日本語名の読み方を入力できます。例：鶏肉 → とりにく。✏️をクリックして編集してください。' }}
+            </div>
+        </main>
+    </div>
+</body>
+</html>

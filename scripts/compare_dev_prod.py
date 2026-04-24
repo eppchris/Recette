@@ -4,7 +4,7 @@ from pathlib import Path
 from datetime import datetime
 
 # === CHEMINS ===
-DEV_ROOT = Path("/Users/christianepp/Documents/DEV/Recette")
+DEV_ROOT = Path("/Users/christianepp/DEV/Recette")
 PROD_ROOT = Path("/volume1/homes/admin/recette")
 
 

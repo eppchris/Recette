@@ -9,51 +9,25 @@
 {% endblock %}
 
 {% block content %}
-<div x-data="{
-    deleteModal: false,
-    eventToDelete: null,
-    openDeleteModal(eventId, eventName) {
-        this.eventToDelete = { id: eventId, name: eventName };
-        this.deleteModal = true;
-    },
-    async confirmDelete() {
-        if (!this.eventToDelete) return;
+<div x-data="eventsTable()" x-init="init()" @click.outside.window="showColumnPicker = false">
 
-        try {
-            const response = await fetch(`/events/${this.eventToDelete.id}/delete?lang={{ lang }}`, {
-                method: 'POST'
-            });
-
-            if (response.ok) {
-                window.location.reload();
-            } else {
-                alert('{{ 'Erreur lors de la suppression' if lang == 'fr' else '削除エラー' }}');
-            }
-        } catch (error) {
-            console.error('Error:', error);
-            alert('{{ 'Erreur lors de la suppression' if lang == 'fr' else '削除エラー' }}');
-        }
-    },
-    cancelDelete() {
-        this.deleteModal = false;
-        this.eventToDelete = null;
-    }
-}">
     <!-- Bouton retour -->
     <div class="mb-4">
         <a href="/recipes?lang={{ lang }}"
-           class="inline-flex items-center gap-2 px-3 py-2
-                  text-blue-600 dark:text-blue-400
-                  hover:bg-blue-50 dark:hover:bg-blue-900/20
-                  rounded-lg transition-colors duration-150">
+           class="inline-flex items-center gap-2 px-3 py-2 text-blue-600 dark:text-blue-400
+                  hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors">
             <span class="text-lg">←</span>
             <span class="font-medium">{{ 'Retour aux recettes' if lang == 'fr' else 'レシピに戻る' }}</span>
         </a>
     </div>
 
-    <!-- Header avec titre et bouton nouveau -->
-    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-6">
-        <h1 class="text-2xl font-bold">{{ S('events_list') }}</h1>
+    <!-- Header -->
+    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-4">
+        <h1 class="text-2xl font-bold">
+            {{ S('events_list') }}
+            <span class="text-base font-normal text-gray-500 dark:text-gray-400 ml-2"
+                  x-text="`(${filteredEvents.length})`"></span>
+        </h1>
         <a href="/events/new?lang={{ lang }}"
            class="inline-flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors">
             <span class="text-xl">➕</span>
@@ -61,119 +35,319 @@
         </a>
     </div>
 
-    <!-- Liste des événements -->
+    <!-- Barre d'outils : recherche + colonnes -->
+    <div class="flex flex-col sm:flex-row gap-3 mb-4">
+
+        <!-- Recherche -->
+        <div class="relative flex-1">
+            <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0"/>
+            </svg>
+            <input type="text"
+                   x-model="search"
+                   placeholder="{{ 'Rechercher (nom, lieu, groupe, notes…)' if lang == 'fr' else '検索（名前・場所・グループ・メモ…）' }}"
+                   class="w-full pl-9 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg
+                          bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100
+                          focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm">
+        </div>
+
+        <!-- Sélecteur de colonnes -->
+        <div class="relative" @click.stop>
+            <button @click="showColumnPicker = !showColumnPicker"
+                    class="inline-flex items-center gap-2 px-4 py-2 border border-gray-300 dark:border-gray-600
+                           rounded-lg bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300
+                           hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors text-sm font-medium">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                          d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7m0 10a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 00-2-2h-2a2 2 0 00-2 2"/>
+                </svg>
+                {{ 'Colonnes' if lang == 'fr' else '列' }}
+                <span class="w-5 h-5 rounded-full bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300
+                             text-xs flex items-center justify-center font-bold"
+                      x-text="columns.filter(c => c.visible).length"></span>
+            </button>
+
+            <!-- Dropdown colonnes -->
+            <div x-show="showColumnPicker"
+                 x-cloak
+                 x-transition:enter="transition ease-out duration-100"
+                 x-transition:enter-start="opacity-0 scale-95"
+                 x-transition:enter-end="opacity-100 scale-100"
+                 x-transition:leave="transition ease-in duration-75"
+                 x-transition:leave-start="opacity-100 scale-100"
+                 x-transition:leave-end="opacity-0 scale-95"
+                 class="absolute right-0 mt-2 w-52 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700
+                        rounded-xl shadow-lg z-30 p-2">
+                <p class="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider px-2 py-1 mb-1">
+                    {{ 'Afficher les colonnes' if lang == 'fr' else '列を表示' }}
+                </p>
+                <template x-for="col in columns" :key="col.key">
+                    <button @click="toggleColumn(col)"
+                            class="w-full flex items-center gap-3 px-2 py-1.5 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors text-left">
+                        <!-- Checkbox visuel -->
+                        <span class="w-4 h-4 rounded border-2 flex items-center justify-center flex-shrink-0 transition-colors"
+                              :class="col.visible
+                                ? 'bg-blue-600 border-blue-600'
+                                : 'border-gray-400 dark:border-gray-500'">
+                            <svg x-show="col.visible" class="w-2.5 h-2.5 text-white" fill="currentColor" viewBox="0 0 12 12">
+                                <path d="M10 3L5 8.5 2 5.5l-1 1 4 4 6-7-1-1z"/>
+                            </svg>
+                        </span>
+                        <span class="text-sm text-gray-700 dark:text-gray-300" x-text="col.label"></span>
+                    </button>
+                </template>
+                <div class="border-t border-gray-100 dark:border-gray-700 mt-1 pt-1">
+                    <button @click="resetColumns()"
+                            class="w-full text-xs text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 px-2 py-1 text-left">
+                        {{ 'Réinitialiser' if lang == 'fr' else 'リセット' }}
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tableau -->
     <div class="bg-white dark:bg-gray-800 rounded-lg shadow overflow-x-auto">
-        {% if events %}
+        <template x-if="filteredEvents.length > 0">
             <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
                 <thead class="bg-gray-50 dark:bg-gray-700">
                     <tr>
-                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                            {{ S('event_name') }}
-                        </th>
-                        <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                            {{ S('event_type') }}
-                        </th>
-                        <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                            {{ S('event_date') }}
-                        </th>
-                        <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                            {{ S('event_location') }}
-                        </th>
-                        <th class="px-3 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                            {{ S('event_attendees') }}
-                        </th>
-                        <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                            Actions
-                        </th>
+                        <!-- En-têtes dynamiques -->
+                        <template x-for="col in visibleColumns" :key="col.key">
+                            <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider"
+                                :class="col.key === 'actions' ? 'text-right' : ''">
+                                <template x-if="col.sortable">
+                                    <button @click="toggleSort(col.key)"
+                                            class="inline-flex items-center gap-1 hover:text-gray-900 dark:hover:text-gray-100 transition-colors group">
+                                        <span x-text="col.label"></span>
+                                        <span class="flex flex-col leading-none">
+                                            <svg class="w-2.5 h-2.5 transition-colors"
+                                                 :class="sortKey === col.key && sortDir === 'asc'
+                                                    ? 'text-blue-600 dark:text-blue-400'
+                                                    : 'text-gray-300 dark:text-gray-600 group-hover:text-gray-400'"
+                                                 fill="currentColor" viewBox="0 0 10 6">
+                                                <path d="M5 0L10 6H0z"/>
+                                            </svg>
+                                            <svg class="w-2.5 h-2.5 transition-colors"
+                                                 :class="sortKey === col.key && sortDir === 'desc'
+                                                    ? 'text-blue-600 dark:text-blue-400'
+                                                    : 'text-gray-300 dark:text-gray-600 group-hover:text-gray-400'"
+                                                 fill="currentColor" viewBox="0 0 10 6">
+                                                <path d="M5 6L0 0H10z"/>
+                                            </svg>
+                                        </span>
+                                    </button>
+                                </template>
+                                <template x-if="!col.sortable">
+                                    <span x-text="col.label"></span>
+                                </template>
+                            </th>
+                        </template>
                     </tr>
                 </thead>
                 <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-                    {% for event in events %}
-                    <tr class="hover:bg-gray-50 dark:hover:bg-gray-700">
-                        <td class="px-4 py-4 whitespace-nowrap">
-                            <a href="/events/{{ event.id }}?lang={{ lang }}"
-                               class="text-blue-600 dark:text-blue-400 hover:underline font-medium">
-                                {{ event.name }}
-                            </a>
-                        </td>
-                        <td class="px-3 py-4 whitespace-nowrap">
-                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 dark:bg-purple-900 text-purple-800 dark:text-purple-200">
-                                {{ event.event_type_name_jp if lang == 'jp' else event.event_type_name_fr }}
-                            </span>
-                        </td>
-                        <td class="px-3 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100">
-                            {{ event.event_date }}
-                        </td>
-                        <td class="px-3 py-4 text-sm text-gray-600 dark:text-gray-400 max-w-xs truncate">
-                            {{ event.location }}
-                        </td>
-                        <td class="px-3 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100 text-center">
-                            {{ event.attendees }}
-                        </td>
-                        <td class="px-4 py-4 text-right text-sm whitespace-nowrap">
-                            <div class="flex items-center justify-end gap-1">
-                                <!-- Bouton Copier -->
-                                <div class="relative group/tip">
-                                    <a href="/events/{{ event.id }}/copy?lang={{ lang }}"
-                                       class="p-1.5 rounded hover:bg-yellow-50 dark:hover:bg-yellow-900/30 text-yellow-600 dark:text-yellow-400 inline-flex">
-                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"/>
-                                        </svg>
-                                    </a>
-                                    <span class="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 px-2 py-0.5 text-xs bg-gray-800 text-white rounded whitespace-nowrap opacity-0 group-hover/tip:opacity-100 transition-opacity z-20">
-                                        {{ 'Copier' if lang == 'fr' else 'コピー' }}
-                                    </span>
-                                </div>
+                    <template x-for="event in filteredEvents" :key="event.id">
+                        <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/50">
 
-                                <!-- Bouton Supprimer -->
-                                <div class="relative group/tip">
-                                    <button @click="openDeleteModal({{ event.id }}, '{{ event.name }}')"
-                                            class="p-1.5 rounded hover:bg-red-50 dark:hover:bg-red-900/30 text-red-600 dark:text-red-400 inline-flex">
-                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
-                                        </svg>
-                                    </button>
-                                    <span class="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 px-2 py-0.5 text-xs bg-gray-800 text-white rounded whitespace-nowrap opacity-0 group-hover/tip:opacity-100 transition-opacity z-20">
-                                        {{ 'Supprimer' if lang == 'fr' else '削除' }}
-                                    </span>
-                                </div>
-                            </div>
-                        </td>
-                    </tr>
-                    {% endfor %}
+                            <!-- Photo -->
+                            <template x-if="isVisible('photo')">
+                                <td class="px-3 py-2 w-14">
+                                    <template x-if="event.first_photo">
+                                        <button @click.stop="$dispatch('open-photo', { url: event.first_photo, name: event.name })"
+                                                class="block w-10 h-10 rounded-lg overflow-hidden ring-1 ring-gray-200 dark:ring-gray-600
+                                                       hover:ring-2 hover:ring-blue-400 transition-all focus:outline-none">
+                                            <img :src="event.first_photo" :alt="event.name"
+                                                 class="w-full h-full object-cover">
+                                        </button>
+                                    </template>
+                                    <template x-if="!event.first_photo">
+                                        <div class="w-10 h-10 rounded-lg bg-gray-100 dark:bg-gray-700 flex items-center justify-center">
+                                            <svg class="w-5 h-5 text-gray-300 dark:text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                                                      d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                                            </svg>
+                                        </div>
+                                    </template>
+                                </td>
+                            </template>
+
+                            <!-- Nom -->
+                            <template x-if="isVisible('name')">
+                                <td class="px-3 py-3 whitespace-nowrap">
+                                    <a :href="`/events/${event.id}?lang={{ lang }}`"
+                                       class="text-blue-600 dark:text-blue-400 hover:underline font-medium text-sm"
+                                       x-text="event.name"></a>
+                                </td>
+                            </template>
+
+                            <!-- Type -->
+                            <template x-if="isVisible('event_type')">
+                                <td class="px-3 py-3 whitespace-nowrap">
+                                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-purple-100 dark:bg-purple-900 text-purple-800 dark:text-purple-200"
+                                          x-text="{{ 'event.event_type_name_fr' if lang == 'fr' else 'event.event_type_name_jp' }}"></span>
+                                </td>
+                            </template>
+
+                            <!-- Date -->
+                            <template x-if="isVisible('event_date')">
+                                <td class="px-3 py-3 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100"
+                                    x-text="formatDate(event.event_date)"></td>
+                            </template>
+
+                            <!-- Lieu -->
+                            <template x-if="isVisible('location')">
+                                <td class="px-3 py-3 text-sm text-gray-600 dark:text-gray-400 max-w-xs truncate"
+                                    x-text="event.location || '—'"></td>
+                            </template>
+
+                            <!-- Participants -->
+                            <template x-if="isVisible('groups')">
+                                <td class="px-3 py-3 text-sm text-gray-600 dark:text-gray-400">
+                                    <template x-if="event.participants">
+                                        <div class="flex flex-wrap gap-1 items-center">
+                                            <template x-for="p in (event.participants || '').split(', ').slice(0, 4)" :key="p">
+                                                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs
+                                                             bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300"
+                                                      x-text="p"></span>
+                                            </template>
+                                            <template x-if="(event.participants || '').split(', ').length > 4">
+                                                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs
+                                                             bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400"
+                                                      :title="(event.participants || '').split(', ').slice(4).join(', ')"
+                                                      x-text="`+${(event.participants || '').split(', ').length - 4}`"></span>
+                                            </template>
+                                        </div>
+                                    </template>
+                                    <template x-if="!event.participants">
+                                        <span class="text-gray-400">—</span>
+                                    </template>
+                                </td>
+                            </template>
+
+                            <!-- Repas -->
+                            <template x-if="isVisible('recipes')">
+                                <td class="px-3 py-3 text-sm text-gray-600 dark:text-gray-400 max-w-xs">
+                                    <template x-if="event.recipes_data && event.recipes_data.length > 0">
+                                        <div class="flex flex-wrap gap-1 items-center">
+                                            <template x-for="r in event.recipes_data.slice(0, 4)" :key="r.slug">
+                                                <a :href="`/recipe/${r.slug}?lang={{ lang }}`"
+                                                   @click.stop
+                                                   class="inline-flex items-center px-2 py-0.5 rounded-full text-xs
+                                                          bg-orange-100 dark:bg-orange-900/40 text-orange-800 dark:text-orange-300
+                                                          hover:bg-orange-200 dark:hover:bg-orange-800 transition-colors"
+                                                   x-text="r.name"></a>
+                                            </template>
+                                            <template x-if="event.recipes_data.length > 4">
+                                                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs
+                                                             bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400"
+                                                      :title="event.recipes_data.slice(4).map(r => r.name).join(', ')"
+                                                      x-text="`+${event.recipes_data.length - 4}`"></span>
+                                            </template>
+                                        </div>
+                                    </template>
+                                    <template x-if="!event.recipes_data || event.recipes_data.length === 0">
+                                        <span class="text-gray-400">—</span>
+                                    </template>
+                                </td>
+                            </template>
+
+                            <!-- Convives -->
+                            <template x-if="isVisible('attendees')">
+                                <td class="px-3 py-3 whitespace-nowrap text-sm text-center text-gray-900 dark:text-gray-100"
+                                    x-text="event.attendees"></td>
+                            </template>
+
+                            <!-- Notes -->
+                            <template x-if="isVisible('notes')">
+                                <td class="px-3 py-3 text-sm text-gray-500 dark:text-gray-400 max-w-xs">
+                                    <span class="truncate block max-w-[180px]" :title="event.notes || ''"
+                                          x-text="event.notes || '—'"></span>
+                                </td>
+                            </template>
+
+                            <!-- Budget -->
+                            <template x-if="isVisible('budget_planned')">
+                                <td class="px-3 py-3 whitespace-nowrap text-sm text-right text-gray-900 dark:text-gray-100">
+                                    <span x-show="event.budget_planned"
+                                          x-text="`${Number(event.budget_planned).toFixed(0)} ${event.currency || 'EUR'}`"></span>
+                                    <span x-show="!event.budget_planned" class="text-gray-400">—</span>
+                                </td>
+                            </template>
+
+                            <!-- Actions -->
+                            <template x-if="isVisible('actions')">
+                                <td class="px-3 py-3 text-right whitespace-nowrap">
+                                    <div class="flex items-center justify-end gap-1">
+                                        <!-- Copier -->
+                                        <div class="relative group/tip">
+                                            <a :href="`/events/${event.id}/copy?lang={{ lang }}`"
+                                               class="p-1.5 rounded hover:bg-yellow-50 dark:hover:bg-yellow-900/30 text-yellow-600 dark:text-yellow-400 inline-flex">
+                                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"/>
+                                                </svg>
+                                            </a>
+                                            <span class="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-1 px-2 py-0.5 text-xs bg-gray-800 text-white rounded whitespace-nowrap opacity-0 group-hover/tip:opacity-100 transition-opacity z-20">
+                                                {{ 'Copier' if lang == 'fr' else 'コピー' }}
+                                            </span>
+                                        </div>
+                                        <!-- Supprimer -->
+                                        <div class="relative group/tip">
+                                            <button @click="openDeleteModal(event.id, event.name)"
+                                                    class="p-1.5 rounded hover:bg-red-50 dark:hover:bg-red-900/30 text-red-600 dark:text-red-400 inline-flex">
+                                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                                                </svg>
+                                            </button>
+                                            <span class="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-1 px-2 py-0.5 text-xs bg-gray-800 text-white rounded whitespace-nowrap opacity-0 group-hover/tip:opacity-100 transition-opacity z-20">
+                                                {{ 'Supprimer' if lang == 'fr' else '削除' }}
+                                            </span>
+                                        </div>
+                                    </div>
+                                </td>
+                            </template>
+
+                        </tr>
+                    </template>
                 </tbody>
             </table>
-        {% else %}
+        </template>
+
+        <!-- Aucun résultat -->
+        <template x-if="filteredEvents.length === 0">
             <div class="p-8 text-center text-gray-500 dark:text-gray-400">
                 <p class="text-4xl mb-4">📅</p>
-                <p class="mb-4 text-lg">{{ 'Aucun événement créé' if lang == 'fr' else 'イベントがありません' }}</p>
-                <a href="/events/new?lang={{ lang }}"
-                   class="inline-flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700">
-                    <span class="text-xl">➕</span>
-                    <span>{{ S('new_event') }}</span>
-                </a>
+                <template x-if="search">
+                    <p class="text-lg">{{ 'Aucun événement ne correspond à la recherche' if lang == 'fr' else '一致するイベントなし' }}</p>
+                </template>
+                <template x-if="!search">
+                    <div>
+                        <p class="mb-4 text-lg">{{ 'Aucun événement créé' if lang == 'fr' else 'イベントがありません' }}</p>
+                        <a href="/events/new?lang={{ lang }}"
+                           class="inline-flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700">
+                            <span class="text-xl">➕</span>
+                            <span>{{ S('new_event') }}</span>
+                        </a>
+                    </div>
+                </template>
             </div>
-        {% endif %}
+        </template>
     </div>
 
-    <!-- Modal de confirmation de suppression -->
+    <!-- Modal suppression -->
     <div x-show="deleteModal"
          x-cloak
          class="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
          @click.self="cancelDelete()">
-        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-xl p-6 max-w-md w-full mx-4"
-             @click.stop>
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-xl p-6 max-w-md w-full mx-4" @click.stop>
             <h3 class="text-xl font-bold mb-4 text-gray-900 dark:text-white">
                 {{ 'Confirmer la suppression' if lang == 'fr' else '削除の確認' }}
             </h3>
-
             <p class="text-gray-600 dark:text-gray-400 mb-6">
                 <span x-show="eventToDelete">
                     {{ 'Êtes-vous sûr de vouloir supprimer l\'événement' if lang == 'fr' else 'イベントを削除してもよろしいですか' }}
                     <strong class="text-gray-900 dark:text-white" x-text="eventToDelete?.name"></strong> ?
                 </span>
             </p>
-
             <div class="flex gap-3 justify-end">
                 <button @click="cancelDelete()"
                         class="px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors">
@@ -186,9 +360,189 @@
             </div>
         </div>
     </div>
+
+    <!-- Lightbox photo -->
+    <div x-data="photoLightbox()"
+         x-show="open"
+         x-cloak
+         @open-photo.window="show($event.detail)"
+         @keydown.escape.window="close()"
+         class="fixed inset-0 bg-black/85 flex items-center justify-center z-50 p-4"
+         @click.self="close()">
+        <div class="relative max-w-3xl w-full" @click.stop>
+            <!-- Bouton fermer -->
+            <button @click="close()"
+                    class="absolute -top-10 right-0 text-white/80 hover:text-white text-3xl leading-none font-light z-10">
+                ×
+            </button>
+            <!-- Image -->
+            <img :src="url" :alt="name"
+                 class="w-full max-h-[80vh] object-contain rounded-lg shadow-2xl">
+            <!-- Légende -->
+            <p class="text-center text-white/70 text-sm mt-3" x-text="name"></p>
+        </div>
+    </div>
 </div>
 
-<style>
-    [x-cloak] { display: none !important; }
-</style>
+<style>[x-cloak] { display: none !important; }</style>
+
+<script>
+function eventsTable() {
+    const STORAGE_KEY = 'events_columns_v5';
+
+    const DEFAULT_COLUMNS = [
+        { key: 'photo',         label: '{{ "Photo" if lang == "fr" else "写真" }}',    visible: true,  sortable: false },
+        { key: 'name',          label: '{{ "Nom" if lang == "fr" else "名前" }}',      visible: true,  sortable: true  },
+        { key: 'event_type',    label: '{{ "Type" if lang == "fr" else "タイプ" }}',   visible: true,  sortable: true  },
+        { key: 'event_date',    label: '{{ "Date" if lang == "fr" else "日付" }}',     visible: true,  sortable: true  },
+        { key: 'location',      label: '{{ "Lieu" if lang == "fr" else "場所" }}',     visible: true,  sortable: true  },
+        { key: 'groups',        label: '{{ "Participants" if lang == "fr" else "参加者" }}', visible: true,  sortable: false },
+        { key: 'recipes',       label: '{{ "Repas" if lang == "fr" else "料理" }}',     visible: true,  sortable: false },
+        { key: 'attendees',     label: '{{ "Convives" if lang == "fr" else "人数" }}',  visible: false, sortable: true  },
+        { key: 'notes',         label: '{{ "Notes" if lang == "fr" else "メモ" }}',   visible: false, sortable: false },
+        { key: 'budget_planned',label: '{{ "Budget" if lang == "fr" else "予算" }}',  visible: false, sortable: true  },
+        { key: 'actions',       label: 'Actions',                                       visible: true,  sortable: false },
+    ];
+
+    // Données injectées par Jinja
+    const ALL_EVENTS = {{ events | tojson }};
+
+    return {
+        columns: DEFAULT_COLUMNS.map(c => ({ ...c })),
+        showColumnPicker: false,
+        sortKey: 'event_date',
+        sortDir: 'desc',
+        search: '',
+        deleteModal: false,
+        eventToDelete: null,
+
+        init() {
+            const saved = localStorage.getItem(STORAGE_KEY);
+            if (saved) {
+                try {
+                    const saved_cols = JSON.parse(saved);
+                    saved_cols.forEach(({ key, visible }) => {
+                        const col = this.columns.find(c => c.key === key);
+                        if (col) col.visible = visible;
+                    });
+                } catch {}
+            }
+        },
+
+        get visibleColumns() {
+            return this.columns.filter(c => c.visible);
+        },
+
+        get filteredEvents() {
+            let result = [...ALL_EVENTS];
+
+            if (this.search.trim()) {
+                const q = this.search.trim().toLowerCase();
+                result = result.filter(e =>
+                    (e.name || '').toLowerCase().includes(q) ||
+                    (e.location || '').toLowerCase().includes(q) ||
+                    (e.participants || '').toLowerCase().includes(q) ||
+                    (e.recipes || '').toLowerCase().includes(q) ||
+                    (e.notes || '').toLowerCase().includes(q) ||
+                    (e.event_type_name_fr || '').toLowerCase().includes(q)
+                );
+            }
+
+            result.sort((a, b) => {
+                let av = a[this.sortKey] ?? '';
+                let bv = b[this.sortKey] ?? '';
+                // Tri numérique pour attendees / budget
+                if (this.sortKey === 'attendees' || this.sortKey === 'budget_planned') {
+                    av = Number(av) || 0;
+                    bv = Number(bv) || 0;
+                } else {
+                    av = String(av).toLowerCase();
+                    bv = String(bv).toLowerCase();
+                }
+                if (this.sortKey === 'event_type') {
+                    av = String(a.event_type_name_fr || '').toLowerCase();
+                    bv = String(b.event_type_name_fr || '').toLowerCase();
+                }
+                if (av < bv) return this.sortDir === 'asc' ? -1 : 1;
+                if (av > bv) return this.sortDir === 'asc' ? 1 : -1;
+                return 0;
+            });
+
+            return result;
+        },
+
+        isVisible(key) {
+            return this.columns.find(c => c.key === key)?.visible ?? false;
+        },
+
+        toggleSort(key) {
+            if (this.sortKey === key) {
+                this.sortDir = this.sortDir === 'asc' ? 'desc' : 'asc';
+            } else {
+                this.sortKey = key;
+                this.sortDir = key === 'event_date' ? 'desc' : 'asc';
+            }
+        },
+
+        toggleColumn(col) {
+            col.visible = !col.visible;
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(
+                this.columns.map(c => ({ key: c.key, visible: c.visible }))
+            ));
+        },
+
+        resetColumns() {
+            DEFAULT_COLUMNS.forEach(def => {
+                const col = this.columns.find(c => c.key === def.key);
+                if (col) col.visible = def.visible;
+            });
+            localStorage.removeItem(STORAGE_KEY);
+        },
+
+        formatDate(d) {
+            if (!d) return '—';
+            const [y, m, day] = d.split('-');
+            return `${day}/${m}/${y}`;
+        },
+
+
+        openDeleteModal(id, name) {
+            this.eventToDelete = { id, name };
+            this.deleteModal = true;
+        },
+
+        cancelDelete() {
+            this.deleteModal = false;
+            this.eventToDelete = null;
+        },
+
+        async confirmDelete() {
+            if (!this.eventToDelete) return;
+            try {
+                const resp = await fetch(`/events/${this.eventToDelete.id}/delete?lang={{ lang }}`, { method: 'POST' });
+                if (resp.ok) window.location.reload();
+                else alert('{{ "Erreur lors de la suppression" if lang == "fr" else "削除エラー" }}');
+            } catch {
+                alert('{{ "Erreur lors de la suppression" if lang == "fr" else "削除エラー" }}');
+            }
+        },
+    };
+}
+
+function photoLightbox() {
+    return {
+        open: false,
+        url: '',
+        name: '',
+        show({ url, name }) {
+            this.url = url;
+            this.name = name;
+            this.open = true;
+        },
+        close() {
+            this.open = false;
+        }
+    };
+}
+</script>
 {% endblock %}

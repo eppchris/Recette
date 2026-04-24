@@ -344,14 +344,16 @@
   </section>
 
   <!-- Section Étapes -->
-  <section class="mb-8" x-data="{ stepNumber: 0 }">
+  <section class="mb-8">
     <h2 class="text-xl font-bold mb-3">{{ S('steps') }}</h2>
     <div class="space-y-4">
+      {% set ns = namespace(step_num=0) %}
       {% for s in steps %}
         {% if s.get('type', 'text') == 'text' %}
+        {% set ns.step_num = ns.step_num + 1 %}
         <!-- Étape texte avec numéro -->
-        <div class="flex gap-3" x-init="stepNumber++">
-          <span class="flex-shrink-0 w-8 h-8 bg-blue-600 text-white rounded-full flex items-center justify-center font-semibold text-sm" x-text="stepNumber"></span>
+        <div class="flex gap-3">
+          <span class="flex-shrink-0 w-8 h-8 bg-blue-600 text-white rounded-full flex items-center justify-center font-semibold text-sm">{{ ns.step_num }}</span>
           <p class="flex-1 pt-1">{{ s['text'] }}</p>
         </div>
         {% else %}
