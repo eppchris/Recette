@@ -122,6 +122,8 @@ from .db_catalog import (
     list_lexique,
     update_lexique_translation,
     get_lexique_entry,
+    get_catalog_entries_needing_jp_translation,
+    bulk_update_ingredient_jp_names,
 )
 
 # Import des fonctions de conversion d'unites
@@ -334,6 +336,8 @@ __all__ = [
     'list_lexique',
     'update_lexique_translation',
     'get_lexique_entry',
+    'get_catalog_entries_needing_jp_translation',
+    'bulk_update_ingredient_jp_names',
 
     # Conversions
     'convert_unit',
@@ -534,6 +538,8 @@ db = SimpleNamespace(
     list_lexique=list_lexique,
     update_lexique_translation=update_lexique_translation,
     get_lexique_entry=get_lexique_entry,
+    get_catalog_entries_needing_jp_translation=get_catalog_entries_needing_jp_translation,
+    bulk_update_ingredient_jp_names=bulk_update_ingredient_jp_names,
 
     # Conversions
     convert_unit=convert_unit,

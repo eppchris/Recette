@@ -23,6 +23,12 @@
 </head>
 <body class="bg-gray-50" x-data="lexiqueData()" x-init="init()">
     <script>
+        // Détecte si un texte contient des caractères japonais (kana ou kanji)
+        function hasJapanese(text) {
+            if (!text) return false;
+            return /[぀-ヿ一-鿿＀-￯]/.test(text);
+        }
+
         function lexiqueData() {
             return {
                 darkMode: false,
@@ -36,18 +42,31 @@
                     this.sortIngredients();
                 },
 
+                needsTranslation(ing) {
+                    return !hasJapanese(ing.ingredient_name_jp);
+                },
+
                 sortIngredients() {
                     this.sortedIngredients = [...this.allIngredients].sort((a, b) => {
-                        let aVal = (this.sortBy === 'jp'
-                            ? (a.ingredient_name_jp || a.ingredient_name_fr)
-                            : a.ingredient_name_fr
-                        ).toLowerCase();
-                        let bVal = (this.sortBy === 'jp'
-                            ? (b.ingredient_name_jp || b.ingredient_name_fr)
-                            : b.ingredient_name_fr
-                        ).toLowerCase();
-                        const cmp = aVal.localeCompare(bVal);
-                        return this.sortOrder === 'asc' ? cmp : -cmp;
+                        if (this.sortBy === 'jp') {
+                            // Entrées sans japonais → toujours en bas
+                            const aHasJp = hasJapanese(a.ingredient_name_jp);
+                            const bHasJp = hasJapanese(b.ingredient_name_jp);
+                            if (aHasJp !== bHasJp) {
+                                return this.sortOrder === 'asc'
+                                    ? (aHasJp ? -1 : 1)
+                                    : (aHasJp ? 1 : -1);
+                            }
+                            const aVal = (a.ingredient_name_jp || a.ingredient_name_fr).toLowerCase();
+                            const bVal = (b.ingredient_name_jp || b.ingredient_name_fr).toLowerCase();
+                            const cmp = aVal.localeCompare(bVal, 'ja');
+                            return this.sortOrder === 'asc' ? cmp : -cmp;
+                        } else {
+                            const aVal = a.ingredient_name_fr.toLowerCase();
+                            const bVal = b.ingredient_name_fr.toLowerCase();
+                            const cmp = aVal.localeCompare(bVal, 'fr');
+                            return this.sortOrder === 'asc' ? cmp : -cmp;
+                        }
                     });
                 },
 
@@ -101,6 +120,16 @@
                             </a>
                         </div>
 
+                        <!-- Bouton synchronisation -->
+                        <form method="POST" action="/lexique/sync">
+                            <input type="hidden" name="lang" value="{{ lang }}">
+                            <button type="submit"
+                                    class="px-3 py-1.5 rounded-lg text-sm font-medium bg-emerald-500 text-white hover:bg-emerald-600"
+                                    title="{{ 'Ajouter les ingrédients manquants depuis les recettes' if lang == 'fr' else 'レシピから不足している食材を追加' }}">
+                                🔄 {{ 'Mettre à jour' if lang == 'fr' else '更新' }}
+                            </button>
+                        </form>
+
                         <!-- Mode sombre -->
                         <button @click="darkMode = !darkMode"
                                 class="p-2 rounded-lg bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600">
@@ -114,15 +143,34 @@
 
         <main class="max-w-5xl mx-auto px-4 py-8">
 
+            <!-- Message flash après synchronisation -->
+            {% if synced is not none %}
+            <div class="mb-4 px-4 py-3 rounded-lg {{ 'bg-emerald-50 border border-emerald-300 text-emerald-800 dark:bg-emerald-900/20 dark:border-emerald-700 dark:text-emerald-300' }}">
+                {% if synced == 0 %}
+                    ✅ {{ 'Le lexique est déjà à jour — aucun nouvel ingrédient trouvé.' if lang == 'fr' else 'すでに最新です — 新しい食材はありませんでした。' }}
+                {% else %}
+                    ✅ {{ synced }} {{ 'nouvel ingrédient ajouté au lexique.' if synced == 1 else 'nouveaux ingrédients ajoutés au lexique.' if lang == 'fr' else '個の新しい食材が追加されました。' }}
+                {% endif %}
+            </div>
+            {% endif %}
+
             <!-- Info + compteur -->
             <div class="flex justify-between items-center mb-6">
                 <p class="text-sm text-gray-500 dark:text-gray-400">
                     💡 {{ 'Modifiez les traductions ici — les changements se propagent automatiquement dans toutes les recettes.' if lang == 'fr' else 'ここで翻訳を編集すると、変更はすべてのレシピに自動的に反映されます。' }}
                 </p>
-                <span class="text-sm text-gray-600 dark:text-gray-400">
-                    <span x-text="sortedIngredients.length"></span>
-                    {{ ' ingrédient(s)' if lang == 'fr' else ' 食材' }}
-                </span>
+                <div class="flex items-center gap-3 text-sm">
+                    <template x-if="allIngredients.filter(i => needsTranslation(i)).length > 0">
+                        <span class="px-2 py-1 bg-orange-100 dark:bg-orange-900/40 text-orange-600 dark:text-orange-400 rounded-lg font-medium">
+                            ⚠ <span x-text="allIngredients.filter(i => needsTranslation(i)).length"></span>
+                            {{ ' sans traduction JP' if lang == 'fr' else ' 件未翻訳' }}
+                        </span>
+                    </template>
+                    <span class="text-gray-600 dark:text-gray-400">
+                        <span x-text="sortedIngredients.length"></span>
+                        {{ ' ingrédient(s)' if lang == 'fr' else ' 食材' }}
+                    </span>
+                </div>
             </div>
 
             <!-- Recherche -->
@@ -194,7 +242,8 @@
                     </thead>
                     <tbody class="divide-y divide-gray-200 dark:divide-gray-600">
                         <template x-for="ing in sortedIngredients" :key="ing.id">
-                            <tr class="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+                            <tr class="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                                :class="needsTranslation(ing) ? 'bg-orange-50/40 dark:bg-orange-900/10' : ''">
 
                                 <!-- Formulaire caché associé à la ligne (id=form-N) -->
                                 <template x-if="editingId === ing.id">
@@ -215,8 +264,16 @@
                                         {% if lang == 'fr' %}
                                             <span x-text="ing.ingredient_name_fr"></span>
                                         {% else %}
-                                            <span x-text="ing.ingredient_name_jp || ing.ingredient_name_fr"
-                                                  :class="!ing.ingredient_name_jp ? 'text-gray-400 italic' : ''"></span>
+                                            <span x-show="!needsTranslation(ing)"
+                                                  x-text="ing.ingredient_name_jp"></span>
+                                            <span x-show="needsTranslation(ing)"
+                                                  class="flex items-center gap-2 flex-wrap">
+                                                <span x-text="ing.ingredient_name_jp || '—'"
+                                                      class="text-orange-500 dark:text-orange-400 italic text-xs"></span>
+                                                <span class="px-1.5 py-0.5 bg-orange-100 dark:bg-orange-900/40 text-orange-600 dark:text-orange-400 rounded text-xs font-medium whitespace-nowrap">
+                                                    {{ '⚠ à traduire' if lang == 'fr' else '⚠ 未翻訳' }}
+                                                </span>
+                                            </span>
                                         {% endif %}
                                     </template>
                                     <template x-if="editingId === ing.id">
@@ -243,8 +300,16 @@
                                     :class="editingId === ing.id ? 'bg-blue-50 dark:bg-blue-900/20 py-2' : ''">
                                     <template x-if="editingId !== ing.id">
                                         {% if lang == 'fr' %}
-                                            <span x-text="ing.ingredient_name_jp || '—'"
-                                                  :class="!ing.ingredient_name_jp ? 'text-gray-400 italic' : ''"></span>
+                                            <span x-show="!needsTranslation(ing)"
+                                                  x-text="ing.ingredient_name_jp || '—'"></span>
+                                            <span x-show="needsTranslation(ing)"
+                                                  class="flex items-center gap-2 flex-wrap">
+                                                <span x-text="ing.ingredient_name_jp || '—'"
+                                                      class="text-orange-500 dark:text-orange-400 italic text-xs"></span>
+                                                <span class="px-1.5 py-0.5 bg-orange-100 dark:bg-orange-900/40 text-orange-600 dark:text-orange-400 rounded text-xs font-medium whitespace-nowrap">
+                                                    ⚠ à traduire
+                                                </span>
+                                            </span>
                                         {% else %}
                                             <span x-text="ing.ingredient_name_fr"></span>
                                         {% endif %}

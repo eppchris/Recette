@@ -8,7 +8,7 @@ import os
 
 from app.models import db
 from app.services.recipe_importer import import_recipe_from_csv
-from app.services.translation_service import get_translation_service
+from app.services.translation_service import get_translation_service, auto_translate_new_catalog_entries
 from app.services.conversion_service import get_conversion_service
 from app.services.web_recipe_importer import get_web_recipe_importer
 from app.template_config import templates
@@ -117,6 +117,8 @@ async def import_post(
         temp_file.close()
 
         import_recipe_from_csv(tmp_path)
+        _, needs_translation = db.sync_ingredients_from_recipes()
+        auto_translate_new_catalog_entries(needs_translation)
 
         # Message de succès
         if lang == "fr":
@@ -349,6 +351,8 @@ async def update_recipe(slug: str, request: Request, lang: str = Query(...)):
 
         # Utiliser une seule transaction pour toutes les mises à jour
         db.update_recipe_complete(recipe_id, lang, data)
+        _, needs_translation = db.sync_ingredients_from_recipes()
+        auto_translate_new_catalog_entries(needs_translation)
 
         return JSONResponse({
             "success": True,
@@ -1245,6 +1249,8 @@ async def save_pdf_recipe(request: Request, lang: str = Query("fr")):
                 )
 
             con.commit()
+            _, needs_translation = db.sync_ingredients_from_recipes()
+            auto_translate_new_catalog_entries(needs_translation)
 
             return JSONResponse({
                 "success": True,
@@ -1439,6 +1445,8 @@ async def save_url_recipe(request: Request, lang: str = Query("fr")):
                 )
 
             con.commit()
+            _, needs_translation = db.sync_ingredients_from_recipes()
+            auto_translate_new_catalog_entries(needs_translation)
 
             return JSONResponse({
                 "success": True,

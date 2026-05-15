@@ -5,7 +5,16 @@ from fastapi import APIRouter, Request, Form, UploadFile
 from fastapi.responses import RedirectResponse, FileResponse
 from fastapi.templating import Jinja2Templates
 from app.models import db
+from app.services.translation_service import auto_translate_new_catalog_entries, get_translation_service
 from typing import Optional
+import re
+
+
+def _has_japanese_chars(text: str) -> bool:
+    """Retourne True si le texte contient au moins un caractère japonais (kana ou kanji)."""
+    if not text:
+        return False
+    return bool(re.search(r'[぀-ヿ一-鿿＀-￯]', text))
 
 router = APIRouter()
 templates = Jinja2Templates(directory="app/templates")
@@ -38,7 +47,8 @@ async def ingredient_catalog(
 async def lexique(
     request: Request,
     lang: str = "fr",
-    search: Optional[str] = None
+    search: Optional[str] = None,
+    synced: Optional[int] = None
 ):
     """Page lexique bilingue des ingrédients (FR ↔ JP)"""
     ingredients = db.list_lexique(search, lang)
@@ -46,8 +56,19 @@ async def lexique(
         "request": request,
         "lang": lang,
         "ingredients": ingredients,
-        "search": search or ""
+        "search": search or "",
+        "synced": synced
     })
+
+
+@router.post("/lexique/sync")
+async def sync_lexique(lang: str = Form("fr")):
+    """Synchronise le lexique avec tous les ingrédients des recettes et traduit les manquants"""
+    count, _ = db.sync_ingredients_from_recipes()
+    # Bouton manuel : on traduit toutes les entrées existantes sans JP (pas juste les nouvelles)
+    all_missing = db.get_catalog_entries_needing_jp_translation()
+    auto_translate_new_catalog_entries(all_missing)
+    return RedirectResponse(f"/lexique?lang={lang}&synced={count}", status_code=303)
 
 
 @router.post("/lexique/{ingredient_id}/update")
@@ -59,13 +80,30 @@ async def update_lexique_entry(
     new_name_jp: Optional[str] = Form(None),
     new_name_jp_reading: Optional[str] = Form(None)
 ):
-    """Met à jour une traduction et propage dans toutes les recettes"""
-    result = db.update_lexique_translation(
+    """Met à jour une traduction et propage dans toutes les recettes.
+    Si le champ JP est vide ou identique au FR, déclenche une traduction automatique.
+    """
+    fr_name = new_name_fr.strip()
+    jp_name = new_name_jp.strip() if new_name_jp and new_name_jp.strip() else None
+    jp_reading = new_name_jp_reading.strip() if new_name_jp_reading and new_name_jp_reading.strip() else None
+
+    # Auto-traduire si JP est absent, identique au FR, ou ne contient pas de japonais (texte latin laissé par erreur)
+    if not _has_japanese_chars(jp_name):
+        service = get_translation_service()
+        if service:
+            try:
+                translated = service.translate_ingredients([{'name': fr_name, 'unit': ''}], 'fr', 'jp')
+                if translated and translated[0].get('name') and translated[0]['name'] != fr_name:
+                    jp_name = translated[0]['name']
+            except Exception:
+                pass
+
+    db.update_lexique_translation(
         catalog_id=ingredient_id,
         old_name_fr=old_name_fr,
-        new_name_fr=new_name_fr.strip(),
-        new_name_jp=new_name_jp.strip() if new_name_jp else None,
-        new_name_jp_reading=new_name_jp_reading.strip() if new_name_jp_reading else None
+        new_name_fr=fr_name,
+        new_name_jp=jp_name,
+        new_name_jp_reading=jp_reading
     )
     return RedirectResponse(f"/lexique?lang={lang}", status_code=303)
 
@@ -75,8 +113,8 @@ async def sync_catalog(lang: str = Form("fr")):
     """
     Synchronise le catalogue avec les ingrédients des recettes
     """
-    count = db.sync_ingredients_from_recipes()
-    # TODO: Ajouter un message flash pour afficher "{count} ingrédients ajoutés"
+    count, needs_translation = db.sync_ingredients_from_recipes()
+    auto_translate_new_catalog_entries(needs_translation)
     return RedirectResponse(f"/ingredient-catalog?lang={lang}", status_code=303)
 
 

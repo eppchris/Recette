@@ -1,8 +1,16 @@
 """
 Module de gestion du catalogue des prix des ingrédients
 """
+import re
 import sqlite3
 from .db_core import get_db, normalize_ingredient_name
+
+
+def _has_japanese_chars(text: str) -> bool:
+    """Retourne True si le texte contient au moins un caractère japonais (kana ou kanji)."""
+    if not text:
+        return False
+    return bool(re.search(r'[぀-ヿ一-鿿＀-￯]', text))
 
 
 def get_ingredient_price_suggestions(ingredient_name: str, unit: str):
@@ -406,17 +414,15 @@ def delete_ingredient_from_catalog(ingredient_id: int):
 
 def sync_ingredients_from_recipes():
     """
-    Synchronise le catalogue avec tous les ingrédients des recettes
-    Ajoute UNIQUEMENT les ingrédients manquants (sans toucher aux prix existants)
+    Synchronise le catalogue avec tous les ingrédients des recettes.
+    Ajoute UNIQUEMENT les ingrédients manquants (sans toucher aux prix existants).
 
     IMPORTANT: Cette fonction N'INSÈRE QUE de nouvelles lignes.
     Elle ne fait AUCUN UPDATE, ne touche JAMAIS aux prix existants.
 
-    NOUVEAU : Utilise la normalisation des noms (minuscules, sans accents, singulier)
-    pour éviter les doublons du type "Oeuf" vs "œuf" vs "Œufs"
-
     Returns:
-        Nombre d'ingrédients ajoutés
+        Tuple (added_count, needs_translation) où needs_translation est une liste
+        de {'id': int, 'name_fr': str} pour les nouveaux ingrédients sans traduction JP.
     """
     with get_db() as conn:
         cursor = conn.cursor()
@@ -426,10 +432,11 @@ def sync_ingredients_from_recipes():
         existing_normalized = {normalize_ingredient_name(row['ingredient_name_fr']) for row in cursor.fetchall()}
 
         # Récupérer tous les ingrédients uniques des recettes
+        # rit_jp.name peut être NULL si la recette n'a pas de traduction JP
         cursor.execute("""
             SELECT DISTINCT
                 rit_fr.name as ingredient_name_fr,
-                COALESCE(rit_jp.name, rit_fr.name) as ingredient_name_jp,
+                rit_jp.name as ingredient_name_jp,
                 COALESCE(rit_fr.unit, 'g') as unit_fr,
                 COALESCE(rit_jp.unit, rit_fr.unit, 'g') as unit_jp
             FROM recipe_ingredient ri
@@ -442,8 +449,8 @@ def sync_ingredients_from_recipes():
 
         recipe_ingredients = cursor.fetchall()
 
-        # Insérer UNIQUEMENT les nouveaux (en Python, pas en SQL)
         added_count = 0
+        needs_translation = []
         for ing in recipe_ingredients:
             name_fr_original = ing['ingredient_name_fr'].strip()
             name_fr_normalized = normalize_ingredient_name(name_fr_original)
@@ -451,23 +458,63 @@ def sync_ingredients_from_recipes():
             unit_fr = ing['unit_fr']
             unit_jp = ing['unit_jp']
 
-            # Vérifier si existe déjà (avec nom normalisé)
             if name_fr_normalized not in existing_normalized:
                 try:
-                    # INSERTION SEULE avec le nom NORMALISÉ
                     cursor.execute("""
                         INSERT INTO ingredient_price_catalog
                         (ingredient_name_fr, ingredient_name_jp, unit_fr, unit_jp)
                         VALUES (?, ?, ?, ?)
                     """, (name_fr_normalized, name_jp, unit_fr, unit_jp))
+                    new_id = cursor.lastrowid
                     added_count += 1
                     existing_normalized.add(name_fr_normalized)
+                    # Marquer pour traduction si le JP est absent ou ne contient pas de japonais
+                    if not _has_japanese_chars(name_jp):
+                        needs_translation.append({'id': new_id, 'name_fr': name_fr_normalized})
                 except Exception:
-                    # Ignorer les doublons (contrainte UNIQUE)
                     pass
 
         conn.commit()
-        return added_count
+        return added_count, needs_translation
+
+
+def get_catalog_entries_needing_jp_translation():
+    """
+    Retourne toutes les entrées du catalogue dont la traduction JP est absente
+    ou ne contient pas de caractères japonais (kana/kanji).
+    Cela couvre : NULL, vide, ou du texte en alphabet latin (français laissé par erreur).
+    """
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT id, ingredient_name_fr, ingredient_name_jp
+            FROM ingredient_price_catalog
+            ORDER BY ingredient_name_fr
+        """)
+        return [
+            {'id': row['id'], 'name_fr': row['ingredient_name_fr']}
+            for row in cursor.fetchall()
+            if not _has_japanese_chars(row['ingredient_name_jp'])
+        ]
+
+
+def bulk_update_ingredient_jp_names(updates: list):
+    """
+    Met à jour les noms JP en lot.
+    updates: liste de {'id': int, 'jp_name': str}
+    Le filtrage (quelles entrées doivent être mises à jour) est fait en amont
+    par get_catalog_entries_needing_jp_translation().
+    """
+    with get_db() as conn:
+        cursor = conn.cursor()
+        for item in updates:
+            cursor.execute("""
+                UPDATE ingredient_price_catalog
+                SET ingredient_name_jp = ?,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE id = ?
+            """, (item['jp_name'], item['id']))
+        conn.commit()
 
 
 def cleanup_unused_ingredients_from_catalog():

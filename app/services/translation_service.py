@@ -368,6 +368,47 @@ Réponds UNIQUEMENT avec un mot: "VOLUME", "POIDS" ou "UNITE"."""
             return None
 
 
+def auto_translate_new_catalog_entries(entries: list):
+    """
+    Traduit en japonais une liste d'entrées du catalogue manquant de traduction JP,
+    puis met à jour la base de données. Traite par chunks de 25 pour éviter les
+    timeouts et échecs JSON sur de grandes listes.
+
+    entries: liste de {'id': int, 'name_fr': str}
+    Ne fait rien si le service de traduction n'est pas disponible ou si la liste est vide.
+    """
+    if not entries or not translation_service:
+        return
+
+    import logging
+    logger = logging.getLogger(__name__)
+
+    try:
+        from app.models import db
+        CHUNK_SIZE = 25
+        all_updates = []
+
+        for i in range(0, len(entries), CHUNK_SIZE):
+            chunk = entries[i:i + CHUNK_SIZE]
+            items = [{'name': e['name_fr'], 'unit': ''} for e in chunk]
+            try:
+                translated = translation_service.translate_ingredients(items, 'fr', 'jp')
+                if not translated:
+                    continue
+                for e, t in zip(chunk, translated):
+                    jp = (t.get('name') or '').strip()
+                    if jp:
+                        all_updates.append({'id': e['id'], 'jp_name': jp})
+            except Exception as chunk_ex:
+                logger.warning(f"Échec traduction chunk {i//CHUNK_SIZE + 1} : {chunk_ex}")
+
+        if all_updates:
+            db.bulk_update_ingredient_jp_names(all_updates)
+            logger.info(f"Auto-traduction JP : {len(all_updates)} ingrédients mis à jour")
+    except Exception as ex:
+        logger.warning(f"Auto-traduction JP échouée : {ex}")
+
+
 # Instance globale (sera initialisée dans main.py)
 translation_service: Optional[TranslationService] = None
 
