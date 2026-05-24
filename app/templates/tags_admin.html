@@ -18,9 +18,9 @@
     <span x-text="message"></span>
   </div>
 
-  <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+  <div class="flex gap-6 overflow-x-auto pb-4" style="min-width:0">
     <!-- ============== CATÉGORIES ============== -->
-    <section class="bg-white border rounded-lg p-6">
+    <section class="bg-white border rounded-lg p-6 flex-none w-80">
       <h2 class="text-2xl font-bold mb-4 text-blue-600">
         {{ 'カテゴリー' if lang == 'jp' else 'Catégories' }}
       </h2>
@@ -33,13 +33,13 @@
             <input
               type="text"
               x-model="newCategory.name_fr"
-              placeholder="Nom FR"
+              placeholder="{{ 'Nom FR' if lang == 'fr' else 'フランス語名' }}"
               class="px-3 py-2 border rounded text-sm"
             />
             <input
               type="text"
               x-model="newCategory.name_jp"
-              placeholder="名前 JP"
+              placeholder="{{ '名前 JP' if lang == 'fr' else '日本語名' }}"
               class="px-3 py-2 border rounded text-sm"
             />
           </div>
@@ -47,13 +47,13 @@
             <input
               type="text"
               x-model="newCategory.description_fr"
-              placeholder="Description FR"
+              placeholder="{{ 'Description FR' if lang == 'fr' else 'フランス語の説明' }}"
               class="px-3 py-2 border rounded text-sm"
             />
             <input
               type="text"
               x-model="newCategory.description_jp"
-              placeholder="説明 JP"
+              placeholder="{{ '説明 JP' if lang == 'fr' else '日本語の説明' }}"
               class="px-3 py-2 border rounded text-sm"
             />
           </div>
@@ -123,13 +123,13 @@
                   <input
                     type="text"
                     x-model="editingCategory.name_fr"
-                    placeholder="Nom FR"
+                    placeholder="{{ 'Nom FR' if lang == 'fr' else 'フランス語名' }}"
                     class="px-2 py-1 border rounded text-sm"
                   />
                   <input
                     type="text"
                     x-model="editingCategory.name_jp"
-                    placeholder="名前 JP"
+                    placeholder="{{ '名前 JP' if lang == 'fr' else '日本語名' }}"
                     class="px-2 py-1 border rounded text-sm"
                   />
                 </div>
@@ -137,13 +137,13 @@
                   <input
                     type="text"
                     x-model="editingCategory.description_fr"
-                    placeholder="Description FR"
+                    placeholder="{{ 'Description FR' if lang == 'fr' else 'フランス語の説明' }}"
                     class="px-2 py-1 border rounded text-sm"
                   />
                   <input
                     type="text"
                     x-model="editingCategory.description_jp"
-                    placeholder="説明 JP"
+                    placeholder="{{ '説明 JP' if lang == 'fr' else '日本語の説明' }}"
                     class="px-2 py-1 border rounded text-sm"
                   />
                 </div>
@@ -169,7 +169,7 @@
     </section>
 
     <!-- ============== TAGS ============== -->
-    <section class="bg-white border rounded-lg p-6">
+    <section class="bg-white border rounded-lg p-6 flex-none w-80">
       <h2 class="text-2xl font-bold mb-4 text-purple-600">
         {{ 'タグ' if lang == 'jp' else 'Tags' }}
       </h2>
@@ -182,13 +182,13 @@
             <input
               type="text"
               x-model="newTag.name_fr"
-              placeholder="Nom FR"
+              placeholder="{{ 'Nom FR' if lang == 'fr' else 'フランス語名' }}"
               class="px-3 py-2 border rounded text-sm"
             />
             <input
               type="text"
               x-model="newTag.name_jp"
-              placeholder="名前 JP"
+              placeholder="{{ '名前 JP' if lang == 'fr' else '日本語名' }}"
               class="px-3 py-2 border rounded text-sm"
             />
           </div>
@@ -196,13 +196,13 @@
             <input
               type="text"
               x-model="newTag.description_fr"
-              placeholder="Description FR"
+              placeholder="{{ 'Description FR' if lang == 'fr' else 'フランス語の説明' }}"
               class="px-3 py-2 border rounded text-sm"
             />
             <input
               type="text"
               x-model="newTag.description_jp"
-              placeholder="説明 JP"
+              placeholder="{{ '説明 JP' if lang == 'fr' else '日本語の説明' }}"
               class="px-3 py-2 border rounded text-sm"
             />
           </div>
@@ -291,13 +291,13 @@
                   <input
                     type="text"
                     x-model="editingTag.name_fr"
-                    placeholder="Nom FR"
+                    placeholder="{{ 'Nom FR' if lang == 'fr' else 'フランス語名' }}"
                     class="px-2 py-1 border rounded text-sm"
                   />
                   <input
                     type="text"
                     x-model="editingTag.name_jp"
-                    placeholder="名前 JP"
+                    placeholder="{{ '名前 JP' if lang == 'fr' else '日本語名' }}"
                     class="px-2 py-1 border rounded text-sm"
                   />
                 </div>
@@ -305,13 +305,13 @@
                   <input
                     type="text"
                     x-model="editingTag.description_fr"
-                    placeholder="Description FR"
+                    placeholder="{{ 'Description FR' if lang == 'fr' else 'フランス語の説明' }}"
                     class="px-2 py-1 border rounded text-sm"
                   />
                   <input
                     type="text"
                     x-model="editingTag.description_jp"
-                    placeholder="説明 JP"
+                    placeholder="{{ '説明 JP' if lang == 'fr' else '日本語の説明' }}"
                     class="px-2 py-1 border rounded text-sm"
                   />
                 </div>
@@ -346,7 +346,7 @@
     </section>
 
     <!-- ============== TYPES D'ÉVÉNEMENTS ============== -->
-    <section class="bg-white border rounded-lg p-6">
+    <section class="bg-white border rounded-lg p-6 flex-none w-80">
       <h2 class="text-2xl font-bold mb-4 text-green-600">
         {{ 'イベントタイプ' if lang == 'jp' else 'Types d\'événements' }}
       </h2>
@@ -359,13 +359,13 @@
             <input
               type="text"
               x-model="newEventType.name_fr"
-              placeholder="Nom FR"
+              placeholder="{{ 'Nom FR' if lang == 'fr' else 'フランス語名' }}"
               class="px-3 py-2 border rounded text-sm"
             />
             <input
               type="text"
               x-model="newEventType.name_jp"
-              placeholder="名前 JP"
+              placeholder="{{ '名前 JP' if lang == 'fr' else '日本語名' }}"
               class="px-3 py-2 border rounded text-sm"
             />
           </div>
@@ -373,13 +373,13 @@
             <input
               type="text"
               x-model="newEventType.description_fr"
-              placeholder="Description FR"
+              placeholder="{{ 'Description FR' if lang == 'fr' else 'フランス語の説明' }}"
               class="px-3 py-2 border rounded text-sm"
             />
             <input
               type="text"
               x-model="newEventType.description_jp"
-              placeholder="説明 JP"
+              placeholder="{{ '説明 JP' if lang == 'fr' else '日本語の説明' }}"
               class="px-3 py-2 border rounded text-sm"
             />
           </div>
@@ -449,13 +449,13 @@
                   <input
                     type="text"
                     x-model="editingEventType.name_fr"
-                    placeholder="Nom FR"
+                    placeholder="{{ 'Nom FR' if lang == 'fr' else 'フランス語名' }}"
                     class="px-2 py-1 border rounded text-sm"
                   />
                   <input
                     type="text"
                     x-model="editingEventType.name_jp"
-                    placeholder="名前 JP"
+                    placeholder="{{ '名前 JP' if lang == 'fr' else '日本語名' }}"
                     class="px-2 py-1 border rounded text-sm"
                   />
                 </div>
@@ -463,13 +463,13 @@
                   <input
                     type="text"
                     x-model="editingEventType.description_fr"
-                    placeholder="Description FR"
+                    placeholder="{{ 'Description FR' if lang == 'fr' else 'フランス語の説明' }}"
                     class="px-2 py-1 border rounded text-sm"
                   />
                   <input
                     type="text"
                     x-model="editingEventType.description_jp"
-                    placeholder="説明 JP"
+                    placeholder="{{ '説明 JP' if lang == 'fr' else '日本語の説明' }}"
                     class="px-2 py-1 border rounded text-sm"
                   />
                 </div>
@@ -482,6 +482,135 @@
                   </button>
                   <button
                     @click="cancelEditEventType()"
+                    class="flex-1 px-3 py-1 bg-gray-400 text-white rounded hover:bg-gray-500 text-sm"
+                  >
+                    {{ 'Annuler' if lang == 'fr' else 'キャンセル' }}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </template>
+      </div>
+    </section>
+    <!-- ============== TYPES DE RECETTE ============== -->
+    <section class="bg-white border rounded-lg p-6 flex-none w-80">
+      <h2 class="text-2xl font-bold mb-4 text-indigo-600">
+        {{ 'レシピタイプ' if lang == 'jp' else 'Types de recette' }}
+      </h2>
+
+      <!-- Formulaire d'ajout -->
+      <div class="mb-6 p-4 bg-indigo-50 rounded-lg border border-indigo-200">
+        <h3 class="font-semibold mb-3">{{ 'Nouveau type' if lang == 'fr' else '新しいタイプ' }}</h3>
+        <div class="space-y-3">
+          <div class="grid grid-cols-2 gap-2">
+            <input
+              type="text"
+              x-model="newRecipeType.name_fr"
+              placeholder="{{ 'Nom FR' if lang == 'fr' else 'フランス語名' }}"
+              class="px-3 py-2 border rounded text-sm"
+            />
+            <input
+              type="text"
+              x-model="newRecipeType.name_jp"
+              placeholder="{{ '名前 JP' if lang == 'fr' else '日本語名' }}"
+              class="px-3 py-2 border rounded text-sm"
+            />
+          </div>
+          <input
+            type="text"
+            x-model="newRecipeType.description"
+            placeholder="{{ 'Description (optionnelle)' if lang == 'fr' else '説明（任意）' }}"
+            class="w-full px-3 py-2 border rounded text-sm"
+          />
+          <button
+            @click="createRecipeType()"
+            :disabled="!newRecipeType.name_fr || creatingRecipeType"
+            class="w-full px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed">
+            <span x-show="!creatingRecipeType">{{ '+ Créer le type' if lang == 'fr' else '+ タイプを作成' }}</span>
+            <span x-show="creatingRecipeType">{{ 'Création...' if lang == 'fr' else '作成中...' }}</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Liste des types de recette -->
+      <div class="space-y-2 max-h-96 overflow-y-auto">
+        <template x-for="rt in recipeTypes" :key="rt.id">
+          <div>
+            <!-- Mode affichage -->
+            <div
+              x-show="editingRecipeTypeId !== rt.id"
+              class="flex items-center justify-between p-3 bg-gray-50 rounded hover:bg-gray-100"
+            >
+              <div class="flex-1">
+                <div class="font-medium" x-text="lang === 'jp' ? rt.name_jp : rt.name_fr"></div>
+                <div class="text-xs text-gray-500" x-text="rt.description"></div>
+              </div>
+              <div class="flex items-center gap-1">
+                <div class="relative group/tip">
+                  <button
+                    @click="startEditRecipeType(rt)"
+                    class="p-1.5 rounded hover:bg-blue-50 text-blue-600 inline-flex"
+                  >
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+                    </svg>
+                  </button>
+                  <span class="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 px-2 py-0.5 text-xs bg-gray-800 text-white rounded whitespace-nowrap opacity-0 group-hover/tip:opacity-100 transition-opacity z-20">
+                    {{ 'Modifier' if lang == 'fr' else '編集' }}
+                  </span>
+                </div>
+                <div class="relative group/tip">
+                  <button
+                    @click="deleteRecipeType(rt.id, lang === 'jp' ? rt.name_jp : rt.name_fr)"
+                    class="p-1.5 rounded hover:bg-red-50 text-red-600 inline-flex"
+                  >
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                    </svg>
+                  </button>
+                  <span class="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 px-2 py-0.5 text-xs bg-gray-800 text-white rounded whitespace-nowrap opacity-0 group-hover/tip:opacity-100 transition-opacity z-20">
+                    {{ 'Supprimer' if lang == 'fr' else '削除' }}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Mode édition -->
+            <div
+              x-show="editingRecipeTypeId === rt.id"
+              class="p-3 bg-indigo-50 border-2 border-indigo-300 rounded"
+            >
+              <div class="space-y-2">
+                <div class="grid grid-cols-2 gap-2">
+                  <input
+                    type="text"
+                    x-model="editingRecipeType.name_fr"
+                    placeholder="{{ 'Nom FR' if lang == 'fr' else 'フランス語名' }}"
+                    class="px-2 py-1 border rounded text-sm"
+                  />
+                  <input
+                    type="text"
+                    x-model="editingRecipeType.name_jp"
+                    placeholder="{{ '名前 JP' if lang == 'fr' else '日本語名' }}"
+                    class="px-2 py-1 border rounded text-sm"
+                  />
+                </div>
+                <input
+                  type="text"
+                  x-model="editingRecipeType.description"
+                  placeholder="{{ 'Description' if lang == 'fr' else '説明' }}"
+                  class="w-full px-2 py-1 border rounded text-sm"
+                />
+                <div class="flex gap-2 mt-3">
+                  <button
+                    @click="updateRecipeType()"
+                    class="flex-1 px-3 py-1 bg-indigo-600 text-white rounded hover:bg-indigo-700 text-sm"
+                  >
+                    {{ 'Enregistrer' if lang == 'fr' else '保存' }}
+                  </button>
+                  <button
+                    @click="cancelEditRecipeType()"
                     class="flex-1 px-3 py-1 bg-gray-400 text-white rounded hover:bg-gray-500 text-sm"
                   >
                     {{ 'Annuler' if lang == 'fr' else 'キャンセル' }}
@@ -510,6 +639,11 @@ function tagsAdmin() {
     categories: [],
     tags: [],
     eventTypes: [],
+    recipeTypes: [],
+    newRecipeType: { name_fr: '', name_jp: '', description: '' },
+    creatingRecipeType: false,
+    editingRecipeTypeId: null,
+    editingRecipeType: {},
     newCategory: {
       name_fr: '',
       name_jp: '',
@@ -547,17 +681,17 @@ function tagsAdmin() {
 
     async loadData() {
       try {
-        const [categoriesRes, tagsRes, eventTypesRes] = await Promise.all([
+        const [categoriesRes, tagsRes, eventTypesRes, recipeTypesRes] = await Promise.all([
           fetch('/api/categories'),
           fetch('/api/tags'),
-          fetch('/api/event-types')
+          fetch('/api/event-types'),
+          fetch('/api/recipe-types')
         ]);
 
         this.categories = await categoriesRes.json();
         this.tags = await tagsRes.json();
         this.eventTypes = await eventTypesRes.json();
-
-        console.log('✅ Données chargées:', this.categories.length, 'catégories,', this.tags.length, 'tags,', this.eventTypes.length, 'types d\'événements');
+        this.recipeTypes = await recipeTypesRes.json();
       } catch (error) {
         console.error('Erreur de chargement:', error);
         this.showMessage('Erreur de chargement des données', 'error');
@@ -915,6 +1049,78 @@ function tagsAdmin() {
       } catch (error) {
         console.error('Erreur modification type d\'événement:', error);
         this.showMessage('Erreur lors de la modification du type d\'événement', 'error');
+      }
+    },
+
+    // ========== Fonctions pour les types de recette ==========
+
+    async createRecipeType() {
+      this.creatingRecipeType = true;
+      try {
+        const response = await fetch('/api/recipe-types', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(this.newRecipeType)
+        });
+        const data = await response.json();
+        if (data.status === 'ok') {
+          this.showMessage('Type de recette créé avec succès', 'success');
+          this.newRecipeType = { name_fr: '', name_jp: '', description: '' };
+          await this.loadData();
+        } else {
+          this.showMessage(data.message || 'Erreur', 'error');
+        }
+      } catch (error) {
+        this.showMessage('Erreur lors de la création', 'error');
+      } finally {
+        this.creatingRecipeType = false;
+      }
+    },
+
+    async deleteRecipeType(id, name) {
+      if (!confirm(`Supprimer le type de recette "${name}" ?`)) return;
+      try {
+        const response = await fetch(`/api/recipe-types/${id}`, { method: 'DELETE' });
+        const data = await response.json();
+        if (data.status === 'ok') {
+          this.showMessage('Type de recette supprimé', 'success');
+          await this.loadData();
+        } else {
+          this.showMessage(data.message || 'Erreur', 'error');
+        }
+      } catch (error) {
+        this.showMessage('Erreur lors de la suppression', 'error');
+      }
+    },
+
+    startEditRecipeType(rt) {
+      this.editingRecipeTypeId = rt.id;
+      this.editingRecipeType = { id: rt.id, name_fr: rt.name_fr, name_jp: rt.name_jp || '', description: rt.description || '' };
+    },
+
+    cancelEditRecipeType() {
+      this.editingRecipeTypeId = null;
+      this.editingRecipeType = {};
+    },
+
+    async updateRecipeType() {
+      try {
+        const response = await fetch(`/api/recipe-types/${this.editingRecipeType.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(this.editingRecipeType)
+        });
+        const data = await response.json();
+        if (data.status === 'ok') {
+          this.showMessage('Type de recette modifié avec succès', 'success');
+          this.editingRecipeTypeId = null;
+          this.editingRecipeType = {};
+          await this.loadData();
+        } else {
+          this.showMessage(data.message || 'Erreur', 'error');
+        }
+      } catch (error) {
+        this.showMessage('Erreur lors de la modification', 'error');
       }
     }
   };

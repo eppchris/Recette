@@ -196,6 +196,7 @@ def get_event_by_id(event_id: int):
                 e.date_debut,
                 e.date_fin,
                 e.nombre_jours,
+                e.user_id,
                 et.id AS event_type_id,
                 et.name_fr AS event_type_name_fr,
                 et.name_jp AS event_type_name_jp
@@ -576,6 +577,71 @@ def set_recipe_event_types(recipe_id: int, event_type_ids: list):
                 data
             )
         con.commit()
+
+
+# ============================================================================
+# Gestion des types de recette (séparés des types d'événement)
+# ============================================================================
+
+def get_all_recipe_types():
+    with get_db() as con:
+        rows = con.execute(
+            "SELECT id, name_fr, name_jp, description FROM recipe_type ORDER BY name_fr"
+        ).fetchall()
+        return [dict(row) for row in rows]
+
+
+def create_recipe_type(name_fr: str, name_jp: str = '', description: str = ''):
+    with get_db() as con:
+        cur = con.execute(
+            "INSERT INTO recipe_type (name_fr, name_jp, description) VALUES (?, ?, ?)",
+            (name_fr, name_jp or '', description or '')
+        )
+        return cur.lastrowid
+
+
+def update_recipe_type_entry(recipe_type_id: int, name_fr: str = None, name_jp: str = None, description: str = None):
+    with get_db() as con:
+        updates, params = [], []
+        if name_fr is not None:
+            updates.append("name_fr = ?"); params.append(name_fr)
+        if name_jp is not None:
+            updates.append("name_jp = ?"); params.append(name_jp)
+        if description is not None:
+            updates.append("description = ?"); params.append(description)
+        if not updates:
+            return False
+        params.append(recipe_type_id)
+        con.execute(f"UPDATE recipe_type SET {', '.join(updates)} WHERE id = ?", params)
+        return True
+
+
+def delete_recipe_type(recipe_type_id: int):
+    with get_db() as con:
+        con.execute("DELETE FROM recipe_type WHERE id = ?", (recipe_type_id,))
+
+
+def get_recipe_recipe_types(recipe_id: int):
+    with get_db() as con:
+        rows = con.execute(
+            """SELECT rt.id, rt.name_fr, rt.name_jp
+               FROM recipe_type rt
+               JOIN recipe_recipe_type rrt ON rrt.recipe_type_id = rt.id
+               WHERE rrt.recipe_id = ?
+               ORDER BY rt.name_fr""",
+            (recipe_id,)
+        ).fetchall()
+        return [dict(row) for row in rows]
+
+
+def set_recipe_recipe_types(recipe_id: int, recipe_type_ids: list):
+    with get_db() as con:
+        con.execute("DELETE FROM recipe_recipe_type WHERE recipe_id = ?", (recipe_id,))
+        if recipe_type_ids:
+            con.executemany(
+                "INSERT INTO recipe_recipe_type (recipe_id, recipe_type_id) VALUES (?, ?)",
+                [(recipe_id, tid) for tid in recipe_type_ids]
+            )
 
 
 # ============================================================================

@@ -105,6 +105,7 @@ from app.routes.catalog_routes import router as catalog_router
 from app.routes.conversion_routes import router as conversion_router
 from app.routes.participant_routes import router as participant_router
 from app.routes.calendar_routes import router as calendar_router
+from app.routes.mobile_routes import router as mobile_router
 # NOTE: monitoring_routes désactivé (nécessite table client_performance_log)
 # from app.routes.monitoring_routes import router as monitoring_router
 
@@ -115,6 +116,7 @@ app.include_router(catalog_router)
 app.include_router(conversion_router)
 app.include_router(participant_router)
 app.include_router(calendar_router)
+app.include_router(mobile_router)
 # app.include_router(monitoring_router)
 
 # Page d'accueil : redirection vers la liste des recettes

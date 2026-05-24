@@ -163,7 +163,7 @@
                             </thead>
                             <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
                                 <template x-for="item in filteredItems" :key="item.id">
-                                    <tr class="hover:bg-gray-50 dark:hover:bg-gray-700" x-data="{ editing: editingItem === item.id }">
+                                    <tr class="hover:bg-gray-50 dark:hover:bg-gray-700">
                                         <!-- Article du ticket -->
                                         <td class="px-6 py-4">
                                             <div class="text-sm font-medium text-gray-900 dark:text-white" x-text="item.receipt_item_text"></div>
@@ -178,7 +178,7 @@
                                         <!-- Ingrédient correspondant -->
                                         <td class="px-6 py-4">
                                             <!-- Mode lecture -->
-                                            <div x-show="!editing">
+                                            <div x-show="editingItem !== item.id">
                                                 <template x-if="item.matched_ingredient_name">
                                                     <div>
                                                         <div class="text-sm font-medium text-gray-900 dark:text-white" x-text="item.matched_ingredient_name"></div>
@@ -207,7 +207,7 @@
                                             </div>
 
                                             <!-- Mode édition -->
-                                            <div x-show="editing" x-cloak>
+                                            <div x-show="editingItem === item.id" x-cloak>
                                                 <form method="POST" :action="'/receipt-match/' + item.id + '/update-ingredient'" class="flex gap-2">
                                                     <input type="hidden" name="lang" value="{{ lang }}">
                                                     <select name="ingredient_id" required
@@ -310,7 +310,7 @@
                                     </div>
 
                                     <!-- Affichage normal -->
-                                    <div x-show="!editing">
+                                    <div x-show="editingItem !== item.id">
                                         {% if item.matched_ingredient_name %}
                                             <div class="flex items-center gap-3">
                                                 <div class="flex-1 p-3 bg-gray-50 dark:bg-gray-700 rounded">
@@ -354,7 +354,7 @@
                                     </div>
 
                                     <!-- Mode édition -->
-                                    <div x-show="editing" x-cloak>
+                                    <div x-show="editingItem === item.id" x-cloak>
                                         <form method="POST" action="/receipt-match/{{ item.id }}/update-ingredient" class="flex gap-2">
                                             <input type="hidden" name="lang" value="{{ lang }}">
                                             <select name="ingredient_id" required

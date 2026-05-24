@@ -467,14 +467,25 @@ async def receipt_upload_process(
             "error": "Aucun fichier sélectionné" if lang == "fr" else "ファイルが選択されていません"
         })
 
-    # Sauvegarder temporairement le fichier PDF
+    # Déterminer l'extension selon le type MIME
+    content_type = pdf_file.content_type or ''
+    if 'jpeg' in content_type or 'jpg' in content_type:
+        suffix = '.jpg'
+    elif 'png' in content_type:
+        suffix = '.png'
+    elif 'webp' in content_type:
+        suffix = '.webp'
+    else:
+        suffix = '.pdf'
+
+    # Sauvegarder temporairement le fichier
     try:
-        with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as temp_file:
+        with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as temp_file:
             content = await pdf_file.read()
             temp_file.write(content)
             temp_path = temp_file.name
 
-        # Extraire le contenu du PDF
+        # Extraire le contenu du fichier
         extractor = get_receipt_extractor()
         currency_hint = "JPY" if lang == "jp" else "EUR"
         receipt_data = extractor.extract_receipt_from_pdf(temp_path, currency_hint)
@@ -484,7 +495,7 @@ async def receipt_upload_process(
             return templates.TemplateResponse("receipt_upload.html", {
                 "request": request,
                 "lang": lang,
-                "error": "Impossible d'extraire les données du PDF" if lang == "fr" else "PDFからデータを抽出できません"
+                "error": "Impossible d'extraire les données du fichier" if lang == "fr" else "ファイルからデータを抽出できません"
             })
 
         # Créer l'enregistrement du receipt (sans file_path encore)
@@ -497,8 +508,8 @@ async def receipt_upload_process(
             user_id=user_id
         )
 
-        # Conserver le PDF dans data/receipts/ avec un nom unique
-        unique_name = f"receipt_{receipt_id}_{uuid.uuid4().hex[:8]}.pdf"
+        # Conserver le fichier dans data/receipts/ avec un nom unique
+        unique_name = f"receipt_{receipt_id}_{uuid.uuid4().hex[:8]}{suffix}"
         dest_path = Config.RECEIPTS_DIR / unique_name
         shutil.copy2(temp_path, dest_path)
         os.unlink(temp_path)

@@ -12,11 +12,12 @@ router = APIRouter()
 
 
 @router.get("/login", response_class=HTMLResponse)
-async def login_form(request: Request, lang: str = Query("fr")):
+async def login_form(request: Request, lang: str = Query("fr"), next: str = Query("")):
     """Affiche le formulaire de connexion"""
-    # Si déjà connecté, rediriger vers l'accueil
+    # Si déjà connecté, rediriger vers la destination ou l'accueil
     if request.session.get("user_id"):
-        return RedirectResponse(url=f"/recipes?lang={lang}", status_code=303)
+        redirect_to = next if (next and next.startswith("/") and not next.startswith("//")) else f"/recipes?lang={lang}"
+        return RedirectResponse(url=redirect_to, status_code=303)
 
     return templates.TemplateResponse(
         "recette_connexion.html",
@@ -29,7 +30,8 @@ async def login_post(
     request: Request,
     username: str = Form(...),
     password: str = Form(...),
-    lang: str = Query("fr")
+    lang: str = Query("fr"),
+    next: str = Query("")
 ):
     """Traite la tentative de connexion"""
 
@@ -43,8 +45,9 @@ async def login_post(
         request.session["is_admin"] = user["is_admin"]
         request.session["authenticated"] = True  # Pour compatibilité avec l'ancien système
 
-        # Rediriger vers la page d'accueil
-        return RedirectResponse(url=f"/recipes?lang={lang}", status_code=303)
+        # Rediriger vers la destination ou l'accueil
+        redirect_to = next if (next and next.startswith("/") and not next.startswith("//")) else f"/recipes?lang={lang}"
+        return RedirectResponse(url=redirect_to, status_code=303)
     else:
         # Authentification échouée
         error = "Nom d'utilisateur ou mot de passe incorrect" if lang == "fr" else "ユーザー名またはパスワードが間違っています"

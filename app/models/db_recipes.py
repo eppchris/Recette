@@ -18,6 +18,7 @@ def list_recipes(lang: str, user_id: int = None):
     Returns:
         Liste des recettes avec leurs informations de base
     """
+    other_lang = 'jp' if lang == 'fr' else 'fr'
     with get_db() as con:
         sql = """
             SELECT
@@ -32,13 +33,17 @@ def list_recipes(lang: str, user_id: int = None):
                 COALESCE(rt.name, r.slug) AS name,
                 rt.recipe_type AS type,
                 r.user_id,
-                COALESCE(u.display_name, u.username) AS creator_name
+                COALESCE(u.display_name, u.username) AS creator_name,
+                CASE WHEN rt_other.recipe_id IS NOT NULL THEN 1 ELSE 0 END AS has_other_lang,
+                (SELECT COUNT(*) FROM recipe_ingredient ri WHERE ri.recipe_id = r.id) AS ingredient_count,
+                (SELECT COUNT(*) FROM step s WHERE s.recipe_id = r.id AND s.type = 'text') AS step_count
             FROM recipe r
             LEFT JOIN recipe_translation rt ON rt.recipe_id = r.id AND rt.lang = ?
+            LEFT JOIN recipe_translation rt_other ON rt_other.recipe_id = r.id AND rt_other.lang = ?
             LEFT JOIN user u ON u.id = r.user_id
         """
 
-        params = [lang]
+        params = [lang, other_lang]
 
         # Ajouter le filtre par créateur si spécifié
         if user_id is not None:

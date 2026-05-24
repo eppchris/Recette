@@ -13,6 +13,14 @@ from app.template_config import templates
 router = APIRouter()
 
 
+def _check_event_access(event: dict, request: Request):
+    """Lève 403 si l'utilisateur n'est pas propriétaire de l'événement (sauf admin)."""
+    user_id = request.session.get('user_id')
+    is_admin = bool(request.session.get('is_admin', False))
+    if not is_admin and event.get('user_id') != user_id:
+        raise HTTPException(status_code=403, detail="Accès non autorisé")
+
+
 # ============================================================================
 # Routes pour la gestion des événements
 # ============================================================================
@@ -172,6 +180,7 @@ async def event_detail(
     event = db.get_event_by_id(event_id)
     if not event:
         raise HTTPException(status_code=404, detail="Événement non trouvé")
+    _check_event_access(event, request)
 
     recipes = db.get_event_recipes(event_id, lang)
     all_recipes = db.list_recipes(lang)
@@ -248,7 +257,10 @@ async def event_update(
     """
     # Récupérer l'ancien événement pour comparer le nombre de participants
     old_event = db.get_event_by_id(event_id)
-    old_attendees = old_event['attendees'] if old_event else None
+    if not old_event:
+        raise HTTPException(status_code=404, detail="Événement non trouvé")
+    _check_event_access(old_event, request)
+    old_attendees = old_event['attendees']
 
     # Fallback : si event_date vide (Alpine pas encore initialisé), utiliser date_debut
     if not event_date:
@@ -323,6 +335,7 @@ async def event_copy_form(request: Request, event_id: int, lang: str = "fr"):
     source_event = db.get_event_by_id(event_id)
     if not source_event:
         raise HTTPException(status_code=404, detail="Événement non trouvé")
+    _check_event_access(source_event, request)
 
     # Récupérer la liste des types d'événements
     event_types = db.list_event_types()
@@ -385,6 +398,10 @@ async def event_delete(request: Request, event_id: int, lang: str = Form("fr")):
     """
     Supprime un événement
     """
+    event = db.get_event_by_id(event_id)
+    if not event:
+        raise HTTPException(status_code=404, detail="Événement non trouvé")
+    _check_event_access(event, request)
     db.delete_event(event_id)
 
     return RedirectResponse(
@@ -408,6 +425,10 @@ async def event_add_recipe(
     """
     Ajoute une recette à un événement
     """
+    event = db.get_event_by_id(event_id)
+    if not event:
+        raise HTTPException(status_code=404, detail="Événement non trouvé")
+    _check_event_access(event, request)
     # Vérifier si la recette n'est pas déjà dans l'événement
     existing_recipes = db.get_event_recipes(event_id, lang)
     if any(r['id'] == recipe_id for r in existing_recipes):
@@ -442,6 +463,7 @@ async def event_add_all_recipes_by_type(
     event = db.get_event_by_id(event_id)
     if not event:
         raise HTTPException(status_code=404, detail="Événement non trouvé")
+    _check_event_access(event, request)
 
     # Récupérer toutes les recettes liées à ce type d'événement via many-to-many
     event_type_id = event['event_type_id']
@@ -473,6 +495,10 @@ async def event_remove_recipe(
     """
     Retire une recette d'un événement
     """
+    event = db.get_event_by_id(event_id)
+    if not event:
+        raise HTTPException(status_code=404, detail="Événement non trouvé")
+    _check_event_access(event, request)
     db.remove_recipe_from_event(event_id, recipe_id)
 
     # Supprimer la shopping list existante car les recettes ont changé
@@ -495,6 +521,10 @@ async def event_update_recipe_servings(
     """
     Met à jour le multiplicateur de portions pour une recette
     """
+    event = db.get_event_by_id(event_id)
+    if not event:
+        raise HTTPException(status_code=404, detail="Événement non trouvé")
+    _check_event_access(event, request)
     db.update_event_recipe_servings(event_id, recipe_id, servings_multiplier)
 
     # Supprimer la shopping list existante car les quantités ont changé
@@ -520,6 +550,7 @@ async def event_shopping_list(request: Request, event_id: int, lang: str = "fr",
     event = db.get_event_by_id(event_id)
     if not event:
         raise HTTPException(status_code=404, detail="Événement non trouvé")
+    _check_event_access(event, request)
 
     # Récupérer les recettes pour affichage dans la langue demandée
     recipes_data = db.get_event_recipes_with_ingredients(event_id, lang)
@@ -636,6 +667,7 @@ async def event_regenerate_shopping_list(request: Request, event_id: int, lang: 
     event = db.get_event_by_id(event_id)
     if not event:
         raise HTTPException(status_code=404, detail="Événement non trouvé")
+    _check_event_access(event, request)
 
     # Régénérer la liste
     db.regenerate_shopping_list(event_id, lang)
@@ -658,6 +690,7 @@ async def event_budget_view(request: Request, event_id: int, lang: str = "fr"):
     event = db.get_event_by_id(event_id)
     if not event:
         raise HTTPException(status_code=404, detail="Événement non trouvé")
+    _check_event_access(event, request)
 
     # Récupérer les catégories de dépenses
     categories = db.list_expense_categories(lang)
@@ -763,6 +796,7 @@ async def event_update_budget_planned(
     event = db.get_event_by_id(event_id)
     if not event:
         raise HTTPException(status_code=404, detail="Événement non trouvé")
+    _check_event_access(event, request)
 
     # Si la devise n'est pas définie, la définir en fonction de la langue actuelle
     if not event.get('currency') or event.get('currency') is None:
@@ -800,6 +834,7 @@ async def event_add_expense(
     event = db.get_event_by_id(event_id)
     if not event:
         raise HTTPException(status_code=404, detail="Événement non trouvé")
+    _check_event_access(event, request)
 
     # Si la devise n'est pas définie, la définir en fonction de la langue actuelle
     if not event.get('currency') or event.get('currency') is None:
@@ -854,6 +889,7 @@ async def event_add_ingredients_expense(
     event = db.get_event_by_id(event_id)
     if not event:
         raise HTTPException(status_code=404, detail="Événement non trouvé")
+    _check_event_access(event, request)
 
     # Récupérer tous les paramètres du formulaire
     form_data = await request.form()
@@ -933,6 +969,7 @@ async def save_ingredient_budget(
     event = db.get_event_by_id(event_id)
     if not event:
         raise HTTPException(status_code=404, detail="Événement non trouvé")
+    _check_event_access(event, request)
 
     # Récupérer tous les paramètres du formulaire
     form_data = await request.form()
@@ -984,6 +1021,7 @@ async def save_ingredient_budget(
 
 @router.post("/events/{event_id}/budget/ingredients/sync-catalog")
 async def sync_ingredient_prices_from_catalog(
+    request: Request,
     event_id: int,
     lang: str = Form("fr")
 ):
@@ -997,6 +1035,7 @@ async def sync_ingredient_prices_from_catalog(
             content={"success": False, "error": "Événement non trouvé"},
             status_code=404
         )
+    _check_event_access(event, request)
 
     # Récupérer la liste de courses
     shopping_list = db.get_shopping_list_items(event_id, lang)
@@ -1070,6 +1109,10 @@ async def event_update_expense(
     """
     Met à jour une dépense
     """
+    event = db.get_event_by_id(event_id)
+    if not event:
+        raise HTTPException(status_code=404, detail="Événement non trouvé")
+    _check_event_access(event, request)
     # Convertir planned_amount en float si fourni
     planned_amount_float = None
     if planned_amount and planned_amount.strip():
@@ -1126,6 +1169,10 @@ async def event_delete_expense(
     """
     Supprime une dépense
     """
+    event = db.get_event_by_id(event_id)
+    if not event:
+        raise HTTPException(status_code=404, detail="Événement non trouvé")
+    _check_event_access(event, request)
     success = db.delete_event_expense(expense_id)
 
     if success:
@@ -1300,6 +1347,7 @@ async def event_organization_view(request: Request, event_id: int, lang: str = "
     event = db.get_event_by_id(event_id)
     if not event:
         raise HTTPException(status_code=404, detail="Événement non trouvé")
+    _check_event_access(event, request)
 
     # Récupérer la planification par jour
     planning_by_date = db.get_recipe_planning(event_id, lang)
@@ -1323,6 +1371,7 @@ async def event_planning_edit(request: Request, event_id: int, lang: str = "fr")
     event = db.get_event_by_id(event_id)
     if not event:
         raise HTTPException(status_code=404, detail="Événement non trouvé")
+    _check_event_access(event, request)
 
     # Récupérer les recettes de l'événement
     recipes = db.get_event_recipes(event_id, lang)
@@ -1357,6 +1406,10 @@ async def event_planning_save(
     """
     Sauvegarde la planification des recettes par jour
     """
+    event = db.get_event_by_id(event_id)
+    if not event:
+        raise HTTPException(status_code=404, detail="Événement non trouvé")
+    _check_event_access(event, request)
     form_data = await request.form()
 
     # Parser les données de planification

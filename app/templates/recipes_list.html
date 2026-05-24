@@ -27,10 +27,10 @@
   allRecipes: window.recipesData || [],
   categories: [],
   tags: [],
-  eventTypes: [],
+  recipeTypes: [],
   selectedCategories: [],
   selectedTags: [],
-  selectedEventTypeId: null,
+  selectedRecipeTypeId: null,
   showCategories: false,
   showTags: false,
   deleteModal: false,
@@ -45,27 +45,27 @@
     const urlParams = new URLSearchParams(window.location.search);
     this.selectedCategories = urlParams.get('categories') ? urlParams.get('categories').split(',').map(id => parseInt(id)) : [];
     this.selectedTags = urlParams.get('tags') ? urlParams.get('tags').split(',').map(id => parseInt(id)) : [];
-    this.selectedEventTypeId = urlParams.get('event_type') ? parseInt(urlParams.get('event_type')) : null;
+    this.selectedRecipeTypeId = urlParams.get('recipe_type') ? parseInt(urlParams.get('recipe_type')) : null;
     this.search = urlParams.get('search') || '';
     this.sortBy = urlParams.get('sort_by') || 'name';
     this.sortOrder = urlParams.get('sort_order') || 'asc';
     this.creatorId = urlParams.get('creator_id') ? parseInt(urlParams.get('creator_id')) : {{ creator_id or 'null' }};
 
-    this.loadCategoriesTagsAndEventTypes();
+    this.loadCategoriesTagsAndRecipeTypes();
   },
 
-  async loadCategoriesTagsAndEventTypes() {
+  async loadCategoriesTagsAndRecipeTypes() {
     try {
-      const [categoriesRes, tagsRes, eventTypesRes] = await Promise.all([
+      const [categoriesRes, tagsRes, recipeTypesRes] = await Promise.all([
         fetch('/api/categories'),
         fetch('/api/tags'),
-        fetch('/api/event-types')
+        fetch('/api/recipe-types')
       ]);
       this.categories = await categoriesRes.json();
       this.tags = await tagsRes.json();
-      this.eventTypes = await eventTypesRes.json();
+      this.recipeTypes = await recipeTypesRes.json();
     } catch (error) {
-      console.error('Erreur chargement catégories/tags/event types:', error);
+      console.error('Erreur chargement catégories/tags/types de recette:', error);
     }
   },
 
@@ -77,8 +77,8 @@
     if (this.selectedTags.length > 0) {
       params.set('tags', this.selectedTags.join(','));
     }
-    if (this.selectedEventTypeId) {
-      params.set('event_type', this.selectedEventTypeId);
+    if (this.selectedRecipeTypeId) {
+      params.set('recipe_type', this.selectedRecipeTypeId);
     }
     if (this.search) {
       params.set('search', this.search);
@@ -127,10 +127,10 @@
       // Filtre de recherche textuelle
       const matchesSearch = this.search === '' || r.name.toLowerCase().includes(this.search.toLowerCase());
 
-      // Filtre par type d'événement
-      let matchesEventType = this.selectedEventTypeId === null;
-      if (!matchesEventType && r.event_types) {
-        matchesEventType = r.event_types.some(et => et.id === this.selectedEventTypeId);
+      // Filtre par type de recette
+      let matchesEventType = this.selectedRecipeTypeId === null;
+      if (!matchesEventType && r.recipe_types) {
+        matchesEventType = r.recipe_types.some(rt => rt.id === this.selectedRecipeTypeId);
       }
 
       // Filtre par catégories (si des catégories sont sélectionnées)
@@ -211,8 +211,8 @@
     if (this.selectedTags.length > 0) {
       params.set('tags', this.selectedTags.join(','));
     }
-    if (this.selectedEventTypeId) {
-      params.set('event_type', this.selectedEventTypeId);
+    if (this.selectedRecipeTypeId) {
+      params.set('recipe_type', this.selectedRecipeTypeId);
     }
     if (this.search) {
       params.set('search', this.search);
@@ -235,8 +235,8 @@
     if (this.selectedTags.length > 0) {
       params.set('tags', this.selectedTags.join(','));
     }
-    if (this.selectedEventTypeId) {
-      params.set('event_type', this.selectedEventTypeId);
+    if (this.selectedRecipeTypeId) {
+      params.set('recipe_type', this.selectedRecipeTypeId);
     }
     if (this.search) {
       params.set('search', this.search);
@@ -447,20 +447,20 @@
     </div>
   </div>
 
-  <!-- Filtres rapides par type d'événement -->
+  <!-- Filtres rapides par type de recette -->
   <div class="mb-4 flex gap-2 flex-wrap">
     <button
-      @click="selectedEventTypeId = null; updateURL()"
-      :class="selectedEventTypeId === null ? 'bg-gray-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'"
+      @click="selectedRecipeTypeId = null; updateURL()"
+      :class="selectedRecipeTypeId === null ? 'bg-gray-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'"
       class="px-4 py-2 rounded-lg font-medium transition-colors">
       {{ 'Toutes' if lang == 'fr' else 'すべて' }}
     </button>
-    <template x-for="eventType in eventTypes" :key="eventType.id">
+    <template x-for="rt in recipeTypes" :key="rt.id">
       <button
-        @click="selectedEventTypeId = eventType.id; updateURL()"
-        :class="selectedEventTypeId === eventType.id ? 'bg-purple-600 text-white' : 'bg-purple-100 text-purple-700 hover:bg-purple-200'"
+        @click="selectedRecipeTypeId = rt.id; updateURL()"
+        :class="selectedRecipeTypeId === rt.id ? 'bg-indigo-600 text-white' : 'bg-indigo-100 text-indigo-700 hover:bg-indigo-200'"
         class="px-4 py-2 rounded-lg font-medium transition-colors"
-        x-text="lang === 'jp' ? eventType.name_jp : eventType.name_fr">
+        x-text="lang === 'jp' ? rt.name_jp : rt.name_fr">
       </button>
     </template>
   </div>
@@ -590,10 +590,12 @@
             <span x-text="r.creator_name"></span>
           </div>
 
-          <!-- Type de recette / Prestation -->
-          <div x-show="r.type" class="flex items-center text-xs text-gray-500 mb-2">
-            <span class="mr-1">📋</span>
-            <span x-text="r.type"></span>
+          <!-- Types de recette -->
+          <div x-show="r.recipe_types && r.recipe_types.length > 0" class="flex flex-wrap gap-1 mb-2">
+            <template x-for="rt in r.recipe_types" :key="rt.id">
+              <span class="inline-block px-2 py-0.5 bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300 text-xs rounded-full font-medium"
+                    x-text="lang === 'jp' ? rt.name_jp : rt.name_fr"></span>
+            </template>
           </div>
 
           <div class="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400 mb-3 flex-wrap gap-1">
@@ -607,13 +609,18 @@
             </div>
           </div>
 
-          <!-- Event type badges -->
-          <div x-show="r.event_types && r.event_types.length > 0" class="flex flex-wrap gap-1 mb-3">
-            <template x-for="eventType in r.event_types" :key="eventType.id">
-              <span class="inline-block px-2 py-0.5 bg-purple-100 text-purple-700 text-xs rounded-full"
-                    x-text="lang === 'jp' ? eventType.name_jp : eventType.name_fr"></span>
-            </template>
+          <!-- Badges statut -->
+          <div class="flex flex-wrap gap-1 mb-2">
+            <span x-show="!r.has_other_lang"
+                  class="inline-flex items-center gap-1 px-2 py-0.5 bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300 text-xs rounded-full font-medium">
+              🌐 <span>{{ 'À traduire' if lang == 'fr' else '要翻訳' }}</span>
+            </span>
+            <span x-show="!r.ingredient_count || !r.step_count"
+                  class="inline-flex items-center gap-1 px-2 py-0.5 bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300 text-xs rounded-full font-medium">
+              ⚠️ <span>{{ 'À compléter' if lang == 'fr' else '要完成' }}</span>
+            </span>
           </div>
+
 
           <!-- Actions -->
           <div class="flex justify-end">
@@ -714,11 +721,33 @@
                   :alt="r.name"
                   class="w-12 h-12 object-cover rounded"
                 >
-                <span class="font-medium text-gray-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400" x-text="r.name"></span>
+                <div>
+                  <span class="font-medium text-gray-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400" x-text="r.name"></span>
+                  <div class="flex flex-wrap gap-1 mt-0.5">
+                    <span x-show="!r.has_other_lang"
+                          class="inline-flex items-center gap-1 px-1.5 py-0.5 bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300 text-xs rounded-full font-medium">
+                      🌐 <span>{{ 'À traduire' if lang == 'fr' else '要翻訳' }}</span>
+                    </span>
+                    <span x-show="!r.ingredient_count || !r.step_count"
+                          class="inline-flex items-center gap-1 px-1.5 py-0.5 bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300 text-xs rounded-full font-medium">
+                      ⚠️ <span>{{ 'À compléter' if lang == 'fr' else '要完成' }}</span>
+                    </span>
+                  </div>
+                </div>
               </a>
             </td>
             <td class="px-4 py-3 text-sm text-gray-500 dark:text-gray-400 hidden sm:table-cell">
-              <span x-text="r.type || '-'"></span>
+              <template x-if="r.recipe_types && r.recipe_types.length > 0">
+                <div class="flex flex-wrap gap-1">
+                  <template x-for="rt in r.recipe_types" :key="rt.id">
+                    <span class="inline-block px-2 py-0.5 bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300 text-xs rounded-full font-medium"
+                          x-text="lang === 'jp' ? rt.name_jp : rt.name_fr"></span>
+                  </template>
+                </div>
+              </template>
+              <template x-if="!r.recipe_types || r.recipe_types.length === 0">
+                <span>-</span>
+              </template>
             </td>
             <td class="px-4 py-3 text-sm text-gray-500 dark:text-gray-400 hidden md:table-cell">
               <span x-text="r.creator_name || '-'"></span>

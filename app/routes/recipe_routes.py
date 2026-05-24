@@ -25,11 +25,11 @@ async def recipes_list(request: Request, lang: str = Query("fr"), creator_id: Op
     user_id_filter = int(creator_id) if creator_id and creator_id.strip() else None
     rows = db.list_recipes(lang, user_id=user_id_filter)
 
-    # Enrichir chaque recette avec ses catégories, tags et types d'événements
+    # Enrichir chaque recette avec ses catégories, tags et types de recette
     for recipe in rows:
         recipe['categories'] = db.get_recipe_categories(recipe['id'])
         recipe['tags'] = db.get_recipe_tags(recipe['id'])
-        recipe['event_types'] = db.get_recipe_event_types(recipe['id'])
+        recipe['recipe_types'] = db.get_recipe_recipe_types(recipe['id'])
 
     # Récupérer la liste des utilisateurs pour le filtre
     users = db.list_users()
@@ -92,11 +92,11 @@ async def recipe_detail(request: Request, slug: str, lang: str = Query("fr"), ev
 # Fenêtre d'import CSV
 # --------------------------------------------------------------------
 @router.get("/import", response_class=HTMLResponse)
-async def import_form(request: Request, lang: str = Query("fr")):
+async def import_form(request: Request, lang: str = Query("fr"), target_slug: Optional[str] = Query(None)):
     """Affiche le formulaire d'import"""
     return templates.TemplateResponse(
         "import_recipes.html",
-        {"request": request, "lang": lang, "message": None}
+        {"request": request, "lang": lang, "message": None, "target_slug": target_slug or ""}
     )
 
 @router.post("/import", response_class=HTMLResponse)
@@ -811,17 +811,26 @@ async def api_set_recipe_tags(recipe_id: int, request: Request):
 
 @router.get("/api/recipes/{recipe_id}/event-types")
 async def api_get_recipe_event_types(recipe_id: int):
-    """Récupère les types d'événements d'une recette spécifique"""
     return db.get_recipe_event_types(recipe_id)
 
 
 @router.post("/api/recipes/{recipe_id}/event-types")
 async def api_set_recipe_event_types(recipe_id: int, request: Request):
-    """Définit les types d'événements d'une recette"""
     data = await request.json()
-    event_type_ids = data.get('event_type_ids', [])
-    db.set_recipe_event_types(recipe_id, event_type_ids)
-    return {"status": "ok", "message": "Event types updated"}
+    db.set_recipe_event_types(recipe_id, data.get('event_type_ids', []))
+    return {"status": "ok"}
+
+
+@router.get("/api/recipes/{recipe_id}/recipe-types")
+async def api_get_recipe_recipe_types(recipe_id: int):
+    return db.get_recipe_recipe_types(recipe_id)
+
+
+@router.post("/api/recipes/{recipe_id}/recipe-types")
+async def api_set_recipe_recipe_types(recipe_id: int, request: Request):
+    data = await request.json()
+    db.set_recipe_recipe_types(recipe_id, data.get('recipe_type_ids', []))
+    return {"status": "ok"}
 
 
 @router.post("/api/categories")
@@ -992,6 +1001,40 @@ async def api_delete_event_type(event_type_id: int):
         )
 
 
+@router.get("/api/recipe-types")
+async def api_get_recipe_types():
+    return db.get_all_recipe_types()
+
+
+@router.post("/api/recipe-types")
+async def api_create_recipe_type(request: Request):
+    data = await request.json()
+    recipe_type_id = db.create_recipe_type(
+        name_fr=data.get('name_fr'),
+        name_jp=data.get('name_jp', ''),
+        description=data.get('description', '')
+    )
+    return {"status": "ok", "recipe_type_id": recipe_type_id}
+
+
+@router.put("/api/recipe-types/{recipe_type_id}")
+async def api_update_recipe_type(recipe_type_id: int, request: Request):
+    data = await request.json()
+    db.update_recipe_type_entry(
+        recipe_type_id=recipe_type_id,
+        name_fr=data.get('name_fr'),
+        name_jp=data.get('name_jp'),
+        description=data.get('description')
+    )
+    return {"status": "ok"}
+
+
+@router.delete("/api/recipe-types/{recipe_type_id}")
+async def api_delete_recipe_type(recipe_type_id: int):
+    db.delete_recipe_type(recipe_type_id)
+    return {"status": "ok"}
+
+
 @router.get("/admin/tags", response_class=HTMLResponse)
 async def tags_admin_page(request: Request, lang: str = Query("fr")):
     """Page d'administration des tags et catégories"""
@@ -1057,12 +1100,10 @@ async def api_search_recipes_by_ingredients(
 
     results = db.search_recipes_by_ingredients(ingredient_list, lang)
 
-    # Enrichir avec les catégories, tags et event types
     for recipe in results:
         recipe['categories'] = db.get_recipe_categories(recipe['id'])
         recipe['tags'] = db.get_recipe_tags(recipe['id'])
-        recipe['event_types'] = db.get_recipe_event_types(recipe['id'])
-        # Ajouter le nom du créateur si disponible
+        recipe['recipe_types'] = db.get_recipe_recipe_types(recipe['id'])
         recipe['creator_name'] = None
 
     return results
@@ -1146,69 +1187,73 @@ async def save_pdf_recipe(request: Request, lang: str = Query("fr")):
     data = await request.json()
 
     try:
-        # Créer le slug depuis le nom
         import re
         import unicodedata
 
         def create_slug(text: str) -> str:
-            # Normaliser et convertir en ASCII
             text = unicodedata.normalize('NFKD', text)
             text = text.encode('ascii', 'ignore').decode('ascii')
-            # Convertir en minuscules et remplacer espaces par tirets
             text = text.lower()
             text = re.sub(r'[^a-z0-9]+', '-', text)
             text = text.strip('-')
-            return text[:50]  # Limiter à 50 caractères
+            return text[:50]
 
-        # Déterminer la langue de la recette
         recipe_lang = data.get('detected_language', lang)
-
-        # Créer le slug
         recipe_name = data.get('name', 'recette-importee')
-        slug = create_slug(recipe_name)
+        servings = data.get('servings', 4)
+        country = data.get('country', '')
+        prep_time = int(data.get('prep_time') or 0)
+        cook_time = int(data.get('cook_time') or 0)
+        recipe_type = data.get('recipe_type', 'PERSO')
+        user_id = request.session.get('user_id')
+        target_slug = data.get('target_slug', '')
 
-        # Si le slug est vide, trop court, ou composé uniquement de chiffres, utiliser un slug par défaut
-        if not slug or len(slug) < 2 or slug.isdigit():
-            slug = 'recipe-import'
-
-        # Connexion à la base
         con = sqlite3.connect(DB_PATH)
         cur = con.cursor()
 
         try:
-            # Vérifier que le slug n'existe pas déjà
-            cur.execute("SELECT id FROM recipe WHERE slug = ?", (slug,))
-            if cur.fetchone():
-                # Ajouter un suffixe numérique
-                counter = 1
-                while True:
-                    test_slug = f"{slug}-{counter}"
-                    cur.execute("SELECT id FROM recipe WHERE slug = ?", (test_slug,))
-                    if not cur.fetchone():
-                        slug = test_slug
-                        break
-                    counter += 1
-
-            # Créer la recette
-            servings = data.get('servings', 4)
-            country = data.get('country', '')
-            prep_time = int(data.get('prep_time') or 0)
-            cook_time = int(data.get('cook_time') or 0)
-            recipe_type = data.get('recipe_type', 'PERSO')
-            user_id = request.session.get('user_id')  # Récupérer l'utilisateur connecté
-
-            cur.execute(
-                "INSERT INTO recipe (slug, country, servings_default, prep_time, cook_time, user_id) VALUES (?, ?, ?, ?, ?, ?)",
-                (slug, country, servings, prep_time, cook_time, user_id)
-            )
-            recipe_id = cur.lastrowid
-
-            # Ajouter la traduction de la recette dans la langue détectée UNIQUEMENT
-            # L'autre langue restera vide, permettant d'utiliser la traduction automatique
-            cur.execute(
-                "INSERT INTO recipe_translation (recipe_id, lang, name, recipe_type) VALUES (?, ?, ?, ?)",
-                (recipe_id, recipe_lang, recipe_name, recipe_type)
-            )
+            if target_slug:
+                # Mode remplissage : recette vide existante
+                cur.execute("SELECT id FROM recipe WHERE slug = ?", (target_slug,))
+                row = cur.fetchone()
+                if not row:
+                    return JSONResponse({"success": False, "error": "Recette introuvable"}, status_code=404)
+                recipe_id = row[0]
+                cur.execute("SELECT COUNT(*) FROM recipe_ingredient WHERE recipe_id = ?", (recipe_id,))
+                if cur.fetchone()[0] > 0:
+                    return JSONResponse({"success": False, "error": "La recette n'est pas vide"}, status_code=400)
+                cur.execute("SELECT COUNT(*) FROM step WHERE recipe_id = ?", (recipe_id,))
+                if cur.fetchone()[0] > 0:
+                    return JSONResponse({"success": False, "error": "La recette n'est pas vide"}, status_code=400)
+                cur.execute(
+                    "UPDATE recipe SET country=?, servings_default=?, prep_time=?, cook_time=? WHERE id=?",
+                    (country, servings, prep_time, cook_time, recipe_id)
+                )
+                slug = target_slug
+            else:
+                # Mode création : nouvelle recette
+                slug = create_slug(recipe_name)
+                if not slug or len(slug) < 2 or slug.isdigit():
+                    slug = 'recipe-import'
+                cur.execute("SELECT id FROM recipe WHERE slug = ?", (slug,))
+                if cur.fetchone():
+                    counter = 1
+                    while True:
+                        test_slug = f"{slug}-{counter}"
+                        cur.execute("SELECT id FROM recipe WHERE slug = ?", (test_slug,))
+                        if not cur.fetchone():
+                            slug = test_slug
+                            break
+                        counter += 1
+                cur.execute(
+                    "INSERT INTO recipe (slug, country, servings_default, prep_time, cook_time, user_id) VALUES (?, ?, ?, ?, ?, ?)",
+                    (slug, country, servings, prep_time, cook_time, user_id)
+                )
+                recipe_id = cur.lastrowid
+                cur.execute(
+                    "INSERT INTO recipe_translation (recipe_id, lang, name, recipe_type) VALUES (?, ?, ?, ?)",
+                    (recipe_id, recipe_lang, recipe_name, recipe_type)
+                )
 
             # Ajouter les ingrédients
             for position, ing in enumerate(data.get('ingredients', []), 1):
@@ -1277,11 +1322,11 @@ async def save_pdf_recipe(request: Request, lang: str = Query("fr")):
 # ============================================================================
 
 @router.get("/import-url", response_class=HTMLResponse)
-async def import_url_form(request: Request, lang: str = Query("fr")):
+async def import_url_form(request: Request, lang: str = Query("fr"), target_slug: Optional[str] = Query(None)):
     """Affiche le formulaire d'import depuis URL"""
     return templates.TemplateResponse(
         "import_url.html",
-        {"request": request, "lang": lang}
+        {"request": request, "lang": lang, "target_slug": target_slug or ""}
     )
 
 
@@ -1326,83 +1371,83 @@ async def save_url_recipe(request: Request, lang: str = Query("fr")):
     data = await request.json()
 
     try:
-        # Créer le slug depuis le nom
         import re
         import unicodedata
 
         def create_slug(text: str) -> str:
-            # Normaliser et convertir en ASCII
             text = unicodedata.normalize('NFKD', text)
             text = text.encode('ascii', 'ignore').decode('ascii')
-            # Convertir en minuscules et remplacer espaces par tirets
             text = text.lower()
             text = re.sub(r'[^a-z0-9]+', '-', text)
             text = text.strip('-')
-            return text[:50]  # Limiter à 50 caractères
+            return text[:50]
 
-        # Créer le slug
         recipe_name = data.get('name', 'recette-importee')
-        slug = create_slug(recipe_name)
+        target_lang = data.get('target_lang', lang)
+        servings = data.get('servings', 4)
+        country = data.get('country', '')
+        prep_time = int(data.get('prep_time') or 0)
+        cook_time = int(data.get('cook_time') or 0)
+        user_id = request.session.get('user_id')
+        recipe_type_text = data.get('recipe_type', 'autre')
+        recipe_type_map = {
+            'apéritif': 'PERSO', 'entrée': 'PERSO',
+            'plat': 'PERSO', 'dessert': 'PERSO', 'autre': 'PERSO'
+        }
+        recipe_type = recipe_type_map.get(recipe_type_text.lower(), 'PERSO')
+        description = data.get('description', '')
+        target_slug = data.get('target_slug', '')
 
-        # Si le slug est vide, trop court, ou composé uniquement de chiffres, utiliser un slug par défaut
-        if not slug or len(slug) < 2 or slug.isdigit():
-            slug = 'recipe-import'
-
-        # Connexion à la base
         con = sqlite3.connect(DB_PATH)
         cur = con.cursor()
 
         try:
-            # Vérifier que le slug n'existe pas déjà
-            cur.execute("SELECT id FROM recipe WHERE slug = ?", (slug,))
-            if cur.fetchone():
-                # Ajouter un suffixe numérique
-                counter = 1
-                while True:
-                    test_slug = f"{slug}-{counter}"
-                    cur.execute("SELECT id FROM recipe WHERE slug = ?", (test_slug,))
-                    if not cur.fetchone():
-                        slug = test_slug
-                        break
-                    counter += 1
-
-            # Récupérer la langue cible depuis les données
-            target_lang = data.get('target_lang', lang)
-
-            # Créer la recette
-            servings = data.get('servings', 4)
-            country = data.get('country', '')
-            prep_time = int(data.get('prep_time') or 0)
-            cook_time = int(data.get('cook_time') or 0)
-            user_id = request.session.get('user_id')  # Récupérer l'utilisateur connecté
-
-            # Mapper recipe_type depuis le format texte vers le format DB
-            recipe_type_text = data.get('recipe_type', 'autre')
-            recipe_type_map = {
-                'apéritif': 'PERSO',
-                'entrée': 'PERSO',
-                'plat': 'PERSO',
-                'dessert': 'PERSO',
-                'autre': 'PERSO'
-            }
-            recipe_type = recipe_type_map.get(recipe_type_text.lower(), 'PERSO')
-
-            cur.execute(
-                """INSERT INTO recipe
-                   (slug, country, servings_default, prep_time, cook_time, user_id)
-                   VALUES (?, ?, ?, ?, ?, ?)""",
-                (slug, country, servings, prep_time, cook_time, user_id)
-            )
-            recipe_id = cur.lastrowid
-
-            # Ajouter la traduction de la recette dans la langue cible
-            description = data.get('description', '')
-            cur.execute(
-                """INSERT INTO recipe_translation
-                   (recipe_id, lang, name, recipe_type, description)
-                   VALUES (?, ?, ?, ?, ?)""",
-                (recipe_id, target_lang, recipe_name, recipe_type, description)
-            )
+            if target_slug:
+                # Mode remplissage : recette vide existante
+                cur.execute("SELECT id FROM recipe WHERE slug = ?", (target_slug,))
+                row = cur.fetchone()
+                if not row:
+                    return JSONResponse({"success": False, "error": "Recette introuvable"}, status_code=404)
+                recipe_id = row[0]
+                cur.execute("SELECT COUNT(*) FROM recipe_ingredient WHERE recipe_id = ?", (recipe_id,))
+                if cur.fetchone()[0] > 0:
+                    return JSONResponse({"success": False, "error": "La recette n'est pas vide"}, status_code=400)
+                cur.execute("SELECT COUNT(*) FROM step WHERE recipe_id = ?", (recipe_id,))
+                if cur.fetchone()[0] > 0:
+                    return JSONResponse({"success": False, "error": "La recette n'est pas vide"}, status_code=400)
+                cur.execute(
+                    "UPDATE recipe SET country=?, servings_default=?, prep_time=?, cook_time=? WHERE id=?",
+                    (country, servings, prep_time, cook_time, recipe_id)
+                )
+                slug = target_slug
+            else:
+                # Mode création : nouvelle recette
+                slug = create_slug(recipe_name)
+                if not slug or len(slug) < 2 or slug.isdigit():
+                    slug = 'recipe-import'
+                cur.execute("SELECT id FROM recipe WHERE slug = ?", (slug,))
+                if cur.fetchone():
+                    counter = 1
+                    while True:
+                        test_slug = f"{slug}-{counter}"
+                        cur.execute("SELECT id FROM recipe WHERE slug = ?", (test_slug,))
+                        if not cur.fetchone():
+                            slug = test_slug
+                            break
+                        counter += 1
+                cur.execute(
+                    """INSERT INTO recipe
+                       (slug, country, servings_default, prep_time, cook_time, user_id)
+                       VALUES (?, ?, ?, ?, ?, ?)""",
+                    (slug, country, servings, prep_time, cook_time, user_id)
+                )
+                recipe_id = cur.lastrowid
+                cur.execute(
+                    """INSERT INTO recipe_translation
+                       (recipe_id, lang, name, recipe_type, description)
+                       VALUES (?, ?, ?, ?, ?)""",
+                    (recipe_id, target_lang, recipe_name, recipe_type, description)
+                )
 
             # Ajouter les ingrédients
             for position, ing in enumerate(data.get('ingredients', []), 1):
@@ -1474,11 +1519,11 @@ async def save_url_recipe(request: Request, lang: str = Query("fr")):
 # ============================================================================
 
 @router.get("/import-text", response_class=HTMLResponse)
-async def import_text_form(request: Request, lang: str = Query("fr")):
+async def import_text_form(request: Request, lang: str = Query("fr"), target_slug: Optional[str] = Query(None)):
     """Affiche le formulaire d'import depuis texte libre"""
     return templates.TemplateResponse(
         "import_text.html",
-        {"request": request, "lang": lang}
+        {"request": request, "lang": lang, "target_slug": target_slug or ""}
     )
 
 

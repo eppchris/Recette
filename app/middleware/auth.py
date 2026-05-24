@@ -39,9 +39,10 @@ class AuthMiddleware(BaseHTTPMiddleware):
         authenticated = request.session.get("authenticated", False)
 
         if not authenticated:
-            # Rediriger vers la page de login
+            # Rediriger vers la page de login en préservant la destination
             lang = request.query_params.get("lang", "fr")
-            return RedirectResponse(url=f"/login?lang={lang}", status_code=303)
+            next_path = request.url.path
+            return RedirectResponse(url=f"/login?lang={lang}&next={next_path}", status_code=303)
 
         # Utilisateur authentifié, continuer
         return await call_next(request)

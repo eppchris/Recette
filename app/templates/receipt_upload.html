@@ -13,7 +13,7 @@
     <script src="/static/css/tailwind.min.js"></script>
     <script defer src="/static/css/alpine.min.js"></script>
 </head>
-<body class="bg-gray-50" x-data="{ darkMode: false, uploading: false }">
+<body class="bg-gray-50" x-data="receiptUpload()" x-init="init()">
     <div :class="darkMode ? 'dark bg-gray-900' : 'bg-gray-50'" class="min-h-screen">
         <!-- Header -->
         <header class="bg-white dark:bg-gray-800 shadow-sm border-b border-gray-200 dark:border-gray-700">
@@ -91,23 +91,69 @@
                         </p>
                     </div>
 
-                    <!-- Sélection du fichier PDF -->
+                    <!-- Sélection du fichier ou collage -->
                     <div>
-                        <label for="pdf_file" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                            {{ 'Ticket de caisse PDF' if lang == 'fr' else 'レシートPDF' }} *
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                            {{ 'Ticket de caisse' if lang == 'fr' else 'レシート' }} *
                         </label>
+
+                        <!-- Zone de collage presse-papier -->
+                        <div
+                            @click="$refs.pasteZone.focus()"
+                            tabindex="0"
+                            x-ref="pasteZone"
+                            @paste.window="onPaste($event)"
+                            class="mb-3 border-2 border-dashed rounded-lg p-4 text-center cursor-pointer transition-colors"
+                            :class="pastedImage ? 'border-green-400 bg-green-50 dark:bg-green-900/20' : 'border-gray-300 dark:border-gray-600 hover:border-blue-400 bg-gray-50 dark:bg-gray-700'"
+                        >
+                            <!-- Aperçu de l'image collée -->
+                            <template x-if="pastedImage">
+                                <div class="space-y-2">
+                                    <img :src="pastedImage" class="max-h-48 mx-auto rounded shadow object-contain" />
+                                    <p class="text-sm text-green-700 dark:text-green-300 font-medium">
+                                        ✅ {{ 'Image collée depuis le presse-papier' if lang == 'fr' else 'クリップボードから画像を貼り付けました' }}
+                                    </p>
+                                    <button type="button" @click.stop="clearPasted()"
+                                        class="text-xs text-red-600 hover:underline">
+                                        {{ 'Supprimer' if lang == 'fr' else '削除' }}
+                                    </button>
+                                </div>
+                            </template>
+                            <template x-if="!pastedImage">
+                                <div class="py-2 text-gray-500 dark:text-gray-400">
+                                    <div class="text-2xl mb-1">📋</div>
+                                    <p class="text-sm font-medium">
+                                        {{ 'Coller une image ici (Ctrl+V / ⌘V)' if lang == 'fr' else 'ここに画像を貼り付け（Ctrl+V / ⌘V）' }}
+                                    </p>
+                                    <p class="text-xs mt-1">{{ 'PNG, JPEG, WebP acceptés' if lang == 'fr' else 'PNG、JPEG、WebP対応' }}</p>
+                                </div>
+                            </template>
+                        </div>
+
+                        <!-- Séparateur -->
+                        <div class="flex items-center gap-3 mb-3">
+                            <hr class="flex-1 border-gray-300 dark:border-gray-600">
+                            <span class="text-xs text-gray-400 uppercase">{{ 'ou' if lang == 'fr' else 'または' }}</span>
+                            <hr class="flex-1 border-gray-300 dark:border-gray-600">
+                        </div>
+
+                        <!-- Fichier PDF -->
                         <input type="file"
                                id="pdf_file"
                                name="pdf_file"
-                               accept="application/pdf"
-                               required
+                               accept="application/pdf,image/png,image/jpeg,image/webp"
+                               :required="!pastedImage"
+                               @change="onFileSelect($event)"
                                class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white
                                       file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold
                                       file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100
                                       dark:file:bg-blue-900 dark:file:text-blue-300">
                         <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                            {{ 'Format accepté : PDF uniquement' if lang == 'fr' else '対応フォーマット：PDFのみ' }}
+                            {{ 'Formats acceptés : PDF, PNG, JPEG' if lang == 'fr' else '対応フォーマット：PDF、PNG、JPEG' }}
                         </p>
+
+                        <!-- Input caché pour l'image collée -->
+                        <input type="file" id="pasted_file_input" name="pdf_file" x-ref="pastedFileInput" class="hidden" accept="image/*">
                     </div>
 
                     <!-- Instructions -->
@@ -116,7 +162,7 @@
                             ℹ️ {{ 'Comment ça marche ?' if lang == 'fr' else '使い方' }}
                         </h3>
                         <ol class="text-sm text-blue-800 dark:text-blue-300 space-y-2 list-decimal list-inside">
-                            <li>{{ 'Uploadez votre ticket de caisse en PDF' if lang == 'fr' else 'PDFレシートをアップロード' }}</li>
+                            <li>{{ 'Uploadez votre ticket (PDF, PNG, JPEG) ou collez une photo depuis le presse-papier' if lang == 'fr' else 'レシートをアップロード（PDF・PNG・JPEG）またはクリップボードから写真を貼り付け' }}</li>
                             <li>{{ 'L\'application extrait automatiquement les articles et leurs prix' if lang == 'fr' else 'アプリが自動的にアイテムと価格を抽出' }}</li>
                             <li>{{ 'Les articles sont associés intelligemment aux ingrédients du catalogue' if lang == 'fr' else 'アイテムがカタログの食材にスマートに関連付けられます' }}</li>
                             <li>{{ 'Vous validez les correspondances proposées' if lang == 'fr' else '提案された対応を確認' }}</li>
@@ -131,6 +177,7 @@
                             {{ 'Annuler' if lang == 'fr' else 'キャンセル' }}
                         </a>
                         <button type="submit"
+                                @click.prevent="submitForm($event)"
                                 :disabled="uploading"
                                 class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center gap-2">
                             <span x-show="!uploading">📤 {{ 'Uploader et analyser' if lang == 'fr' else 'アップロードして分析' }}</span>
@@ -154,7 +201,7 @@
                 <ul class="text-sm text-gray-700 dark:text-gray-300 space-y-2">
                     <li class="flex gap-2">
                         <span>✓</span>
-                        <span>{{ 'Assurez-vous que le PDF est lisible (pas d\'image scannée floue)' if lang == 'fr' else 'PDFが読みやすいことを確認してください（ぼやけたスキャン画像ではない）' }}</span>
+                        <span>{{ 'Assurez-vous que le fichier ou la photo est bien lisible (texte net, bonne luminosité)' if lang == 'fr' else 'ファイルまたは写真が読みやすいことを確認してください（テキストが鮮明で明るい）' }}</span>
                     </li>
                     <li class="flex gap-2">
                         <span>✓</span>
@@ -168,5 +215,95 @@
             </div>
         </main>
     </div>
+<script>
+function receiptUpload() {
+  return {
+    darkMode: false,
+    uploading: false,
+    pastedImage: null,
+    pastedBlob: null,
+
+    init() {},
+
+    onPaste(event) {
+      const items = event.clipboardData?.items;
+      if (!items) return;
+      for (const item of items) {
+        if (item.type.startsWith('image/')) {
+          event.preventDefault();
+          const blob = item.getAsFile();
+          this.pastedBlob = blob;
+          this.pastedImage = URL.createObjectURL(blob);
+          // Vider la sélection de fichier si une image est collée
+          document.getElementById('pdf_file').value = '';
+          break;
+        }
+      }
+    },
+
+    onFileSelect(event) {
+      if (event.target.files.length > 0) {
+        // Si un fichier est sélectionné, effacer l'image collée
+        this.clearPasted();
+      }
+    },
+
+    clearPasted() {
+      if (this.pastedImage) URL.revokeObjectURL(this.pastedImage);
+      this.pastedImage = null;
+      this.pastedBlob = null;
+    },
+
+    async submitForm(event) {
+      const form = event.target.closest('form');
+      const nameInput = document.getElementById('receipt_name');
+      const fileInput = document.getElementById('pdf_file');
+
+      // Vérifier qu'on a soit un fichier soit une image collée
+      if (!this.pastedBlob && (!fileInput.files || fileInput.files.length === 0)) {
+        alert('{{ "Veuillez sélectionner un fichier ou coller une image" if lang == "fr" else "ファイルを選択するか、画像を貼り付けてください" }}');
+        return;
+      }
+
+      this.uploading = true;
+
+      const formData = new FormData();
+      formData.append('lang', '{{ lang }}');
+      if (nameInput && nameInput.value) formData.append('receipt_name', nameInput.value);
+
+      if (this.pastedBlob) {
+        // Image collée depuis le presse-papier
+        const ext = this.pastedBlob.type.includes('png') ? 'png' : 'jpg';
+        formData.append('pdf_file', this.pastedBlob, `pasted_receipt.${ext}`);
+      } else {
+        // Fichier sélectionné
+        formData.append('pdf_file', fileInput.files[0]);
+      }
+
+      try {
+        const response = await fetch('/receipt-upload', {
+          method: 'POST',
+          body: formData
+        });
+
+        // Suivre la redirection ou afficher la réponse HTML
+        if (response.redirected) {
+          window.location.href = response.url;
+        } else {
+          // La réponse est du HTML (erreur ou page de résultat)
+          const html = await response.text();
+          document.open();
+          document.write(html);
+          document.close();
+        }
+      } catch (err) {
+        console.error('Erreur upload:', err);
+        this.uploading = false;
+        alert('{{ "Erreur lors de l\'envoi" if lang == "fr" else "送信エラー" }}');
+      }
+    }
+  };
+}
+</script>
 </body>
 </html>
