@@ -455,6 +455,8 @@ def get_event_recipes_with_ingredients(event_id: int, lang: str):
                 r.id AS recipe_id,
                 r.slug AS recipe_slug,
                 r.servings_default,
+                r.image_url,
+                r.thumbnail_url,
                 COALESCE(rt.name, r.slug) AS recipe_name,
                 er.servings_multiplier AS manual_multiplier,
                 e.attendees AS event_attendees,
@@ -501,6 +503,8 @@ def get_event_recipes_with_ingredients(event_id: int, lang: str):
                     'recipe_id': recipe_id,
                     'recipe_slug': row['recipe_slug'],
                     'recipe_name': row['recipe_name'],
+                    'image_url': row['image_url'],
+                    'thumbnail_url': row['thumbnail_url'],
                     'servings_multiplier': final_multiplier,  # Multiplicateur calculé automatiquement
                     'servings_default': servings_default,  # Pour information
                     'event_attendees': event_attendees,  # Pour information

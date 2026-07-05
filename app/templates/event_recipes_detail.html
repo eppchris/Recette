@@ -90,29 +90,41 @@
       </div>
 
       <!-- En-tête de la recette -->
-      <div class="bg-gradient-to-r from-blue-600 to-blue-700 px-6 py-4 text-white">
-        <div class="flex items-start justify-between gap-4">
-          <div>
-            <p class="text-blue-200 text-sm font-medium mb-1">
-              {{ loop.index }}/{{ recipes | length }}
-            </p>
-            <h2 class="text-2xl font-bold leading-tight">{{ recipe.recipe_name }}</h2>
-          </div>
-          <div class="text-right shrink-0">
-            <p class="text-3xl font-bold">{{ recipe.event_attendees }}</p>
-            <p class="text-blue-200 text-sm">{{ 'personnes' if lang == 'fr' else '名' }}</p>
+      <div class="relative bg-gradient-to-r from-blue-600 to-blue-700 text-white overflow-hidden">
+        {% if recipe.image_url or recipe.thumbnail_url %}
+        <img src="{{ recipe.thumbnail_url or recipe.image_url }}"
+             alt="{{ recipe.recipe_name }}"
+             class="absolute inset-0 w-full h-full object-cover opacity-20">
+        {% endif %}
+        <div class="relative px-6 py-4">
+          <div class="flex items-start gap-4">
+            <!-- Photo (si disponible) -->
+            {% if recipe.image_url or recipe.thumbnail_url %}
+            <img src="{{ recipe.thumbnail_url or recipe.image_url }}"
+                 alt="{{ recipe.recipe_name }}"
+                 class="w-20 h-20 rounded-lg object-cover shrink-0 shadow-md border-2 border-white/30">
+            {% endif %}
+            <div class="flex-1 min-w-0">
+              <p class="text-blue-200 text-sm font-medium mb-1">
+                {{ loop.index }}/{{ recipes | length }}
+              </p>
+              <h2 class="text-2xl font-bold leading-tight">{{ recipe.recipe_name }}</h2>
+              <!-- Info portions -->
+              <p class="text-blue-100 text-sm mt-1">
+                {% if lang == 'fr' %}
+                  Base {{ recipe.servings_default }} portion{{ 's' if recipe.servings_default > 1 else '' }}
+                  → ×{{ "%.2g"|format(recipe.servings_multiplier) }} pour {{ recipe.event_attendees }} personnes
+                {% else %}
+                  基準 {{ recipe.servings_default }}人分 → ×{{ "%.2g"|format(recipe.servings_multiplier) }}（{{ recipe.event_attendees }}名分）
+                {% endif %}
+              </p>
+            </div>
+            <div class="text-right shrink-0">
+              <p class="text-3xl font-bold">{{ recipe.event_attendees }}</p>
+              <p class="text-blue-200 text-sm">{{ 'personnes' if lang == 'fr' else '名' }}</p>
+            </div>
           </div>
         </div>
-
-        <!-- Info portions -->
-        <p class="text-blue-100 text-sm mt-2">
-          {% if lang == 'fr' %}
-            Base {{ recipe.servings_default }} portion{{ 's' if recipe.servings_default > 1 else '' }}
-            → ×{{ "%.2g"|format(recipe.servings_multiplier) }} pour {{ recipe.event_attendees }} personnes
-          {% else %}
-            基準 {{ recipe.servings_default }}人分 → ×{{ "%.2g"|format(recipe.servings_multiplier) }}（{{ recipe.event_attendees }}名分）
-          {% endif %}
-        </p>
       </div>
 
       <!-- Corps de la recette -->
