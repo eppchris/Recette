@@ -598,6 +598,56 @@ async def event_shopping_list(request: Request, event_id: int, lang: str = "fr",
 
 
 # ============================================================================
+# Détail des recettes imprimable
+# ============================================================================
+
+@router.get("/events/{event_id}/recipes-detail", response_class=HTMLResponse)
+async def event_recipes_detail(request: Request, event_id: int, lang: str = "fr"):
+    """Page d'impression des recettes avec quantités ajustées au nombre d'invités"""
+    event = db.get_event_by_id(event_id)
+    if not event:
+        raise HTTPException(status_code=404, detail="Événement non trouvé")
+    _check_event_access(event, request)
+
+    recipes = db.get_event_recipes_with_ingredients(event_id, lang)
+
+    # Récupérer les étapes pour chaque recette
+    from app.models.db_core import get_db as _get_db
+    recipe_ids = [r['recipe_id'] for r in recipes]
+    steps_by_recipe = {}
+    if recipe_ids:
+        with _get_db() as con:
+            placeholders = ','.join('?' * len(recipe_ids))
+            sql = f"""
+                SELECT s.recipe_id, s.position, COALESCE(st.text, '') AS text
+                FROM step s
+                LEFT JOIN step_translation st ON st.step_id = s.id AND st.lang = ?
+                WHERE s.recipe_id IN ({placeholders}) AND s.type != 'tip'
+                ORDER BY s.recipe_id, s.position
+            """
+            rows = con.execute(sql, [lang] + recipe_ids).fetchall()
+            for row in rows:
+                rid = row['recipe_id']
+                if rid not in steps_by_recipe:
+                    steps_by_recipe[rid] = []
+                if row['text']:
+                    steps_by_recipe[rid].append(row['text'])
+
+    for recipe in recipes:
+        recipe['steps'] = steps_by_recipe.get(recipe['recipe_id'], [])
+
+    return templates.TemplateResponse(
+        "event_recipes_detail.html",
+        {
+            "request": request,
+            "lang": lang,
+            "event": event,
+            "recipes": recipes,
+        }
+    )
+
+
+# ============================================================================
 # Routes API JSON pour les types d'événements
 # ============================================================================
 

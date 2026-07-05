@@ -259,6 +259,18 @@
                 <span>📅</span><span>{{ 'Organisation' if lang == 'fr' else '企画' }}</span>
             </span>
             {% endif %}
+            <!-- Détail des recettes -->
+            {% if recipes %}
+            <a href="/events/{{ event.id }}/recipes-detail?lang={{ lang }}"
+               class="inline-flex items-center gap-2 px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 font-medium text-sm">
+                <span>🖨️</span><span>{{ 'Détail des recettes' if lang == 'fr' else 'レシピ詳細' }}</span>
+            </a>
+            {% else %}
+            <span class="inline-flex items-center gap-2 px-4 py-2 bg-teal-300 dark:bg-teal-900/40 text-white rounded-lg font-medium text-sm opacity-50 cursor-not-allowed"
+                  title="{{ 'Ajoutez d\'abord des recettes' if lang == 'fr' else 'まずレシピを追加してください' }}">
+                <span>🖨️</span><span>{{ 'Détail des recettes' if lang == 'fr' else 'レシピ詳細' }}</span>
+            </span>
+            {% endif %}
             <!-- Copier -->
             <a href="/events/{{ event.id }}/copy?lang={{ lang }}"
                class="inline-flex items-center gap-2 px-4 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 font-medium text-sm">
@@ -291,6 +303,10 @@
             <span class="inline-flex items-center gap-2 px-4 py-2 bg-gray-300 dark:bg-gray-700 text-gray-500 dark:text-gray-400 rounded-lg font-medium text-sm opacity-60 cursor-not-allowed"
                   title="{{ 'Disponible après création de l\'événement' if lang == 'fr' else 'イベント作成後に利用可能' }}">
                 <span>📅</span><span>{{ 'Organisation' if lang == 'fr' else '企画' }}</span>
+            </span>
+            <span class="inline-flex items-center gap-2 px-4 py-2 bg-gray-300 dark:bg-gray-700 text-gray-500 dark:text-gray-400 rounded-lg font-medium text-sm opacity-60 cursor-not-allowed"
+                  title="{{ 'Disponible après création de l\'événement' if lang == 'fr' else 'イベント作成後に利用可能' }}">
+                <span>🖨️</span><span>{{ 'Détail des recettes' if lang == 'fr' else 'レシピ詳細' }}</span>
             </span>
             <span class="inline-flex items-center gap-2 px-4 py-2 bg-gray-300 dark:bg-gray-700 text-gray-500 dark:text-gray-400 rounded-lg font-medium text-sm opacity-60 cursor-not-allowed"
                   title="{{ 'Disponible après création de l\'événement' if lang == 'fr' else 'イベント作成後に利用可能' }}">

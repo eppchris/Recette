@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="{{ lang }}">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{ event.name }} — {{ 'Détail des recettes' if lang == 'fr' else 'レシピ詳細' }}</title>
+  <link rel="icon" type="image/x-icon" href="/static/favicon.ico?v=2">
+  <script src="/static/css/tailwind.min.js"></script>
+  <script defer src="/static/css/alpine.min.js"></script>
+  <script>tailwind.config = { darkMode: 'class' }</script>
+  <style>
+    [x-cloak] { display: none !important; }
+
+    /* ─── PRINT ─── */
+    @media print {
+      .no-print { display: none !important; }
+      .recipe-section {
+        page-break-after: always;
+        break-after: page;
+      }
+      .recipe-section:last-child {
+        page-break-after: auto;
+        break-after: auto;
+      }
+      .print-event-header { display: flex !important; }
+      body { font-size: 11pt; background: white; color: black; }
+      .ingredient-row:nth-child(even) { background-color: #f5f5f5; }
+      table { width: 100%; border-collapse: collapse; }
+      td, th { padding: 4pt 8pt; border-bottom: 0.5pt solid #ddd; }
+    }
+    @media screen {
+      .print-event-header { display: none; }
+    }
+  </style>
+</head>
+<body class="bg-gray-50 text-gray-900 min-h-screen" x-data="{ darkMode: localStorage.getItem('darkMode') === 'true' }" :class="{ 'dark bg-gray-900 text-gray-100': darkMode }">
+
+  <!-- ══════════════════════════════════════════
+       BARRE DE NAVIGATION (masquée à l'impression)
+  ══════════════════════════════════════════ -->
+  <div class="no-print sticky top-0 z-10 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 shadow-sm">
+    <div class="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between gap-4">
+
+      <!-- Retour -->
+      <a href="/events/{{ event.id }}?lang={{ lang }}"
+         class="inline-flex items-center gap-2 text-blue-600 dark:text-blue-400 hover:underline font-medium">
+        ← {{ event.name }}
+      </a>
+
+      <!-- Titre central -->
+      <div class="text-center hidden sm:block">
+        <p class="text-sm font-semibold text-gray-700 dark:text-gray-300">
+          {{ 'Détail des recettes' if lang == 'fr' else 'レシピ詳細' }}
+        </p>
+        <p class="text-xs text-gray-500 dark:text-gray-400">
+          {{ event.attendees }} {{ 'personnes' if lang == 'fr' else '名' }} ·
+          {{ recipes | length }} {{ 'recette' if lang == 'fr' else 'レシピ' }}{{ 's' if lang == 'fr' and recipes | length > 1 else '' }}
+        </p>
+      </div>
+
+      <!-- Bouton imprimer -->
+      <button onclick="window.print()"
+              class="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg text-sm transition">
+        🖨️ {{ 'Imprimer' if lang == 'fr' else '印刷' }}
+      </button>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════
+       CONTENU PRINCIPAL
+  ══════════════════════════════════════════ -->
+  <div class="max-w-5xl mx-auto px-4 py-6 space-y-8">
+
+    {% if not recipes %}
+    <div class="text-center py-20 text-gray-400">
+      <p class="text-5xl mb-4">📋</p>
+      <p class="text-lg">{{ "Aucune recette dans cet événement." if lang == 'fr' else 'このイベントにレシピがありません。' }}</p>
+    </div>
+    {% endif %}
+
+    {% for recipe in recipes %}
+    {# ── Quantité ajustée : qty_brute × multiplicateur_final ── #}
+
+    <div class="recipe-section bg-white dark:bg-gray-800 rounded-xl shadow-md overflow-hidden border border-gray-200 dark:border-gray-700">
+
+      <!-- En-tête visible uniquement à l'impression (identifie l'événement sur chaque page) -->
+      <div class="print-event-header items-center justify-between text-xs text-gray-500 px-6 pt-4 pb-0">
+        <span>{{ event.name }}{% if event.event_date %} · {{ event.event_date }}{% endif %}</span>
+        <span>{{ event.attendees }} {{ 'personnes' if lang == 'fr' else '名' }}</span>
+      </div>
+
+      <!-- En-tête de la recette -->
+      <div class="bg-gradient-to-r from-blue-600 to-blue-700 px-6 py-4 text-white">
+        <div class="flex items-start justify-between gap-4">
+          <div>
+            <p class="text-blue-200 text-sm font-medium mb-1">
+              {{ loop.index }}/{{ recipes | length }}
+            </p>
+            <h2 class="text-2xl font-bold leading-tight">{{ recipe.recipe_name }}</h2>
+          </div>
+          <div class="text-right shrink-0">
+            <p class="text-3xl font-bold">{{ recipe.event_attendees }}</p>
+            <p class="text-blue-200 text-sm">{{ 'personnes' if lang == 'fr' else '名' }}</p>
+          </div>
+        </div>
+
+        <!-- Info portions -->
+        <p class="text-blue-100 text-sm mt-2">
+          {% if lang == 'fr' %}
+            Base {{ recipe.servings_default }} portion{{ 's' if recipe.servings_default > 1 else '' }}
+            → ×{{ "%.2g"|format(recipe.servings_multiplier) }} pour {{ recipe.event_attendees }} personnes
+          {% else %}
+            基準 {{ recipe.servings_default }}人分 → ×{{ "%.2g"|format(recipe.servings_multiplier) }}（{{ recipe.event_attendees }}名分）
+          {% endif %}
+        </p>
+      </div>
+
+      <!-- Corps de la recette -->
+      <div class="p-6 grid grid-cols-1 md:grid-cols-2 gap-8 print:grid-cols-2">
+
+        <!-- ── INGRÉDIENTS ── -->
+        <div>
+          <h3 class="text-base font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wide mb-3 flex items-center gap-2">
+            <span>🥦</span>
+            {{ 'Ingrédients' if lang == 'fr' else '材料' }}
+          </h3>
+
+          {% if recipe.ingredients %}
+          <table class="w-full text-sm">
+            <thead>
+              <tr class="border-b-2 border-gray-200 dark:border-gray-600">
+                <th class="text-right pr-2 py-1 text-gray-500 dark:text-gray-400 font-medium w-20">
+                  {{ 'Qté' if lang == 'fr' else '分量' }}
+                </th>
+                <th class="text-left pr-2 py-1 text-gray-500 dark:text-gray-400 font-medium w-16">
+                  {{ 'Unité' if lang == 'fr' else '単位' }}
+                </th>
+                <th class="text-left py-1 text-gray-500 dark:text-gray-400 font-medium">
+                  {{ 'Ingrédient' if lang == 'fr' else '材料名' }}
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for ing in recipe.ingredients %}
+              {# Calcul de la quantité ajustée #}
+              {% if ing.quantity %}
+                {% set raw_qty = ing.quantity * recipe.servings_multiplier %}
+                {% set qty_rounded = raw_qty | round(1) %}
+                {% if qty_rounded == qty_rounded | int %}
+                  {% set qty_display = qty_rounded | int %}
+                {% else %}
+                  {% set qty_display = qty_rounded %}
+                {% endif %}
+              {% else %}
+                {% set qty_display = '' %}
+              {% endif %}
+
+              <tr class="ingredient-row border-b border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                <td class="text-right pr-2 py-1.5 font-semibold text-blue-700 dark:text-blue-400 tabular-nums">
+                  {{ qty_display }}
+                </td>
+                <td class="pr-2 py-1.5 text-gray-500 dark:text-gray-400 text-xs">
+                  {{ ing.unit }}
+                </td>
+                <td class="py-1.5 text-gray-800 dark:text-gray-200">
+                  {{ ing.name }}
+                  {% if ing.notes %}
+                  <span class="text-gray-400 dark:text-gray-500 text-xs ml-1">— {{ ing.notes }}</span>
+                  {% endif %}
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+          {% else %}
+          <p class="text-gray-400 text-sm italic">
+            {{ 'Aucun ingrédient renseigné.' if lang == 'fr' else '材料が登録されていません。' }}
+          </p>
+          {% endif %}
+        </div>
+
+        <!-- ── PRÉPARATION ── -->
+        <div>
+          <h3 class="text-base font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wide mb-3 flex items-center gap-2">
+            <span>👨‍🍳</span>
+            {{ 'Préparation' if lang == 'fr' else '作り方' }}
+          </h3>
+
+          {% if recipe.steps %}
+          <ol class="space-y-2">
+            {% for step in recipe.steps %}
+            <li class="flex gap-3 text-sm text-gray-700 dark:text-gray-300">
+              <span class="shrink-0 w-5 h-5 rounded-full bg-blue-600 text-white text-xs flex items-center justify-center font-bold mt-0.5">
+                {{ loop.index }}
+              </span>
+              <span>{{ step }}</span>
+            </li>
+            {% endfor %}
+          </ol>
+          {% else %}
+          <p class="text-gray-400 text-sm italic">
+            {{ 'Aucune étape renseignée.' if lang == 'fr' else '手順が登録されていません。' }}
+          </p>
+          {% endif %}
+        </div>
+
+      </div><!-- /grid -->
+    </div><!-- /recipe-section -->
+    {% endfor %}
+
+  </div><!-- /max-w -->
+
+  <!-- ══════════════════════════════════════════
+       PIED DE PAGE (masqué à l'impression)
+  ══════════════════════════════════════════ -->
+  <div class="no-print text-center py-8 text-sm text-gray-400">
+    <button onclick="window.print()"
+            class="inline-flex items-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition">
+      🖨️ {{ 'Imprimer toutes les recettes' if lang == 'fr' else 'すべてのレシピを印刷' }}
+    </button>
+    <p class="mt-3">{{ 'Une recette par page.' if lang == 'fr' else '1レシピにつき1ページ印刷されます。' }}</p>
+  </div>
+
+</body>
+</html>
