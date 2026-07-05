@@ -36,9 +36,9 @@ async def events_list(request: Request, lang: str = "fr"):
     is_admin = bool(request.session.get('is_admin', False))
 
     if is_admin:
-        events = db.list_events()
+        events = db.list_events(lang=lang)
     else:
-        events = db.list_events(user_id=user_id)
+        events = db.list_events(user_id=user_id, lang=lang)
 
     # Enrichir chaque événement
     for ev in events:

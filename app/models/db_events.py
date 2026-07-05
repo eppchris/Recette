@@ -94,7 +94,7 @@ def update_event_type(event_type_id: int, name_fr: str = None, name_jp: str = No
         return True
 
 
-def list_events(user_id: int = None):
+def list_events(user_id: int = None, lang: str = 'fr'):
     """
     Liste tous les événements avec leurs informations de base
 
@@ -145,7 +145,7 @@ def list_events(user_id: int = None):
                 (SELECT GROUP_CONCAT(r.slug || '::' || COALESCE(rt.name, r.slug), '||')
                  FROM event_recipe er
                  JOIN recipe r ON r.id = er.recipe_id
-                 LEFT JOIN recipe_translation rt ON rt.recipe_id = r.id AND rt.lang = 'fr'
+                 LEFT JOIN recipe_translation rt ON rt.recipe_id = r.id AND rt.lang = ?
                  WHERE er.event_id = e.id
                 ) AS recipes_raw,
                 (SELECT ep.photo_url
@@ -161,10 +161,10 @@ def list_events(user_id: int = None):
         if user_id is not None:
             sql += " WHERE e.user_id = ?"
             sql += " ORDER BY e.event_date DESC"
-            rows = con.execute(sql, (user_id,)).fetchall()
+            rows = con.execute(sql, (lang, user_id)).fetchall()
         else:
             sql += " ORDER BY e.event_date DESC"
-            rows = con.execute(sql).fetchall()
+            rows = con.execute(sql, (lang,)).fetchall()
 
         return [dict(row) for row in rows]
 
