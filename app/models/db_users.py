@@ -47,7 +47,7 @@ def verify_password(password: str, password_hash: str) -> bool:
     return pbkdf2_sha256.verify(password, password_hash)
 
 
-def create_user(username: str, email: str, password: str, display_name: str = None, is_admin: bool = False) -> int:
+def create_user(username: str, email: str, password: str, display_name: str = None, is_admin: bool = False, preferred_lang: str = 'fr') -> int:
     """
     Crée un nouvel utilisateur
 
@@ -80,11 +80,12 @@ def create_user(username: str, email: str, password: str, display_name: str = No
         # Hash du mot de passe
         password_hash = hash_password(password)
 
+        preferred_lang = preferred_lang if preferred_lang in ('fr', 'jp') else 'fr'
         # Créer l'utilisateur
         cursor.execute("""
-            INSERT INTO user (username, email, password_hash, display_name, is_admin)
-            VALUES (?, ?, ?, ?, ?)
-        """, (username, email, password_hash, display_name or username, 1 if is_admin else 0))
+            INSERT INTO user (username, email, password_hash, display_name, is_admin, preferred_lang)
+            VALUES (?, ?, ?, ?, ?, ?)
+        """, (username, email, password_hash, display_name or username, 1 if is_admin else 0, preferred_lang))
 
         conn.commit()
         return cursor.lastrowid
@@ -103,7 +104,7 @@ def get_user_by_username(username: str):
     with get_db() as conn:
         cursor = conn.cursor()
         cursor.execute("""
-            SELECT id, username, email, password_hash, display_name, is_active, is_admin, created_at, last_login
+            SELECT id, username, email, password_hash, display_name, is_active, is_admin, created_at, last_login, preferred_lang
             FROM user
             WHERE username = ?
         """, (username,))
@@ -124,7 +125,7 @@ def get_user_by_email(email: str):
     with get_db() as conn:
         cursor = conn.cursor()
         cursor.execute("""
-            SELECT id, username, email, password_hash, display_name, is_active, is_admin, created_at, last_login
+            SELECT id, username, email, password_hash, display_name, is_active, is_admin, created_at, last_login, preferred_lang
             FROM user
             WHERE email = ?
         """, (email,))
@@ -145,7 +146,7 @@ def get_user_by_id(user_id: int):
     with get_db() as conn:
         cursor = conn.cursor()
         cursor.execute("""
-            SELECT id, username, email, display_name, is_active, is_admin, created_at, last_login
+            SELECT id, username, email, display_name, is_active, is_admin, created_at, last_login, preferred_lang
             FROM user
             WHERE id = ?
         """, (user_id,))
@@ -214,7 +215,7 @@ def list_users():
     with get_db() as conn:
         cursor = conn.cursor()
         cursor.execute("""
-            SELECT id, username, email, display_name, is_active, is_admin, created_at, last_login
+            SELECT id, username, email, display_name, is_active, is_admin, created_at, last_login, preferred_lang
             FROM user
             ORDER BY username
         """)
@@ -275,7 +276,14 @@ def activate_user(user_id: int):
         conn.commit()
 
 
-def update_user_info(user_id: int, username: str, email: str, display_name: str, is_admin: bool) -> None:
+def update_user_lang(user_id: int, lang: str) -> None:
+    lang = lang if lang in ('fr', 'jp') else 'fr'
+    with get_db() as conn:
+        conn.execute("UPDATE user SET preferred_lang = ? WHERE id = ?", (lang, user_id))
+        conn.commit()
+
+
+def update_user_info(user_id: int, username: str, email: str, display_name: str, is_admin: bool, preferred_lang: str = None) -> None:
     """
     Met à jour les informations d'un utilisateur (hors mot de passe)
 
@@ -302,9 +310,16 @@ def update_user_info(user_id: int, username: str, email: str, display_name: str,
         if cursor.fetchone():
             raise ValueError(f"L'email '{email}' est déjà utilisé")
 
-        cursor.execute("""
-            UPDATE user
-            SET username = ?, email = ?, display_name = ?, is_admin = ?
-            WHERE id = ?
-        """, (username, email, display_name, 1 if is_admin else 0, user_id))
+        if preferred_lang and preferred_lang in ('fr', 'jp'):
+            cursor.execute("""
+                UPDATE user
+                SET username = ?, email = ?, display_name = ?, is_admin = ?, preferred_lang = ?
+                WHERE id = ?
+            """, (username, email, display_name, 1 if is_admin else 0, preferred_lang, user_id))
+        else:
+            cursor.execute("""
+                UPDATE user
+                SET username = ?, email = ?, display_name = ?, is_admin = ?
+                WHERE id = ?
+            """, (username, email, display_name, 1 if is_admin else 0, user_id))
         conn.commit()

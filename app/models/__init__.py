@@ -186,6 +186,7 @@ from .db_users import (
     deactivate_user,
     activate_user,
     update_user_info,
+    update_user_lang,
 )
 
 # Import des fonctions de gestion des participants
@@ -398,6 +399,7 @@ __all__ = [
     'deactivate_user',
     'activate_user',
     'update_user_info',
+    'update_user_lang',
 
     # Participants
     'list_participants',
@@ -606,6 +608,7 @@ db = SimpleNamespace(
     deactivate_user=deactivate_user,
     activate_user=activate_user,
     update_user_info=update_user_info,
+    update_user_lang=update_user_lang,
 
     # Participants
     list_participants=list_participants,

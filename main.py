@@ -15,6 +15,7 @@ from app.services.conversion_service import init_conversion_service
 from app.services.web_recipe_importer import init_web_recipe_importer
 from app.middleware.auth import AuthMiddleware
 from app.middleware.access_logger import AccessLoggerMiddleware
+from starlette.middleware.base import BaseHTTPMiddleware
 from app.template_config import templates
 
 # Configuration du logging
@@ -46,6 +47,16 @@ app = FastAPI(title=app_title)
 # Stocker les paramètres dans app.state pour les rendre accessibles
 app.state.shared_password = Config.SHARED_PASSWORD
 
+# Middleware qui synchronise ?lang=xx vers session["lang"]
+# Doit être ajouté AVANT SessionMiddleware dans le code (s'exécute APRÈS grâce au LIFO)
+class LangSessionMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request, call_next):
+        lang = request.query_params.get("lang")
+        if lang in ("fr", "jp"):
+            request.session["lang"] = lang
+        return await call_next(request)
+
+
 # IMPORTANT : L'ordre d'ajout des middlewares est inversé en FastAPI
 # Le dernier ajouté s'exécute en PREMIER
 # Donc : ajouter AuthMiddleware AVANT SessionMiddleware
@@ -60,6 +71,9 @@ if Config.REQUIRE_PASSWORD:
     logger.info("🔒 Protection par mot de passe activée")
 else:
     logger.info(f"⚠️  Protection par mot de passe désactivée ({Config.ENV})")
+
+# LangSessionMiddleware : s'exécute après SessionMiddleware (LIFO) pour accéder à la session
+app.add_middleware(LangSessionMiddleware)
 
 # Ajouter le middleware de session
 app.add_middleware(
@@ -119,10 +133,11 @@ app.include_router(calendar_router)
 app.include_router(mobile_router)
 # app.include_router(monitoring_router)
 
-# Page d'accueil : redirection vers la liste des recettes
+# Page d'accueil : redirection vers la liste des recettes avec la langue de session
 @app.get("/")
-async def root():
-    return RedirectResponse(url="/recipes?lang=fr")
+async def root(request: Request):
+    lang = request.session.get("lang", "fr")
+    return RedirectResponse(url=f"/recipes?lang={lang}")
 
 # Robots.txt pour bloquer les bots
 @app.get("/robots.txt")

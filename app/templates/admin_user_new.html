@@ -156,6 +156,25 @@
         >
       </div>
 
+      <!-- Langue par défaut -->
+      <div>
+        <label class="block text-sm font-medium mb-2">
+          {% if lang == 'fr' %}Langue par défaut{% else %}デフォルト言語{% endif %}
+        </label>
+        <div class="flex gap-3">
+          <label class="flex items-center gap-2 cursor-pointer">
+            <input type="radio" name="preferred_lang" value="fr" checked
+                   class="w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500">
+            <span>🇫🇷 Français</span>
+          </label>
+          <label class="flex items-center gap-2 cursor-pointer">
+            <input type="radio" name="preferred_lang" value="jp"
+                   class="w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500">
+            <span>🇯🇵 日本語</span>
+          </label>
+        </div>
+      </div>
+
       <!-- Checkbox Admin -->
       <div class="border-t border-gray-200 dark:border-gray-700 pt-6">
         <div class="flex items-start">

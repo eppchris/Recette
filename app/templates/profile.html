@@ -322,21 +322,24 @@
             </button>
           </div>
 
-          <!-- Sélecteur de langue -->
+          <!-- Sélecteur de langue (enregistre la préférence) -->
           <div class="flex gap-2 justify-center">
-            <a
-              href="/profile?lang=fr"
-              class="px-4 py-2 text-sm rounded {{ 'font-bold bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-300' if lang=='fr' else 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700' }}"
-            >
-              Français
-            </a>
-            <a
-              href="/profile?lang=jp"
-              class="px-4 py-2 text-sm rounded {{ 'font-bold bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-300' if lang=='jp' else 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700' }}"
-            >
-              日本語
-            </a>
+            <form method="POST" action="/profile/set-lang">
+              <input type="hidden" name="lang" value="fr">
+              <button type="submit"
+                class="px-4 py-2 text-sm rounded {{ 'font-bold bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-300' if lang=='fr' else 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700' }}"
+              >🇫🇷 Français</button>
+            </form>
+            <form method="POST" action="/profile/set-lang">
+              <input type="hidden" name="lang" value="jp">
+              <button type="submit"
+                class="px-4 py-2 text-sm rounded {{ 'font-bold bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-300' if lang=='jp' else 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700' }}"
+              >🇯🇵 日本語</button>
+            </form>
           </div>
+          <p class="text-center text-xs text-gray-400 dark:text-gray-500 mt-1">
+            {{ 'Langue enregistrée comme préférence' if lang == 'fr' else 'クリックで言語設定を保存' }}
+          </p>
 
         </div>
 

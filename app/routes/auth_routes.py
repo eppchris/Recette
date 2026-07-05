@@ -5,7 +5,7 @@ import markdown
 from fastapi import APIRouter, Request, Form, Query
 from fastapi.responses import HTMLResponse, RedirectResponse
 
-from app.models import authenticate_user, create_user, get_user_by_id, update_user_password, verify_password, get_user_by_username, list_users, activate_user, deactivate_user, update_user_info
+from app.models import authenticate_user, create_user, get_user_by_id, update_user_password, verify_password, get_user_by_username, list_users, activate_user, deactivate_user, update_user_info, update_user_lang
 from app.template_config import templates
 
 router = APIRouter()
@@ -40,13 +40,15 @@ async def login_post(
 
     if user:
         # Connexion réussie : créer la session
+        user_lang = user.get("preferred_lang", "fr") or "fr"
         request.session["user_id"] = user["id"]
         request.session["username"] = user["username"]
         request.session["is_admin"] = user["is_admin"]
+        request.session["lang"] = user_lang
         request.session["authenticated"] = True  # Pour compatibilité avec l'ancien système
 
-        # Rediriger vers la destination ou l'accueil
-        redirect_to = next if (next and next.startswith("/") and not next.startswith("//")) else f"/recipes?lang={lang}"
+        # Rediriger vers la destination ou l'accueil en utilisant la langue préférée
+        redirect_to = next if (next and next.startswith("/") and not next.startswith("//")) else f"/recipes?lang={user_lang}"
         return RedirectResponse(url=redirect_to, status_code=303)
     else:
         # Authentification échouée
@@ -207,6 +209,16 @@ async def change_password(
     return RedirectResponse(url=f"/profile?lang={lang}&success={success}", status_code=303)
 
 
+@router.post("/profile/set-lang")
+async def set_user_lang(request: Request, lang: str = Form(...)):
+    """Enregistre la langue préférée de l'utilisateur connecté"""
+    user_id = request.session.get("user_id")
+    if user_id and lang in ("fr", "jp"):
+        update_user_lang(user_id, lang)
+        request.session["lang"] = lang
+    return RedirectResponse(url=f"/profile?lang={lang}", status_code=303)
+
+
 @router.get("/admin/users", response_class=HTMLResponse)
 async def admin_users(request: Request, lang: str = Query("fr"), success: str = Query(None)):
     """Page d'administration des utilisateurs (admins uniquement)"""
@@ -283,6 +295,7 @@ async def admin_new_user_create(
     password_confirm: str = Form(...),
     display_name: str = Form(None),
     is_admin: bool = Form(False),
+    preferred_lang: str = Form("fr"),
     lang: str = Query("fr")
 ):
     """Crée un nouvel utilisateur (admins uniquement)"""
@@ -316,7 +329,8 @@ async def admin_new_user_create(
             email=email,
             password=password,
             display_name=display_name or username,
-            is_admin=is_admin
+            is_admin=is_admin,
+            preferred_lang=preferred_lang
         )
 
         # Rediriger vers la liste des utilisateurs avec message de succès
@@ -432,6 +446,7 @@ async def admin_edit_user_save(
     email: str = Form(...),
     display_name: str = Form(""),
     is_admin: bool = Form(False),
+    preferred_lang: str = Form("fr"),
     new_password: str = Form(""),
     new_password_confirm: str = Form(""),
     lang: str = Query("fr")
@@ -462,14 +477,15 @@ async def admin_edit_user_save(
             return templates.TemplateResponse("admin_user_edit.html", {"request": request, "lang": lang, "user": user, "error": error, "success": None})
 
     try:
-        update_user_info(user_id, username, email, display_name or username, is_admin)
+        update_user_info(user_id, username, email, display_name or username, is_admin, preferred_lang)
         if new_password:
             update_user_password(user_id, new_password)
 
-        # Mettre à jour la session si on modifie l'admin courant
+        # Mettre à jour la session si on modifie l'utilisateur courant
         if user_id == admin_user_id:
             request.session["username"] = username
             request.session["is_admin"] = is_admin
+            request.session["lang"] = preferred_lang
 
         success = f"Utilisateur {username} modifié avec succès" if lang == "fr" else f"ユーザー {username} を更新しました"
         return RedirectResponse(url=f"/admin/users?lang={lang}&success={success}", status_code=303)

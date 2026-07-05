@@ -311,7 +311,9 @@
             <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">
                 {{ 'Caractéristiques' if lang == 'fr' else '詳細' }}
             </h2>
-            <form method="POST" action="{{ '/events/new' if not event else '/events/' + (event.id|string) + '/edit' }}">
+            <form method="POST" action="{{ '/events/new' if not event else '/events/' + (event.id|string) + '/edit' }}"
+                  novalidate
+                  onsubmit="const sel=document.getElementById('event_type_select');if(!sel.value){document.getElementById('event_type_error').classList.remove('hidden');sel.focus();return false;}">
                 <input type="hidden" name="lang" value="{{ lang }}">
                 <input type="hidden" name="from_page" value="{{ from_page }}">
                 <input type="hidden" name="event_date" :value="dateDebut">
@@ -328,13 +330,19 @@
                     <div>
                         <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ S('event_type') }}</label>
                         <select name="event_type_id" required
-                                class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white">
+                                id="event_type_select"
+                                class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+                                onchange="document.getElementById('event_type_error').classList.add('hidden')">
+                            <option value="">{{ '-- Sélectionner un type --' if lang == 'fr' else '-- タイプを選択 --' }}</option>
                             {% for et in event_types %}
                             <option value="{{ et.id }}" {{ 'selected' if event and event.event_type_id == et.id else '' }}>
                                 {{ et.name_jp if lang == 'jp' else et.name_fr }}
                             </option>
                             {% endfor %}
                         </select>
+                        <p id="event_type_error" class="hidden mt-1 text-sm text-red-600 dark:text-red-400">
+                            {{ "Veuillez sélectionner un type d'événement." if lang == 'fr' else 'イベントタイプを選択してください。' }}
+                        </p>
                     </div>
                 </div>
 
