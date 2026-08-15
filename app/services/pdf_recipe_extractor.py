@@ -99,7 +99,7 @@ Retourne UNIQUEMENT un objet JSON valide avec cette structure exacte (sans texte
             logger.info("Envoi de la requête à Groq pour analyse...")
 
             response = self.groq_client.chat.completions.create(
-                model="llama-3.3-70b-versatile",
+                model="openai/gpt-oss-120b",
                 messages=[
                     {
                         "role": "system",
@@ -111,7 +111,8 @@ Retourne UNIQUEMENT un objet JSON valide avec cette structure exacte (sans texte
                     }
                 ],
                 temperature=0.1,
-                max_tokens=4000
+                max_tokens=4000,
+                reasoning_effort="low"
             )
 
             # Extraire le contenu de la réponse

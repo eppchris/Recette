@@ -17,7 +17,10 @@ class TranslationService:
         """
         self.client = Groq(api_key=api_key)
         # Utilisation d'un modèle rapide et performant pour la traduction
-        self.model = "llama-3.3-70b-versatile"
+        # openai/gpt-oss-120b est un modèle "reasoning" : reasoning_effort="low"
+        # limite le nombre de tokens consommés par le raisonnement interne
+        self.model = "openai/gpt-oss-120b"
+        self.model_kwargs = {"reasoning_effort": "low"}
 
     def check_api_status(self) -> bool:
         """Vérifie si l'API Groq est opérationnelle
@@ -30,7 +33,8 @@ class TranslationService:
             response = self.client.chat.completions.create(
                 messages=[{"role": "user", "content": "ping"}],
                 model=self.model,
-                max_tokens=5
+                max_tokens=5,
+                **self.model_kwargs
             )
             return True
         except Exception as e:
@@ -60,7 +64,8 @@ Titre: {title}"""
                 messages=[{"role": "user", "content": prompt}],
                 model=self.model,
                 temperature=0.3,
-                max_tokens=100
+                max_tokens=100,
+                **self.model_kwargs
             )
 
             translated = response.choices[0].message.content.strip()
@@ -119,7 +124,8 @@ Ingrédients à traduire:
                 messages=[{"role": "user", "content": prompt}],
                 model=self.model,
                 temperature=0.3,
-                max_tokens=1500
+                max_tokens=1500,
+                **self.model_kwargs
             )
 
             # Nettoyer la réponse et parser le JSON
@@ -216,7 +222,8 @@ Format attendu: ["traduction étape 1", "traduction étape 2", ...]
                 messages=[{"role": "user", "content": prompt}],
                 model=self.model,
                 temperature=0.3,
-                max_tokens=2000
+                max_tokens=2000,
+                **self.model_kwargs
             )
 
             # Nettoyer la réponse et parser le JSON
@@ -285,7 +292,9 @@ Réponds UNIQUEMENT avec un mot: "LIQUIDE" ou "SOLIDE"."""
                 messages=[{"role": "user", "content": prompt}],
                 model=self.model,
                 temperature=0.1,  # Très faible pour cohérence
-                max_tokens=10
+                # 150 tokens : marge pour le raisonnement interne du modèle avant la réponse finale
+                max_tokens=150,
+                **self.model_kwargs
             )
 
             result = response.choices[0].message.content.strip().upper()
@@ -348,7 +357,9 @@ Réponds UNIQUEMENT avec un mot: "VOLUME", "POIDS" ou "UNITE"."""
                 messages=[{"role": "user", "content": prompt}],
                 model=self.model,
                 temperature=0.1,  # Très faible pour cohérence
-                max_tokens=10
+                # 150 tokens : marge pour le raisonnement interne du modèle avant la réponse finale
+                max_tokens=150,
+                **self.model_kwargs
             )
 
             result = response.choices[0].message.content.strip().upper()

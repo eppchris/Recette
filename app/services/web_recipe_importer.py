@@ -126,9 +126,10 @@ Réponds UNIQUEMENT avec le JSON, sans texte avant ou après."""
                         "content": prompt
                     }
                 ],
-                model="llama-3.3-70b-versatile",
+                model="openai/gpt-oss-120b",
                 temperature=0.3,
-                max_tokens=2000
+                max_tokens=2000,
+                reasoning_effort="low"
             )
 
             # Extraire la réponse

@@ -21,7 +21,7 @@ from groq import Groq
 from app.models.db_core import get_db
 
 BATCH_SIZE = 30  # ingrédients par appel API
-MODEL = "llama-3.3-70b-versatile"
+MODEL = "openai/gpt-oss-120b"
 
 
 def get_all_ingredients():
@@ -80,6 +80,7 @@ Ingrédients à traiter :
         model=MODEL,
         max_tokens=4000,
         temperature=0.1,
+        reasoning_effort="low",
     )
 
     raw = response.choices[0].message.content.strip()

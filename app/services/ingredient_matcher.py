@@ -136,7 +136,7 @@ EXEMPLES:
             logger.info(f"Requête IA pour matcher: {receipt_item_name}")
 
             response = self.groq_client.chat.completions.create(
-                model="llama-3.3-70b-versatile",
+                model="openai/gpt-oss-120b",
                 messages=[
                     {
                         "role": "system",
@@ -148,7 +148,8 @@ EXEMPLES:
                     }
                 ],
                 temperature=0.1,
-                max_tokens=500
+                max_tokens=500,
+                reasoning_effort="low"
             )
 
             content = response.choices[0].message.content.strip()
