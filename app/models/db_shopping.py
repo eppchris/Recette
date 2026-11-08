@@ -36,6 +36,7 @@ def get_shopping_list_items(event_id: int, lang: str = "fr"):
                 sli.purchase_quantity,
                 sli.purchase_unit,
                 sli.is_checked,
+                sli.excluded,
                 sli.notes,
                 sli.source_recipes,
                 sli.position,
@@ -112,7 +113,8 @@ def update_shopping_list_item(
     purchase_quantity=None,
     purchase_unit=None,
     is_checked=None,
-    notes=None
+    notes=None,
+    excluded=None
 ):
     """
     Met à jour un item de liste de courses
@@ -135,6 +137,10 @@ def update_shopping_list_item(
     if notes is not None:
         updates.append("notes = ?")
         params.append(notes)
+
+    if excluded is not None:
+        updates.append("excluded = ?")
+        params.append(1 if excluded else 0)
 
     if not updates:
         return False
@@ -223,6 +229,15 @@ def delete_shopping_list_item(item_id: int):
         return cursor.rowcount > 0
 
 
+def get_shopping_list_item_event_id(item_id: int):
+    """
+    Retourne l'ID de l'événement auquel appartient un item de liste de courses (ou None)
+    """
+    with get_db() as conn:
+        row = conn.execute("SELECT event_id FROM shopping_list_item WHERE id = ?", (item_id,)).fetchone()
+        return row['event_id'] if row else None
+
+
 def delete_all_shopping_list_items(event_id: int):
     """
     Supprime tous les items de la shopping list d'un événement
@@ -253,3 +268,45 @@ def regenerate_shopping_list(event_id: int, lang: str = "fr"):
     save_shopping_list_items(event_id, aggregated_ingredients)
 
     return aggregated_ingredients
+
+
+def refresh_shopping_list(event_id: int, lang: str = "fr"):
+    """
+    Recalcule la liste de courses depuis les recettes en conservant les choix
+    de l'utilisateur pour les ingrédients toujours présents :
+    - ingrédients retirés (excluded) et cochés (is_checked)
+    - quantités modifiées à la main (achat différent du besoin calculé)
+    """
+    with get_db() as conn:
+        previous = {
+            row['ingredient_name'].lower(): dict(row)
+            for row in conn.execute("""
+                SELECT ingredient_name, needed_quantity, needed_unit,
+                       purchase_quantity, purchase_unit, is_checked, excluded
+                FROM shopping_list_item WHERE event_id = ?
+            """, (event_id,)).fetchall()
+        }
+
+    regenerate_shopping_list(event_id, lang)
+    if not previous:
+        return
+
+    with get_db() as conn:
+        rows = conn.execute(
+            "SELECT id, ingredient_name FROM shopping_list_item WHERE event_id = ?", (event_id,)
+        ).fetchall()
+        for row in rows:
+            old = previous.get(row['ingredient_name'].lower())
+            if not old:
+                continue
+            conn.execute(
+                "UPDATE shopping_list_item SET excluded = ?, is_checked = ? WHERE id = ?",
+                (old['excluded'], old['is_checked'], row['id'])
+            )
+            edited = ((old['purchase_quantity'], old['purchase_unit'] or '')
+                      != (old['needed_quantity'], old['needed_unit'] or ''))
+            if edited:
+                conn.execute(
+                    "UPDATE shopping_list_item SET purchase_quantity = ?, purchase_unit = ? WHERE id = ?",
+                    (old['purchase_quantity'], old['purchase_unit'], row['id'])
+                )

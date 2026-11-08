@@ -1,0 +1,19 @@
+{
+  "name": "Recette",
+  "short_name": "Recette",
+  "description": "Mes recettes FR/JP",
+  "start_url": "/mobile",
+  "display": "standalone",
+  "orientation": "portrait",
+  "theme_color": "#1d4ed8",
+  "background_color": "#f9fafb",
+  "lang": "fr",
+  "icons": [
+    {
+      "src": "/static/favicon-64x64.png",
+      "sizes": "64x64",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

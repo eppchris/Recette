@@ -4,24 +4,38 @@
   <style>
     /* Print styling: left-align, use wider page, hide UI elements */
     @media print {
-      @page { size: A4; margin: 8mm; }
+      @page { size: A4; margin: 5mm; }
       body { -webkit-print-color-adjust: exact; color-adjust: exact; margin: 0; }
       .no-print { display: none !important; }
-      article { width: auto !important; max-width: 100% !important; margin: 0 !important; padding: 6mm !important; border: none !important; box-shadow: none !important; background: #fff !important; }
+      article { width: auto !important; max-width: 100% !important; margin: 0 !important; padding: 2mm !important; border: none !important; box-shadow: none !important; background: #fff !important; }
       header, section, h1, p, table { color: #000 !important; text-align: left !important; }
       .flex, .flex-col, .flex-row, .items-start, .items-center, .justify-between { display: block !important; }
       .text-center { text-align: left !important; }
+      /* Titre bien en haut, sans marge superflue */
+      h1 { margin-top: 0 !important; }
+      /* Convives/Prép./Cuisson/Total sur une seule ligne */
+      .print-info-row { display: flex !important; flex-wrap: nowrap !important; gap: 10px !important; white-space: nowrap !important; }
       /* Make recipe image smaller and float left so text flows */
       /* Make recipe image even smaller to save vertical space */
       article img { max-width: 80px !important; height: auto !important; display: inline-block !important; float: left !important; margin: 0 6px 4px 0 !important; }
+      /* Photo de la recette : à droite des ingrédients (prime sur "article img" ci-dessus) */
+      article img.print-recipe-image {
+        max-width: 150px !important;
+        width: 150px !important;
+        height: auto !important;
+        float: right !important;
+        margin: 0 0 6px 10px !important;
+      }
+      /* Titres de section redondants avec l'en-tête du tableau / la numérotation : masqués à l'impression */
+      section.mb-8 > h2 { display: none !important; }
       /* Ingredients table: use full width and clear borders for print (compact) */
       /* More aggressive compaction for the ingredients table */
-      table { width: 100% !important; border-collapse: collapse !important; font-size: 9px !important; }
-      table th, table td { padding: 1px 3px !important; border: 1px solid #000 !important; font-size: 9px !important; }
-      /* Prefer wider first column (ingredient name) and narrow qty/unit columns */
-      table thead th:first-child { width: 62% !important; }
+      table { width: 100% !important; border-collapse: collapse !important; font-size: 13px !important; }
+      table th, table td { padding: 3px 5px !important; border: 1px solid #000 !important; font-size: 13px !important; }
+      /* Colonne "ingrédient" plus étroite pour laisser la place à la photo à droite */
+      table thead th:first-child { width: 42% !important; }
       table thead th:nth-child(2), table thead th:nth-child(3) { width: 12% !important; }
-      table thead th:nth-child(4) { width: 14% !important; }
+      table thead th:nth-child(4) { width: 34% !important; }
       /* Try to keep table and following steps on the same page */
       table, table tr, table td, table th { page-break-inside: avoid !important; break-inside: avoid !important; }
       table + * { page-break-before: avoid !important; }
@@ -32,10 +46,20 @@
       button, a[role="button"], .no-print, .inline-flex { display: none !important; }
       /* Avoid large gaps */
       .my-3, .my-4, .mb-6, .mb-4 { margin-top: 0 !important; margin-bottom: 6px !important; }
-      /* Compact steps: reduce spacing and badge sizes */
-      .space-y-4 > * + * { margin-top: 2px !important; }
-      .space-y-4 .flex-shrink-0 { width: 12px !important; height: 12px !important; font-size: 8px !important; line-height: 12px !important; }
-      .space-y-4 p { margin: 0 !important; font-size: 10px !important; line-height: 1.1 !important; }
+      /* Compact steps: reduce spacing */
+      .space-y-4 > * + * { margin-top: 6px !important; }
+      .space-y-4 p { margin: 0 !important; font-size: 14px !important; line-height: 1.3 !important; }
+      /* Numéro d'étape : liste numérotée simple "1. texte" sur la même ligne,
+         plutôt qu'un badge rond (prime sur les règles de badge ci-dessus). */
+      .space-y-4 > .flex.gap-3 { display: flex !important; align-items: baseline !important; gap: 4px !important; }
+      .space-y-4 .flex-shrink-0.bg-blue-600.text-white.rounded-full {
+        all: unset !important;
+        font-weight: 700 !important;
+        font-size: 14px !important;
+        color: #000 !important;
+      }
+      .space-y-4 .flex-shrink-0.bg-blue-600.text-white.rounded-full::after { content: "."; }
+      .space-y-4 p.flex-1 { padding-top: 0 !important; }
       /* Ensure steps section doesn't force a page break */
       section.mb-8 { page-break-inside: avoid !important; }
       /* Ensure lightbox overlay hidden */
@@ -90,6 +114,15 @@
           <span>{{ '編集' if lang == 'jp' else 'Modifier' }}</span>
         </button>
 
+        <!-- Bouton liste d'ingrédients en texte -->
+        <button
+          @click="showIngredientListModal = true"
+          class="inline-flex items-center justify-center gap-2 px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded font-semibold transition-colors"
+        >
+          <span>📋</span>
+          <span>{{ '材料リスト（テキスト）' if lang == 'jp' else 'Liste des ingrédients' }}</span>
+        </button>
+
         <!-- Bouton de traduction/retraduction -->
         <button
           @click="translateRecipe()"
@@ -131,7 +164,7 @@
     </div>
     {% endif %}
 
-    <div class="flex flex-wrap gap-3 sm:gap-4 text-xs sm:text-sm text-gray-700 dark:text-gray-300">
+    <div class="flex flex-wrap gap-3 sm:gap-4 text-xs sm:text-sm text-gray-700 dark:text-gray-300 print-info-row">
       <div>
         <span class="font-semibold">{{ S('servings') }}:</span>
         <span class="bg-green-100 text-green-800 px-2 py-1 rounded">{{ rec['servings'] or '-' }}</span>
@@ -155,12 +188,12 @@
       </div>
       {% endif %}
       {% if rec.get('country') %}
-      <div>
+      <div class="no-print">
         <span class="text-2xl leading-none" title="{{ rec['country'] }}" x-text="countryCodeToFlag('{{ rec.get('country', '') }}')"></span>
       </div>
       {% endif %}
       {% if rec['creator_username'] %}
-      <div>
+      <div class="no-print">
         <span class="font-semibold">👤 {{ 'Créateur' if lang == 'fr' else '作成者' }}:</span>
         <span class="bg-purple-100 text-purple-800 px-2 py-1 rounded">{{ rec['creator_display_name'] or rec['creator_username'] }}</span>
       </div>
@@ -173,15 +206,8 @@
       {% endif %}
     </div>
 
-    <!-- Image pour l'impression uniquement -->
-    <div class="hidden print-only mt-4 mb-4">
-      {% if rec['image_url'] %}
-      <img src="{{ rec['image_url'] }}" alt="{{ rec['name'] }}" class="print-recipe-image rounded-lg shadow-md">
-      {% endif %}
-    </div>
-
     <!-- Catégories, Tags et Types d'événements affichés -->
-    <div class="mt-4 space-y-2">
+    <div class="mt-4 space-y-2 no-print">
       <!-- Catégories -->
       <div x-show="selectedCategories.length > 0" class="flex flex-wrap gap-2 items-center">
         <span class="text-sm font-semibold text-gray-700">
@@ -280,6 +306,12 @@
 
   <!-- Section Ingrédients -->
   <section class="mb-8">
+    <!-- Image pour l'impression uniquement : à droite du tableau d'ingrédients -->
+    <div class="hidden print-only mb-4">
+      {% if rec['image_url'] %}
+      <img src="{{ rec['image_url'] }}" alt="{{ rec['name'] }}" class="print-recipe-image rounded-lg shadow-md">
+      {% endif %}
+    </div>
     <h2 class="text-xl font-bold mb-3">
       {{ S('ingredients') }}
       <span x-show="showingConversion" class="text-sm text-green-600 ml-2">
@@ -1040,6 +1072,49 @@
       </div>
     </div>
   </div>
+
+  <!-- Modal liste d'ingrédients en texte (copier/coller) -->
+  <div x-show="showIngredientListModal"
+       x-cloak
+       class="no-print fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50"
+       @click.self="showIngredientListModal = false">
+    <div class="bg-white dark:bg-gray-800 rounded-lg max-w-lg w-full max-h-[90vh] overflow-y-auto p-4 sm:p-6">
+      <div class="flex justify-between items-center mb-4 pb-3 border-b border-gray-200 dark:border-gray-600">
+        <h2 class="text-lg sm:text-xl font-bold text-gray-900 dark:text-gray-100">
+          {{ '材料リスト（テキスト）' if lang == 'jp' else 'Liste des ingrédients' }}
+        </h2>
+        <button @click="showIngredientListModal = false" class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 text-2xl p-1">
+          ×
+        </button>
+      </div>
+
+      <textarea
+        x-ref="ingredientListTextarea"
+        readonly
+        rows="12"
+        :value="ingredientListText()"
+        @click="$el.select()"
+        class="w-full font-mono text-sm p-3 border border-gray-300 dark:border-gray-600 rounded bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100"
+      ></textarea>
+
+      <div class="flex justify-end gap-2 mt-4">
+        <button
+          @click="copyIngredientList()"
+          :class="ingredientListCopied ? 'bg-green-600' : 'bg-teal-600 hover:bg-teal-700'"
+          class="inline-flex items-center gap-2 px-4 py-2 text-white rounded font-semibold transition-colors"
+        >
+          <span x-text="ingredientListCopied ? '✅' : '📋'"></span>
+          <span x-text="ingredientListCopied ? ('{{ 'コピーしました' if lang == 'jp' else 'Copié !' }}') : ('{{ 'コピー' if lang == 'jp' else 'Copier' }}')"></span>
+        </button>
+        <button
+          @click="showIngredientListModal = false"
+          class="px-4 py-2 bg-gray-200 dark:bg-gray-600 hover:bg-gray-300 dark:hover:bg-gray-500 rounded font-semibold transition-colors"
+        >
+          {{ '閉じる' if lang == 'jp' else 'Fermer' }}
+        </button>
+      </div>
+    </div>
+  </div>
 </article>
 
 <style>
@@ -1245,6 +1320,8 @@
       message: '',
       messageType: 'info',
       editMode: false,
+      showIngredientListModal: false,
+      ingredientListCopied: false,
       saving: false,
       uploadingImage: false,
       isDragging: false,
@@ -1670,6 +1747,46 @@
         this.convertedIngredients = [];
         this.targetServings = this.originalServings;
         this.message = '';
+      },
+
+      // Liste d'ingrédients en texte (copier/coller)
+      ingredientListText() {
+        const list = this.showingConversion
+          ? this.convertedIngredients
+          : (this.originalData ? this.originalData.ingredients : []);
+
+        const lines = list.map(ing => {
+          const qty = this.showingConversion ? ing.converted_quantity : ing.quantity;
+          const unit = this.showingConversion ? (ing.purchase_unit || ing.unit) : ing.unit;
+          let qtyStr = '';
+          if (qty !== null && qty !== undefined && qty !== '') {
+            const qtyNum = Number(qty);
+            qtyStr = (Number.isFinite(qtyNum) && Number.isInteger(qtyNum) ? qtyNum : qty).toString();
+            if (unit) qtyStr += ' ' + unit;
+          } else if (unit) {
+            qtyStr = unit;
+          }
+          let line = qtyStr ? `${qtyStr} ${ing.name}` : ing.name;
+          if (ing.notes) line += ` (${ing.notes})`;
+          return '- ' + line;
+        });
+
+        return '{{ rec["name"] | replace("\n", " ") | replace("'", "\\'") }}\n\n' + lines.join('\n');
+      },
+
+      async copyIngredientList() {
+        const text = this.ingredientListText();
+        try {
+          await navigator.clipboard.writeText(text);
+          this.ingredientListCopied = true;
+          setTimeout(() => { this.ingredientListCopied = false; }, 1800);
+        } catch (error) {
+          // Repli : sélectionner le texte pour un copier manuel (Cmd/Ctrl+C)
+          const textarea = this.$refs.ingredientListTextarea;
+          if (textarea) textarea.select();
+          this.message = '{{ "コピーに失敗しました。テキストを選択してコピーしてください" if lang == "jp" else "Impossible de copier automatiquement — le texte a été sélectionné, faites Ctrl/Cmd+C" }}';
+          this.messageType = 'error';
+        }
       },
 
       // Gestion des ingrédients

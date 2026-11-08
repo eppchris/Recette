@@ -28,11 +28,18 @@
             <span class="text-base font-normal text-gray-500 dark:text-gray-400 ml-2"
                   x-text="`(${filteredEvents.length})`"></span>
         </h1>
-        <a href="/events/new?lang={{ lang }}"
-           class="inline-flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors">
-            <span class="text-xl">➕</span>
-            <span>{{ S('new_event') }}</span>
-        </a>
+        <div class="flex flex-wrap gap-2">
+            <a href="/event-wizard?lang={{ lang }}"
+               class="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
+                <span class="text-xl">✨</span>
+                <span>{{ 'Création guidée' if lang == 'fr' else 'かんたん作成' }}</span>
+            </a>
+            <a href="/events/new?lang={{ lang }}"
+               class="inline-flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors">
+                <span class="text-xl">➕</span>
+                <span>{{ S('new_event') }}</span>
+            </a>
+        </div>
     </div>
 
     <!-- Barre d'outils : recherche + colonnes -->

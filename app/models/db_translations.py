@@ -4,7 +4,8 @@ Module de gestion des traductions de recettes
 from .db_core import get_db
 
 
-def insert_recipe_translation(recipe_id: int, lang: str, name: str, recipe_type: str):
+def insert_recipe_translation(recipe_id: int, lang: str, name: str, recipe_type: str,
+                               description: str = '', tips: str = ''):
     """
     Insère une nouvelle traduction de recette
 
@@ -13,13 +14,15 @@ def insert_recipe_translation(recipe_id: int, lang: str, name: str, recipe_type:
         lang: Code de langue
         name: Nom traduit
         recipe_type: Type de recette (copié de la version source)
+        description: Description traduite (optionnel)
+        tips: Conseils traduits (optionnel)
     """
     with get_db() as con:
         sql = """
-            INSERT INTO recipe_translation (recipe_id, lang, name, recipe_type)
-            VALUES (?, ?, ?, ?)
+            INSERT INTO recipe_translation (recipe_id, lang, name, recipe_type, description, tips)
+            VALUES (?, ?, ?, ?, ?, ?)
         """
-        con.execute(sql, (recipe_id, lang, name, recipe_type))
+        con.execute(sql, (recipe_id, lang, name, recipe_type, description, tips))
 
 
 def insert_ingredient_translation(ingredient_id: int, lang: str, name: str, unit: str, notes: str = ''):

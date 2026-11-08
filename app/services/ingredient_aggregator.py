@@ -323,6 +323,10 @@ class IngredientAggregator:
         Returns:
             Liste des ingrédients agrégés avec quantités totales
         """
+        # Les ingrédients qui sont des sous-recettes sont remplacés par leurs ingrédients
+        from app.models.db_events import expand_linked_recipes
+        recipes_ingredients = expand_linked_recipes(recipes_ingredients, lang)
+
         # Structure pour l'agrégation : {nom_normalisé: {données}}
         aggregated = defaultdict(lambda: {
             "original_names": set(),

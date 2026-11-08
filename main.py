@@ -115,6 +115,7 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 from app.routes.recipe_routes import router as recipe_router
 from app.routes.auth_routes import router as auth_router
 from app.routes.event_routes import router as event_router
+from app.routes.event_wizard_routes import router as event_wizard_router
 from app.routes.catalog_routes import router as catalog_router
 from app.routes.conversion_routes import router as conversion_router
 from app.routes.participant_routes import router as participant_router
@@ -126,6 +127,7 @@ from app.routes.mobile_routes import router as mobile_router
 app.include_router(auth_router)
 app.include_router(recipe_router)
 app.include_router(event_router)
+app.include_router(event_wizard_router)
 app.include_router(catalog_router)
 app.include_router(conversion_router)
 app.include_router(participant_router)

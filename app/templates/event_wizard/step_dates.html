@@ -1,0 +1,115 @@
+{% extends 'event_wizard/_layout.html' %}
+
+{% block wizard_body %}
+<form method="post" action="{{ form_action }}" id="wizard-form" {% if event %}data-save-on-leave{% endif %}
+      x-data='{ debut: "{{ date_debut }}", fin: "{{ date_fin }}", oneDay: {{ "true" if date_debut == date_fin else "false" }},
+                base: {{ attendees }}, counts: {{ (day_counts or {})|tojson }},
+                weekdays: {{ (["dim.", "lun.", "mar.", "mer.", "jeu.", "ven.", "sam."] if lang == "fr" else ["日", "月", "火", "水", "木", "金", "土"])|tojson }},
+                dayList() {
+                    const out = [], end = this.oneDay ? this.debut : this.fin;
+                    if (!this.debut) return out;
+                    const d = new Date(this.debut + "T00:00:00");
+                    while (out.length < {{ 60 }}) {
+                        const iso = d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+                        if (iso > end) break;
+                        out.push(iso);
+                        d.setDate(d.getDate() + 1);
+                    }
+                    return out;
+                },
+                label(iso) {
+                    const d = new Date(iso + "T00:00:00"), w = this.weekdays[d.getDay()];
+                    return {{ "true" if lang == "jp" else "false" }}
+                        ? (d.getMonth() + 1) + "/" + d.getDate() + "(" + w + ")"
+                        : w + " " + String(d.getDate()).padStart(2, "0") + "/" + String(d.getMonth() + 1).padStart(2, "0");
+                },
+                count(iso) { return this.counts[iso] || this.base; },
+                change(iso, delta) { this.counts[iso] = Math.max(1, this.count(iso) + delta); },
+                daysValue() { return this.dayList().map(d => d + ":" + this.count(d)).join(","); } }'>
+    <input type="hidden" name="lang" value="{{ lang }}">
+    <input type="hidden" name="next" value="">
+    {% if not event %}
+    <input type="hidden" name="name" value="{{ name }}">
+    <input type="hidden" name="attendees" value="{{ attendees }}">
+    <input type="hidden" name="event_type_id" value="{{ event_type_id }}">
+    {% endif %}
+    <input type="hidden" name="date_fin" :value="oneDay ? debut : fin">
+    <input type="hidden" name="days" :value="oneDay ? '' : daysValue()">
+
+    <p class="text-lg text-gray-500 dark:text-gray-400 mb-1">{{ name }}</p>
+    <h2 class="text-2xl font-bold mb-6">{{ 'Quand ?' if lang == 'fr' else 'いつですか？' }}</h2>
+
+    <!-- Un jour / plusieurs jours -->
+    <div class="grid grid-cols-2 gap-4 mb-8">
+        <button type="button" @click="oneDay = true"
+                :class="oneDay ? 'bg-blue-600 text-white border-blue-600' : 'bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600'"
+                class="py-5 text-xl font-bold border-2 rounded-xl transition">
+            {{ 'Un seul jour' if lang == 'fr' else '1日だけ' }}
+        </button>
+        <button type="button" @click="oneDay = false; if (fin < debut) fin = debut"
+                :class="!oneDay ? 'bg-blue-600 text-white border-blue-600' : 'bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600'"
+                class="py-5 text-xl font-bold border-2 rounded-xl transition">
+            {{ 'Plusieurs jours' if lang == 'fr' else '数日間' }}
+        </button>
+    </div>
+
+    <label class="block text-xl font-bold mb-2">
+        <span x-show="oneDay">{{ 'Le jour' if lang == 'fr' else '日付' }}</span>
+        <span x-show="!oneDay">{{ 'Premier jour' if lang == 'fr' else '初日' }}</span>
+    </label>
+    <input type="date" name="date_debut" x-model="debut" required
+           @change="if (fin < debut) fin = debut"
+           class="w-full sm:w-80 px-5 py-4 text-xl border-2 border-gray-300 dark:border-gray-600 rounded-xl dark:bg-gray-700 dark:text-white mb-8">
+
+    <div x-show="!oneDay">
+        <label class="block text-xl font-bold mb-2">{{ 'Dernier jour' if lang == 'fr' else '最終日' }}</label>
+        <input type="date" x-model="fin" :min="debut"
+               class="w-full sm:w-80 px-5 py-4 text-xl border-2 border-gray-300 dark:border-gray-600 rounded-xl dark:bg-gray-700 dark:text-white mb-8">
+    </div>
+
+    <!-- Convives par jour -->
+    <div x-show="!oneDay" class="mb-8">
+        <h3 class="text-xl font-bold mb-1">{{ 'Combien de personnes chaque jour ?' if lang == 'fr' else '各日の人数は？' }}</h3>
+        <p class="text-gray-600 dark:text-gray-400 mb-3">
+            {{ 'Changez seulement les jours différents.' if lang == 'fr' else '人数が違う日だけ変更してください。' }}
+        </p>
+        <ul class="bg-white dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 rounded-xl divide-y divide-gray-200 dark:divide-gray-700">
+            <template x-for="d in dayList()" :key="d">
+                <li class="flex items-center justify-between gap-3 px-4 py-3">
+                    <span class="text-lg font-medium" x-text="label(d)"></span>
+                    <span class="flex items-center gap-3">
+                        <button type="button" @click="change(d, -1)"
+                                class="w-12 h-12 text-2xl font-bold rounded-xl bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600">−</button>
+                        <span class="w-12 text-center text-2xl font-bold"
+                              :class="count(d) !== base && 'text-blue-600 dark:text-blue-400'" x-text="count(d)"></span>
+                        <button type="button" @click="change(d, 1)"
+                                class="w-12 h-12 text-2xl font-bold rounded-xl bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600">+</button>
+                        <span class="text-gray-600 dark:text-gray-400 w-8">{{ 'pers.' if lang == 'fr' else '人' }}</span>
+                    </span>
+                </li>
+            </template>
+        </ul>
+    </div>
+
+    {% if event %}
+    <p class="text-gray-500 dark:text-gray-400 mb-6">
+        {{ 'Si vous changez les dates, il faudra refaire l\'étape « Jours ».' if lang == 'fr' else '日付を変えると「献立」をやり直す必要があります。' }}
+    </p>
+    {% endif %}
+
+    <!-- Navigation -->
+    <div class="sticky bottom-0 py-4 bg-gray-50/95 dark:bg-gray-900/95 flex justify-between items-center gap-4">
+        {% if back_url %}
+        <a href="{{ back_url }}" data-wizard-nav
+           {% if not event %}:href="'{{ back_url }}&date_debut=' + debut + '&date_fin=' + (oneDay ? debut : fin) + '&days=' + (oneDay ? '' : daysValue())"{% endif %}
+           class="px-6 py-4 text-lg rounded-xl text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700">
+            ← {{ 'Retour' if lang == 'fr' else '戻る' }}
+        </a>
+        {% else %}<span></span>{% endif %}
+        <button type="submit" :disabled="!debut"
+                class="px-10 py-4 text-xl font-bold rounded-xl bg-blue-600 text-white hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed">
+            {{ 'Suivant' if lang == 'fr' else '次へ' }} →
+        </button>
+    </div>
+</form>
+{% endblock %}

@@ -1,0 +1,76 @@
+{% extends 'event_wizard/_layout.html' %}
+
+{% block wizard_body %}
+{% if event %}
+<form method="post" action="/event-wizard/{{ event.id }}/info" id="wizard-form" data-save-on-leave
+{% else %}
+<form method="get" action="/event-wizard/dates"
+{% endif %}
+      x-data='{ name: {{ name|tojson }}, attendees: {{ attendees }}, typeId: {{ event_type_id }} }'>
+    <input type="hidden" name="lang" value="{{ lang }}">
+    <input type="hidden" name="next" value="">
+    <input type="hidden" name="event_type_id" :value="typeId">
+    {% if date_debut %}
+    <input type="hidden" name="date_debut" value="{{ date_debut }}">
+    <input type="hidden" name="date_fin" value="{{ date_fin }}">
+    <input type="hidden" name="days" value="{{ days }}">
+    {% endif %}
+
+    <!-- Nom -->
+    <label class="block text-2xl font-bold mb-3">
+        {{ 'Comment s\'appelle l\'événement ?' if lang == 'fr' else 'イベントの名前は？' }}
+    </label>
+    <input type="text" name="name" x-model="name" required autofocus
+           placeholder="{{ 'Ex : Cours de cuisine de décembre' if lang == 'fr' else '例：12月の料理教室' }}"
+           class="w-full px-5 py-4 text-xl border-2 border-gray-300 dark:border-gray-600 rounded-xl
+                  focus:border-blue-500 focus:ring-0 dark:bg-gray-700 dark:text-white mb-10">
+
+    <!-- Nombre de personnes -->
+    <label class="block text-2xl font-bold mb-3">
+        {{ 'Combien de personnes ?' if lang == 'fr' else '何人分ですか？' }}
+    </label>
+    <div class="flex items-center gap-4 mb-10">
+        <button type="button" @click="attendees = Math.max(1, attendees - 1)"
+                class="w-16 h-16 text-3xl font-bold rounded-xl bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600">−</button>
+        <input type="number" name="attendees" x-model.number="attendees" min="1" required
+               class="w-28 h-16 text-center text-3xl font-bold border-2 border-gray-300 dark:border-gray-600 rounded-xl dark:bg-gray-700 dark:text-white">
+        <button type="button" @click="attendees = attendees + 1"
+                class="w-16 h-16 text-3xl font-bold rounded-xl bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600">+</button>
+        <span class="text-xl text-gray-600 dark:text-gray-400">{{ 'personnes' if lang == 'fr' else '人' }}</span>
+    </div>
+
+    <!-- Type -->
+    <label class="block text-2xl font-bold mb-3">
+        {{ 'Quel type d\'événement ?' if lang == 'fr' else 'イベントの種類は？' }}
+    </label>
+    <div class="grid grid-cols-2 gap-4 mb-10">
+        {% for et in event_types %}
+        <button type="button" @click="typeId = {{ et.id }}"
+                :class="typeId === {{ et.id }}
+                        ? 'bg-blue-600 text-white border-blue-600 ring-4 ring-blue-200 dark:ring-blue-900'
+                        : 'bg-white dark:bg-gray-800 text-gray-900 dark:text-white border-gray-300 dark:border-gray-600 hover:border-blue-400'"
+                class="py-6 px-4 text-xl font-bold border-2 rounded-xl transition">
+            {{ (et.name_fr if lang == 'fr' else et.name_jp)|trim }}
+        </button>
+        {% endfor %}
+    </div>
+
+    <!-- Navigation -->
+    <div class="sticky bottom-0 py-4 bg-gray-50/95 dark:bg-gray-900/95 flex justify-between items-center gap-4">
+        {% if event %}<span></span>{% else %}
+        <a href="/events?lang={{ lang }}"
+           class="px-6 py-4 text-lg rounded-xl text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700">
+            {{ 'Annuler' if lang == 'fr' else 'キャンセル' }}
+        </a>
+        {% endif %}
+        <button type="submit" :disabled="!name.trim() || !typeId || attendees < 1"
+                class="px-10 py-4 text-xl font-bold rounded-xl bg-blue-600 text-white hover:bg-blue-700
+                       disabled:bg-gray-300 disabled:text-gray-500 dark:disabled:bg-gray-700 disabled:cursor-not-allowed">
+            {{ 'Suivant' if lang == 'fr' else '次へ' }} →
+        </button>
+    </div>
+    <p x-show="name.trim() && !typeId" class="text-right text-gray-500 dark:text-gray-400">
+        {{ 'Choisissez un type ci-dessus' if lang == 'fr' else '上で種類を選んでください' }}
+    </p>
+</form>
+{% endblock %}

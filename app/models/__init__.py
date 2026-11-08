@@ -63,6 +63,7 @@ from .db_events import (
     remove_recipe_from_event,
     get_event_recipes,
     get_event_recipes_with_ingredients,
+    get_all_recipe_event_type_ids,
     get_recipe_event_types,
     set_recipe_event_types,
     get_all_recipe_types,
@@ -72,6 +73,7 @@ from .db_events import (
     get_recipe_recipe_types,
     set_recipe_recipe_types,
     save_event_dates,
+    update_event_dates_attendees,
     get_event_dates,
     toggle_event_date_selection,
     save_recipe_planning,
@@ -92,6 +94,8 @@ from .db_shopping import (
     delete_shopping_list_item,
     delete_all_shopping_list_items,
     regenerate_shopping_list,
+    refresh_shopping_list,
+    get_shopping_list_item_event_id,
 )
 
 # Import des fonctions de gestion du budget
@@ -293,6 +297,7 @@ __all__ = [
     'remove_recipe_from_event',
     'get_event_recipes',
     'get_event_recipes_with_ingredients',
+    'get_all_recipe_event_type_ids',
     'get_recipe_event_types',
     'set_recipe_event_types',
     'get_all_recipe_types',
@@ -302,6 +307,7 @@ __all__ = [
     'get_recipe_recipe_types',
     'set_recipe_recipe_types',
     'save_event_dates',
+    'update_event_dates_attendees',
     'get_event_dates',
     'toggle_event_date_selection',
     'save_recipe_planning',
@@ -317,6 +323,8 @@ __all__ = [
     'delete_shopping_list_item',
     'delete_all_shopping_list_items',
     'regenerate_shopping_list',
+    'refresh_shopping_list',
+    'get_shopping_list_item_event_id',
 
     # Budget
     'get_event_budget_planned',
@@ -499,6 +507,7 @@ db = SimpleNamespace(
     remove_recipe_from_event=remove_recipe_from_event,
     get_event_recipes=get_event_recipes,
     get_event_recipes_with_ingredients=get_event_recipes_with_ingredients,
+    get_all_recipe_event_type_ids=get_all_recipe_event_type_ids,
     get_recipe_event_types=get_recipe_event_types,
     set_recipe_event_types=set_recipe_event_types,
     get_all_recipe_types=get_all_recipe_types,
@@ -508,6 +517,7 @@ db = SimpleNamespace(
     get_recipe_recipe_types=get_recipe_recipe_types,
     set_recipe_recipe_types=set_recipe_recipe_types,
     save_event_dates=save_event_dates,
+    update_event_dates_attendees=update_event_dates_attendees,
     get_event_dates=get_event_dates,
     toggle_event_date_selection=toggle_event_date_selection,
     save_recipe_planning=save_recipe_planning,
@@ -526,6 +536,8 @@ db = SimpleNamespace(
     delete_shopping_list_item=delete_shopping_list_item,
     delete_all_shopping_list_items=delete_all_shopping_list_items,
     regenerate_shopping_list=regenerate_shopping_list,
+    refresh_shopping_list=refresh_shopping_list,
+    get_shopping_list_item_event_id=get_shopping_list_item_event_id,
 
     # Budget
     get_event_budget_planned=get_event_budget_planned,

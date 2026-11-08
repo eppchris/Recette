@@ -281,7 +281,14 @@ def get_recipe_id_by_slug(slug: str) -> int:
 
 def get_source_language(recipe_id: int) -> str:
     """
-    Détermine la langue source disponible pour une recette
+    Détermine la langue source (celle dans laquelle la recette a été écrite à
+    l'origine) pour une recette.
+
+    Se base en priorité sur la langue préférée du créateur : une recette est
+    presque toujours écrite dans la langue maternelle de son auteur, même si
+    une traduction existe aussi dans l'autre langue (ex: les recettes de
+    Takachan, japonophone, dont le texte FR n'est qu'un gloss dérivé du JP).
+    Sans créateur exploitable, on retombe sur la traduction disponible.
 
     Args:
         recipe_id: ID de la recette
@@ -290,7 +297,24 @@ def get_source_language(recipe_id: int) -> str:
         Code de langue ('fr' ou 'jp') ou None si aucune traduction
     """
     with get_db() as con:
-        sql = "SELECT lang FROM recipe_translation WHERE recipe_id = ? LIMIT 1"
+        creator = con.execute("""
+            SELECT u.preferred_lang
+            FROM recipe r
+            JOIN user u ON u.id = r.user_id
+            WHERE r.id = ?
+        """, (recipe_id,)).fetchone()
+
+        if creator and creator['preferred_lang']:
+            exists = con.execute(
+                "SELECT 1 FROM recipe_translation WHERE recipe_id = ? AND lang = ?",
+                (recipe_id, creator['preferred_lang'])
+            ).fetchone()
+            if exists:
+                return creator['preferred_lang']
+
+        # Repli : pas de créateur exploitable (recette legacy sans user_id) —
+        # ORDER BY pour un résultat au moins déterministe si les deux langues existent.
+        sql = "SELECT lang FROM recipe_translation WHERE recipe_id = ? ORDER BY lang LIMIT 1"
         result = con.execute(sql, (recipe_id,)).fetchone()
         return result['lang'] if result else None
 
@@ -662,6 +686,7 @@ def search_recipes_by_ingredients(ingredients: list, lang: str = 'fr'):
     if not ingredients:
         return []
 
+    other_lang = 'jp' if lang == 'fr' else 'fr'
     with get_db() as conn:
         # Pour chaque recette, compter combien d'ingrédients matchent
         # On ne garde que les recettes qui ont TOUS les ingrédients
@@ -672,9 +697,17 @@ def search_recipes_by_ingredients(ingredients: list, lang: str = 'fr'):
                 COALESCE(rt.name, r.slug) AS name,
                 r.image_url,
                 r.thumbnail_url,
-                r.servings_default AS servings
+                r.servings_default AS servings,
+                r.prep_time,
+                r.cook_time,
+                r.country,
+                r.user_id,
+                CASE WHEN rt_other.recipe_id IS NOT NULL THEN 1 ELSE 0 END AS has_other_lang,
+                (SELECT COUNT(*) FROM recipe_ingredient ri_c WHERE ri_c.recipe_id = r.id) AS ingredient_count,
+                (SELECT COUNT(*) FROM step s WHERE s.recipe_id = r.id AND s.type = 'text') AS step_count
             FROM recipe r
             LEFT JOIN recipe_translation rt ON r.id = rt.recipe_id AND rt.lang = ?
+            LEFT JOIN recipe_translation rt_other ON rt_other.recipe_id = r.id AND rt_other.lang = ?
             LEFT JOIN recipe_ingredient ri ON ri.recipe_id = r.id
             LEFT JOIN recipe_ingredient_translation rit ON rit.recipe_ingredient_id = ri.id AND rit.lang = ?
             WHERE (
@@ -687,7 +720,7 @@ def search_recipes_by_ingredients(ingredients: list, lang: str = 'fr'):
 
         # Construire les conditions pour chaque ingrédient
         ingredient_conditions = []
-        params = [lang, lang]
+        params = [lang, other_lang, lang]
 
         for ingredient in ingredients:
             ingredient_lower = ingredient.strip().lower()
@@ -722,8 +755,9 @@ def search_recipes_by_filters(search_text: str = None, category_ids: list = None
     """
     # Les params SQLite sont positionnels (?). Les ? dans les JOINs viennent
     # avant les ? dans le WHERE — on sépare donc join_params et where_params.
+    other_lang = 'jp' if lang == 'fr' else 'fr'
     joins = []
-    join_params = [lang]   # 1er ? : lang pour recipe_translation
+    join_params = [lang, other_lang]   # 1er/2e ? : lang et other_lang pour recipe_translation
     where_conds = []
     where_params = []
 
@@ -745,16 +779,21 @@ def search_recipes_by_filters(search_text: str = None, category_ids: list = None
             "LEFT JOIN recipe_ingredient_translation rit_s "
             "    ON rit_s.recipe_ingredient_id = ri_s.id AND rit_s.lang = ?"
         )
-        join_params.append(lang)   # 2e ? dans le SQL (JOIN, avant WHERE)
+        join_params.append(lang)   # ? du JOIN rit_s, avant les ? du WHERE
         search_pattern = f"%{search_text}%"
         where_conds.append("(rt.name LIKE ? OR rit_s.name LIKE ?)")
         where_params.extend([search_pattern, search_pattern])
 
     query = (
         "SELECT DISTINCT r.id, r.slug, r.thumbnail_url, r.created_at, "
-        "COALESCE(rt.name, r.slug) AS name "
+        "r.image_url, r.servings_default AS servings, r.prep_time, r.cook_time, r.country, r.user_id, "
+        "COALESCE(rt.name, r.slug) AS name, "
+        "CASE WHEN rt_other.recipe_id IS NOT NULL THEN 1 ELSE 0 END AS has_other_lang, "
+        "(SELECT COUNT(*) FROM recipe_ingredient ri_c WHERE ri_c.recipe_id = r.id) AS ingredient_count, "
+        "(SELECT COUNT(*) FROM step s WHERE s.recipe_id = r.id AND s.type = 'text') AS step_count "
         "FROM recipe r "
         "LEFT JOIN recipe_translation rt ON rt.recipe_id = r.id AND rt.lang = ? "
+        "LEFT JOIN recipe_translation rt_other ON rt_other.recipe_id = r.id AND rt_other.lang = ? "
         + " ".join(joins)
     )
     if where_conds:

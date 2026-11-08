@@ -63,6 +63,16 @@
                         </button>
                     </form>
 
+                    <!-- Envoyer / enregistrer la liste (ingrédients cochés uniquement) -->
+                    <button type="button" onclick="sendShoppingList()"
+                            class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 print:hidden">
+                        📱 {{ 'Envoyer' if lang == 'fr' else 'スマホに送る' }}
+                    </button>
+                    <button type="button" onclick="downloadShoppingList()"
+                            class="px-4 py-2 border-2 border-green-600 text-green-700 dark:text-green-300 rounded-lg hover:bg-green-50 dark:hover:bg-gray-700 print:hidden">
+                        💾 {{ 'Enregistrer' if lang == 'fr' else '保存' }}
+                    </button>
+
                     <!-- Bouton imprimer -->
                     <button onclick="window.print()"
                             class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 print:hidden">
@@ -114,16 +124,37 @@
             <!-- Liste de courses -->
             <div class="bg-white dark:bg-gray-800 rounded-lg shadow print:shadow-none">
                 <div class="p-6">
-                    <h2 class="text-xl font-bold text-gray-900 dark:text-white mb-4">
-                        {{ 'Ingrédients à acheter' if lang == 'fr' else '購入する材料' }}
-                    </h2>
+                    <div class="flex flex-wrap justify-between items-center gap-3 mb-4">
+                        <h2 class="text-xl font-bold text-gray-900 dark:text-white">
+                            {{ 'Ingrédients à acheter' if lang == 'fr' else '購入する材料' }}
+                        </h2>
+                        {% if ingredients %}
+                        <div class="flex gap-2 print:hidden">
+                            <button type="button" @click="$dispatch('set-all-items', true)"
+                                    class="px-3 py-1.5 text-sm border-2 border-green-600 text-green-700 dark:text-green-300 rounded-lg hover:bg-green-50 dark:hover:bg-gray-700">
+                                ☑ {{ 'Tout cocher' if lang == 'fr' else 'すべて選択' }}
+                            </button>
+                            <button type="button" @click="$dispatch('set-all-items', false)"
+                                    class="px-3 py-1.5 text-sm border-2 border-gray-400 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700">
+                                ☐ {{ 'Tout décocher' if lang == 'fr' else 'すべて解除' }}
+                            </button>
+                        </div>
+                        {% endif %}
+                    </div>
+                    <p class="text-sm text-gray-500 dark:text-gray-400 mb-4 print:hidden">
+                        {{ 'Décochez ce qu\'il ne faut pas acheter : l\'ingrédient est barré et n\'est ni imprimé, ni envoyé, ni compté dans le budget.' if lang == 'fr' else 'チェックを外した材料は取り消し線になり、印刷・送信・予算に含まれません。' }}
+                    </p>
 
                     {% if ingredients %}
                     <div class="space-y-3">
                         {% for ingredient in ingredients %}
-                        <div class="p-4 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700"
+                        {% set shop_qty = ('%g'|format(ingredient.purchase_quantity|round(2)) ~ ' ' ~ (ingredient.purchase_unit or ''))|trim if ingredient.purchase_quantity else '' %}
+                        <div class="shop-row p-4 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700"
+                             data-name="{{ ingredient.ingredient_name }}" data-qty="{{ shop_qty }}" :data-on="on"
+                             :class="!on && 'bg-gray-50 dark:bg-gray-900 print:hidden'"
+                             @set-all-items.window="if (on !== $event.detail) { on = $event.detail; updateItem({{ ingredient.id }}, { excluded: !on }); }"
                              x-data="{
-                                checked: {{ 'true' if ingredient.is_checked else 'false' }},
+                                on: {{ 'false' if ingredient.excluded else 'true' }},
                                 editing: false,
                                 purchaseQty: '{{ ingredient.purchase_quantity if ingredient.purchase_quantity else '' }}',
                                 purchaseUnit: '{{ ingredient.purchase_unit if ingredient.purchase_unit else '' }}',
@@ -176,17 +207,18 @@
                                 }
                              }">
                             <!-- Mode affichage normal -->
-                            <div x-show="!editing" class="flex items-center gap-4" :class="checked ? 'opacity-50' : ''">
-                                <!-- Checkbox -->
+                            <div x-show="!editing" class="flex items-center gap-4" :class="!on && 'opacity-50'">
+                                <!-- Case « à acheter » : décochée = retiré de la liste (barré, ni imprimé ni envoyé) -->
                                 <input type="checkbox"
-                                       x-model="checked"
-                                       @change="updateItem({{ ingredient.id }}, { is_checked: checked })"
-                                       class="w-5 h-5 text-blue-600 rounded focus:ring-2 focus:ring-blue-500 print:hidden">
+                                       x-model="on"
+                                       @change="updateItem({{ ingredient.id }}, { excluded: !on })"
+                                       class="w-6 h-6 accent-green-600 rounded focus:ring-2 focus:ring-green-500 print:hidden">
+                                <span class="hidden print:inline-block w-5 h-5 border-2 border-gray-500 rounded flex-shrink-0"></span>
 
                                 <!-- Nom de l'ingrédient -->
                                 <div class="flex-1">
                                     <div class="font-medium text-lg text-gray-900 dark:text-white"
-                                         :class="checked ? 'line-through' : ''">
+                                         :class="!on && 'line-through'">
                                         <button @click="catalogModal.open('{{ ingredient.ingredient_name }}')"
                                                 class="text-blue-600 dark:text-blue-400 hover:underline text-left">
                                             {{ ingredient.ingredient_name }}
@@ -207,7 +239,7 @@
                                 <!-- Quantité -->
                                 <div class="text-base font-medium text-gray-900 dark:text-white min-w-[120px]">
                                     {% if ingredient.purchase_quantity %}
-                                        {{ ingredient.purchase_quantity }} {{ ingredient.purchase_unit }}
+                                        <span :class="!on && 'line-through'">{{ shop_qty }}</span>
                                     {% else %}
                                         <span class="text-gray-400">{{ 'Non défini' if lang == 'fr' else '未定義' }}</span>
                                     {% endif %}
@@ -297,8 +329,9 @@
             <!-- Statistiques -->
             <div class="mt-6 bg-green-50 dark:bg-green-900 rounded-lg p-4 print:bg-white print:border">
                 <p class="text-sm text-green-800 dark:text-green-200">
-                    <span class="font-medium">{{ ingredients|length }}</span>
-                    {{ 'ingrédients différents pour' if lang == 'fr' else '種類の材料' }}
+                    <span class="font-medium">{{ ingredients|rejectattr('excluded')|list|length }}</span>
+                    {% if ingredients|selectattr('excluded')|list %}/ {{ ingredients|length }}{% endif %}
+                    {{ 'ingrédients à acheter pour' if lang == 'fr' else '種類の材料' }}
                     <span class="font-medium">{{ recipes|length }}</span>
                     {{ 'recette(s)' if lang == 'fr' else 'レシピ' }}
                 </p>
@@ -421,7 +454,40 @@
         </div>
     </div>
 
+    <script type="application/json" id="share-data">{{ {
+        'title': ('Liste de courses' if lang == 'fr' else '買い物リスト') ~ ' — ' ~ event.name,
+        'heading': '🛒 ' ~ event.name,
+        'filename': ('liste-de-courses' if lang == 'fr' else 'kaimono') ~ '-' ~ event.id ~ '.txt'
+    }|tojson }}</script>
     <script>
+        // Texte de la liste : ingrédients cochés uniquement
+        function shoppingListText() {
+            const data = JSON.parse(document.getElementById('share-data').textContent);
+            const lines = [data.heading, ''];
+            document.querySelectorAll('.shop-row[data-on="true"]').forEach(row => {
+                lines.push('☐ ' + row.dataset.name + (row.dataset.qty ? ' — ' + row.dataset.qty : ''));
+            });
+            data.text = lines.join('\n');
+            return data;
+        }
+        function downloadShoppingList() {
+            const data = shoppingListText();
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(new Blob([data.text], { type: 'text/plain;charset=utf-8' }));
+            link.download = data.filename;
+            link.click();
+            URL.revokeObjectURL(link.href);
+        }
+        function sendShoppingList() {
+            // Téléphone/Mac : menu de partage (Messages, LINE, AirDrop, Notes…), sinon téléchargement
+            const data = shoppingListText();
+            if (navigator.share) {
+                navigator.share({ title: data.title, text: data.text }).catch(() => {});
+            } else {
+                downloadShoppingList();
+            }
+        }
+
         function shoppingListApp() {
             return {
                 darkMode: false,
@@ -505,6 +571,9 @@
                         const formData = new FormData();
                         if (data.is_checked !== undefined) {
                             formData.append('is_checked', data.is_checked);
+                        }
+                        if (data.excluded !== undefined) {
+                            formData.append('excluded', data.excluded);
                         }
                         if (data.purchase_quantity !== undefined) {
                             formData.append('purchase_quantity', data.purchase_quantity);

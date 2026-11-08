@@ -1,0 +1,159 @@
+{% extends 'event_wizard/_layout.html' %}
+
+{% macro qty(value) %}{{ '%g'|format(value|round(2)) }}{% endmacro %}
+
+{% block wizard_body %}
+<div class="print:hidden mb-6 p-5 rounded-xl bg-green-50 dark:bg-green-900/30 border-2 border-green-500">
+    <p class="text-2xl font-bold text-green-800 dark:text-green-300">
+        ✓ {{ 'C\'est prêt !' if lang == 'fr' else '完成しました！' }}
+    </p>
+    <p class="text-lg text-green-900 dark:text-green-200">
+        {{ event.name }} ·
+        {{ nb_recipes }} {{ 'recette(s)' if lang == 'fr' else '品' }}
+    </p>
+    <p class="text-lg text-green-900 dark:text-green-200">
+        {% for label, people in people_by_day %}
+        <span class="inline-block mr-3">{{ label }} : <b>{{ people }}</b> {{ 'pers.' if lang == 'fr' else '人' }}</span>
+        {% endfor %}
+    </p>
+</div>
+
+{% if empty_recipes %}
+<div class="mb-6 p-5 rounded-xl bg-orange-50 dark:bg-orange-900/30 border-2 border-orange-400 text-lg">
+    <p class="font-bold text-orange-800 dark:text-orange-300 mb-1">
+        ⚠️ {{ 'Ces recettes n\'ont pas d\'ingrédients, elles ne sont pas dans la liste :' if lang == 'fr' else '次のレシピには材料が登録されていないため、リストに入っていません：' }}
+    </p>
+    <p class="text-orange-900 dark:text-orange-200">{{ empty_recipes|join(', ') }}</p>
+</div>
+{% endif %}
+
+<h2 class="text-2xl font-bold mb-1">🛒 {{ 'Liste de courses' if lang == 'fr' else '買い物リスト' }}</h2>
+<p class="print:hidden text-gray-600 dark:text-gray-400 mb-4">
+    {{ 'Décochez ce qu\'il ne faut pas acheter. Vous pouvez aussi changer les quantités : c\'est enregistré tout de suite.' if lang == 'fr' else '買わないものはチェックを外してください。数量も変更できます（自動で保存されます）。' }}
+</p>
+<p class="hidden print:block text-lg mb-4">{{ event.name }} · {{ event.attendees }} {{ 'personnes' if lang == 'fr' else '人' }}</p>
+
+{% if items %}
+<ul class="bg-white dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 rounded-xl divide-y divide-gray-200 dark:divide-gray-700 mb-8">
+    {% for item in items %}
+    {% set q = item.purchase_quantity if item.purchase_quantity else item.needed_quantity %}
+    <li class="shop-row flex justify-between items-center gap-3 px-4 py-2 text-lg"
+        data-name="{{ item.ingredient_name }}" :data-on="on"
+        :class="!on && 'bg-gray-50 dark:bg-gray-900 print:hidden'"
+        x-data='{ q: {{ (qty(q) if q else "")|tojson }}, u: {{ (item.purchase_unit or item.needed_unit or "")|tojson }},
+                  on: {{ "false" if item.excluded else "true" }}, state: "",
+                  save(fields) { this.state = "saving"; saveItem({{ item.id }}, fields).then(ok => this.state = ok ? "ok" : "error"); } }'>
+        <label class="flex items-center gap-3 min-w-0 cursor-pointer">
+            <input type="checkbox" x-model="on" @change="save({ excluded: !on })"
+                   class="w-7 h-7 flex-shrink-0 accent-green-600 cursor-pointer print:hidden">
+            <span class="hidden print:inline-block w-5 h-5 border-2 border-gray-500 rounded flex-shrink-0"></span>
+            <span class="break-words" :class="!on && 'line-through text-gray-400 dark:text-gray-500'">{{ item.ingredient_name }}</span>
+        </label>
+        <span class="flex items-center gap-2 flex-shrink-0" :class="!on && 'opacity-40'">
+            <input type="number" step="any" min="0" inputmode="decimal" x-model="q" :disabled="!on"
+                   @change="save({ purchase_quantity: q, purchase_unit: u })"
+                   class="w-24 px-2 py-2 text-lg font-bold text-right border-2 border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white
+                          print:border-0 print:p-0 print:w-20">
+            <input type="text" x-model="u" :disabled="!on"
+                   @change="save({ purchase_quantity: q, purchase_unit: u })"
+                   placeholder="{{ 'unité' if lang == 'fr' else '単位' }}"
+                   class="w-28 px-2 py-2 text-lg border-2 border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white
+                          print:border-0 print:p-0 print:w-24 print:placeholder-transparent">
+            <span class="w-6 text-center print:hidden">
+                <span x-show="state === 'ok'" class="text-green-600">✓</span>
+                <span x-show="state === 'error'" class="text-red-600" title="{{ 'Non enregistré' if lang == 'fr' else '保存できませんでした' }}">!</span>
+            </span>
+        </span>
+    </li>
+    {% endfor %}
+</ul>
+{% else %}
+<p class="text-lg text-gray-500 dark:text-gray-400 mb-8">
+    {{ 'Aucun ingrédient trouvé dans les recettes choisies.' if lang == 'fr' else '選んだレシピに材料がありません。' }}
+</p>
+{% endif %}
+
+<!-- Envoi sur le téléphone : le texte reprend les quantités affichées (modifiées ou non) -->
+<script type="application/json" id="share-data">{{ {
+    'title': ('Liste de courses' if lang == 'fr' else '買い物リスト') ~ ' — ' ~ event.name,
+    'heading': '🛒 ' ~ event.name,
+    'filename': ('liste-de-courses' if lang == 'fr' else 'kaimono') ~ '-' ~ event.id ~ '.txt'
+}|tojson }}</script>
+<script>
+    async function saveItem(itemId, fields) {
+        const body = new FormData();
+        for (const [key, value] of Object.entries(fields)) {
+            if (value !== '' && value !== null && value !== undefined) body.append(key, value);
+            else if (key === 'purchase_unit') body.append(key, '');
+        }
+        try {
+            const response = await fetch('/event-wizard/{{ event.id }}/shopping/' + itemId, { method: 'POST', body });
+            return response.ok;
+        } catch (e) {
+            return false;
+        }
+    }
+    function shareData() {
+        const data = JSON.parse(document.getElementById('share-data').textContent);
+        const lines = [data.heading, ''];
+        // Les ingrédients décochés ne sont pas envoyés
+        document.querySelectorAll('.shop-row[data-on="true"]').forEach(row => {
+            const [qInput, uInput] = row.querySelectorAll('input:not([type="checkbox"])');
+            const amount = [qInput.value, uInput.value].filter(Boolean).join(' ');
+            lines.push('☐ ' + row.dataset.name + (amount ? ' — ' + amount : ''));
+        });
+        data.text = lines.join('\n');
+        return data;
+    }
+    function downloadList() {
+        const data = shareData();
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(new Blob([data.text], { type: 'text/plain;charset=utf-8' }));
+        link.download = data.filename;
+        link.click();
+        URL.revokeObjectURL(link.href);
+    }
+    function sendToPhone() {
+        // Sur téléphone/Mac : menu de partage (Messages, LINE, AirDrop, Notes…)
+        const data = shareData();
+        if (navigator.share) {
+            navigator.share({ title: data.title, text: data.text }).catch(() => {});
+        } else {
+            downloadList();
+        }
+    }
+</script>
+
+<!-- Actions -->
+<div class="print:hidden grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+    <button type="button" onclick="sendToPhone()"
+            class="py-5 text-xl font-bold rounded-xl bg-green-600 text-white hover:bg-green-700">
+        📱 {{ 'Envoyer sur le téléphone' if lang == 'fr' else 'スマホに送る' }}
+    </button>
+    <button type="button" onclick="downloadList()"
+            class="py-5 text-xl font-bold rounded-xl bg-white dark:bg-gray-800 border-2 border-green-600 text-green-700 dark:text-green-300 hover:bg-green-50 dark:hover:bg-gray-700">
+        💾 {{ 'Enregistrer la liste' if lang == 'fr' else 'リストを保存' }}
+    </button>
+</div>
+<div class="print:hidden grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
+    <button type="button" onclick="window.print()"
+            class="py-5 text-xl font-bold rounded-xl bg-blue-600 text-white hover:bg-blue-700">
+        🖨️ {{ 'Imprimer la liste' if lang == 'fr' else 'リストを印刷' }}
+    </button>
+    <a href="/events/{{ event.id }}/recipes-detail?lang={{ lang }}"
+       class="py-5 text-xl font-bold rounded-xl bg-white dark:bg-gray-800 border-2 border-blue-600 text-blue-700 dark:text-blue-300 text-center hover:bg-blue-50 dark:hover:bg-gray-700">
+        📖 {{ 'Imprimer les recettes' if lang == 'fr' else 'レシピを印刷' }}
+    </a>
+</div>
+
+<div class="print:hidden flex justify-between items-center gap-4">
+    <a href="{{ back_url }}"
+       class="px-6 py-4 text-lg rounded-xl text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700">
+        ← {{ 'Retour' if lang == 'fr' else '戻る' }}
+    </a>
+    <a href="/events/{{ event.id }}?lang={{ lang }}"
+       class="px-10 py-4 text-xl font-bold rounded-xl bg-green-600 text-white hover:bg-green-700">
+        {{ 'Terminer' if lang == 'fr' else '完了' }} ✓
+    </a>
+</div>
+{% endblock %}

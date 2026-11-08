@@ -1,0 +1,64 @@
+{% extends 'base.html' %}
+
+{% block breadcrumb %}
+<a href="/events?lang={{ lang }}" class="hover:text-gray-900 dark:hover:text-gray-100 transition-colors">
+  {{ S('events_list') }}
+</a>
+<span class="mx-2">›</span>
+<span class="text-gray-900 dark:text-gray-100">{{ 'Nouvel événement' if lang == 'fr' else '新しいイベント' }}</span>
+{% endblock %}
+
+{% block content %}
+{% set steps = [
+    ('Nom', '名前'),
+    ('Dates', '日付'),
+    ('Recettes', 'レシピ'),
+    ('Jours', '献立'),
+    ('Courses', '買い物'),
+] %}
+<style>
+    @media print {
+        aside, body > div.fixed, nav[aria-label="Breadcrumb"] { display: none !important; }
+        main { margin-left: 0 !important; padding: 0 !important; }
+    }
+</style>
+<div class="max-w-3xl mx-auto pb-32">
+
+    <!-- Étapes -->
+    <ol class="flex items-center justify-between mb-8 print:hidden">
+        {% set step_paths = ['info', 'dates', 'recipes', 'planning', 'shopping'] %}
+        {% for fr, jp in steps %}
+        {% set n = loop.index %}
+        {# Une fois l'événement créé, chaque étape est cliquable #}
+        {% set tag = 'a' if event and n != step else 'span' %}
+        <li class="flex-1 flex flex-col items-center text-center">
+            <{{ tag }} {% if tag == 'a' %}href="/event-wizard/{{ event.id }}/{{ step_paths[loop.index0] }}?lang={{ lang }}" data-wizard-nav{% endif %}
+               class="flex flex-col items-center {{ 'hover:opacity-80' if tag == 'a' }}">
+                <span class="w-10 h-10 sm:w-12 sm:h-12 rounded-full flex items-center justify-center text-lg font-bold
+                             {{ 'bg-green-600 text-white' if n < step else ('bg-blue-600 text-white ring-4 ring-blue-200 dark:ring-blue-900' if n == step else 'bg-gray-200 dark:bg-gray-700 text-gray-500 dark:text-gray-400') }}">
+                    {{ '✓' if n < step else n }}
+                </span>
+                <span class="mt-1 text-xs sm:text-sm {{ 'font-bold text-gray-900 dark:text-white' if n == step else 'text-gray-500 dark:text-gray-400' }} {{ 'underline' if tag == 'a' }}">
+                    {{ fr if lang == 'fr' else jp }}
+                </span>
+            </{{ tag }}>
+        </li>
+        {% endfor %}
+    </ol>
+
+    {% block wizard_body %}{% endblock %}
+</div>
+
+<script>
+    // Quitter une étape par une flèche « Retour » ou un rond du haut :
+    // on enregistre d'abord l'écran en cours, puis on va à l'étape demandée.
+    document.addEventListener('click', (e) => {
+        const link = e.target.closest('a[data-wizard-nav]');
+        const form = document.querySelector('#wizard-form[data-save-on-leave]');
+        if (!link || !form) return;
+        e.preventDefault();
+        form.querySelector('input[name="next"]').value = link.getAttribute('href');
+        form.submit();
+    });
+</script>
+{% endblock %}

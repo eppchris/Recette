@@ -21,6 +21,12 @@ def _check_event_access(event: dict, request: Request):
         raise HTTPException(status_code=403, detail="Accès non autorisé")
 
 
+def _refresh_shopping_list_if_any(event_id: int, lang: str):
+    """Recalcule la liste de courses existante en gardant les choix (ingrédients retirés, quantités modifiées)."""
+    if db.get_shopping_list_items(event_id, lang):
+        db.refresh_shopping_list(event_id, lang)
+
+
 # ============================================================================
 # Routes pour la gestion des événements
 # ============================================================================
@@ -306,18 +312,8 @@ async def event_update(
         # Mettre à jour tous les servings_multiplier des recettes de l'événement
         db.update_event_recipes_multipliers(event_id, ratio)
 
-        # Si une liste de courses existe, la régénérer avec les nouvelles quantités
-        shopping_list_items = db.get_shopping_list_items(event_id, lang)
-
-        if len(shopping_list_items) > 0:
-            # Récupérer les recettes de l'événement avec les ingrédients (avec les nouveaux multiplicateurs)
-            recipes_data = db.get_event_recipes_with_ingredients(event_id, lang)
-
-            if recipes_data:
-                # Régénérer la liste de courses avec les nouvelles quantités
-                aggregator = get_ingredient_aggregator()
-                aggregated_ingredients = aggregator.aggregate_ingredients(recipes_data, lang)
-                db.save_shopping_list_items(event_id, aggregated_ingredients)
+        # Si une liste de courses existe, la recalculer avec les nouvelles quantités
+        _refresh_shopping_list_if_any(event_id, lang)
 
     redirect_url = f"/events/{event_id}?lang={lang}"
     if from_page:
@@ -385,6 +381,9 @@ async def event_copy_create(
         new_notes=notes if notes else None,
         user_id=user_id
     )
+    # Recalcule la liste copiée pour le nouveau nombre de convives (choix conservés)
+    if db.get_shopping_list_items(new_event_id):
+        db.refresh_shopping_list(new_event_id, lang)
 
     # Rediriger vers la page de détail du nouvel événement
     return RedirectResponse(
@@ -441,8 +440,8 @@ async def event_add_recipe(
 
     db.add_recipe_to_event(event_id, recipe_id, servings_multiplier)
 
-    # Supprimer la shopping list existante car les recettes ont changé
-    db.delete_all_shopping_list_items(event_id)
+    # Recalculer la liste de courses car les recettes ont changé (choix conservés)
+    _refresh_shopping_list_if_any(event_id, lang)
 
     return RedirectResponse(
         url=f"/events/{event_id}?lang={lang}",
@@ -476,8 +475,8 @@ async def event_add_all_recipes_by_type(
         if not any(r['id'] == recipe['id'] for r in existing_recipes):
             db.add_recipe_to_event(event_id, recipe['id'], 1.0)
 
-    # Supprimer la shopping list existante car les recettes ont changé
-    db.delete_all_shopping_list_items(event_id)
+    # Recalculer la liste de courses car les recettes ont changé (choix conservés)
+    _refresh_shopping_list_if_any(event_id, lang)
 
     return RedirectResponse(
         url=f"/events/{event_id}?lang={lang}",
@@ -501,8 +500,8 @@ async def event_remove_recipe(
     _check_event_access(event, request)
     db.remove_recipe_from_event(event_id, recipe_id)
 
-    # Supprimer la shopping list existante car les recettes ont changé
-    db.delete_all_shopping_list_items(event_id)
+    # Recalculer la liste de courses car les recettes ont changé (choix conservés)
+    _refresh_shopping_list_if_any(event_id, lang)
 
     return RedirectResponse(
         url=f"/events/{event_id}?lang={lang}",
@@ -527,8 +526,8 @@ async def event_update_recipe_servings(
     _check_event_access(event, request)
     db.update_event_recipe_servings(event_id, recipe_id, servings_multiplier)
 
-    # Supprimer la shopping list existante car les quantités ont changé
-    db.delete_all_shopping_list_items(event_id)
+    # Recalculer la liste de courses car les quantités ont changé (choix conservés)
+    _refresh_shopping_list_if_any(event_id, lang)
 
     return RedirectResponse(
         url=f"/events/{event_id}?lang={lang}",
@@ -552,6 +551,25 @@ async def event_shopping_list(request: Request, event_id: int, lang: str = "fr",
         raise HTTPException(status_code=404, detail="Événement non trouvé")
     _check_event_access(event, request)
 
+    recipes_data, saved_items = ensure_shopping_list(event_id, lang, regenerate)
+
+    return templates.TemplateResponse(
+        "shopping_list.html",
+        {
+            "request": request,
+            "lang": lang,
+            "event": event,
+            "ingredients": saved_items,
+            "recipes": recipes_data
+        }
+    )
+
+
+def ensure_shopping_list(event_id: int, lang: str, regenerate: bool = False):
+    """
+    Retourne (recettes avec ingrédients, items de la liste de courses).
+    Génère la liste si elle n'existe pas, si regenerate=True ou si la langue a changé.
+    """
     # Récupérer les recettes pour affichage dans la langue demandée
     recipes_data = db.get_event_recipes_with_ingredients(event_id, lang)
 
@@ -575,26 +593,21 @@ async def event_shopping_list(request: Request, event_id: int, lang: str = "fr",
 
     # Si pas de liste ou régénération nécessaire, créer une nouvelle liste
     if needs_regeneration:
-        # Agréger les ingrédients depuis les recettes
-        aggregator = get_ingredient_aggregator()
-        aggregated_ingredients = aggregator.aggregate_ingredients(recipes_data, lang)
+        if saved_items and not regenerate:
+            # Changement de langue : on garde les choix de l'utilisateur
+            db.refresh_shopping_list(event_id, lang)
+        else:
+            # Agréger les ingrédients depuis les recettes
+            aggregator = get_ingredient_aggregator()
+            aggregated_ingredients = aggregator.aggregate_ingredients(recipes_data, lang)
 
-        # Sauvegarder dans la base de données
-        db.save_shopping_list_items(event_id, aggregated_ingredients)
+            # Sauvegarder dans la base de données
+            db.save_shopping_list_items(event_id, aggregated_ingredients)
 
         # Recharger les items sauvegardés
         saved_items = db.get_shopping_list_items(event_id, lang)
 
-    return templates.TemplateResponse(
-        "shopping_list.html",
-        {
-            "request": request,
-            "lang": lang,
-            "event": event,
-            "ingredients": saved_items,
-            "recipes": recipes_data
-        }
-    )
+    return recipes_data, saved_items
 
 
 # ============================================================================
@@ -686,21 +699,29 @@ async def api_delete_event_type(event_type_id: int):
 
 @router.post("/api/shopping-list/items/{item_id}/update")
 async def api_update_shopping_list_item(
+    request: Request,
     item_id: int,
     purchase_quantity: Optional[float] = Form(None),
     purchase_unit: Optional[str] = Form(None),
     is_checked: Optional[bool] = Form(None),
-    notes: Optional[str] = Form(None)
+    notes: Optional[str] = Form(None),
+    excluded: Optional[bool] = Form(None)
 ):
     """
     API: Met à jour un item de liste de courses
     """
+    event = db.get_event_by_id(db.get_shopping_list_item_event_id(item_id) or 0)
+    if not event:
+        raise HTTPException(status_code=404, detail="Article non trouvé")
+    _check_event_access(event, request)
+
     success = db.update_shopping_list_item(
         item_id=item_id,
         purchase_quantity=purchase_quantity,
         purchase_unit=purchase_unit,
         is_checked=is_checked,
-        notes=notes
+        notes=notes,
+        excluded=excluded
     )
 
     if success:
@@ -770,13 +791,12 @@ async def event_budget_view(request: Request, event_id: int, lang: str = "fr"):
         needs_regen = (lang == 'fr' and has_japanese) or (lang == 'jp' and not has_japanese)
 
         if needs_regen:
-            # Régénérer la liste dans la bonne langue
-            recipes_data = db.get_event_recipes_with_ingredients(event_id, lang)
-            if recipes_data:
-                aggregator = get_ingredient_aggregator()
-                aggregated_ingredients = aggregator.aggregate_ingredients(recipes_data, lang)
-                db.save_shopping_list_items(event_id, aggregated_ingredients)
-                shopping_list = db.get_shopping_list_items(event_id, lang)
+            # Régénérer la liste dans la bonne langue (choix conservés)
+            db.refresh_shopping_list(event_id, lang)
+            shopping_list = db.get_shopping_list_items(event_id, lang)
+
+    # Les ingrédients retirés de la liste ne comptent pas dans le budget
+    shopping_list = [item for item in shopping_list if not item.get('excluded')]
 
     # Enrichir chaque ingrédient avec son prix calculé pour la quantité demandée
     # Utiliser la langue de l'interface pour déterminer la devise à afficher

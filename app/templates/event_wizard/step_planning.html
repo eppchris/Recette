@@ -1,0 +1,78 @@
+{% extends 'event_wizard/_layout.html' %}
+
+{% block wizard_body %}
+{% set date_ids = dates|map(attribute='id')|list %}
+<form method="post" action="/event-wizard/{{ event.id }}/planning" id="wizard-form" data-save-on-leave
+      x-data='{ plan: {{ planned|tojson }}, dateIds: {{ date_ids|tojson }}, recipeIds: {{ recipes|map(attribute="id")|list|tojson }},
+                key(r, d) { return r + ":" + d; },
+                has(r, d) { return this.plan.includes(this.key(r, d)); },
+                toggle(r, d) { const k = this.key(r, d), i = this.plan.indexOf(k); i >= 0 ? this.plan.splice(i, 1) : this.plan.push(k); },
+                everyDay(r) { return this.dateIds.every(d => this.has(r, d)); },
+                toggleAll(r) { const on = !this.everyDay(r);
+                               this.plan = this.plan.filter(k => !k.startsWith(r + ":"));
+                               if (on) this.dateIds.forEach(d => this.plan.push(this.key(r, d))); },
+                missing() { return this.recipeIds.filter(r => !this.plan.some(k => k.startsWith(r + ":"))).length; } }'>
+    <input type="hidden" name="lang" value="{{ lang }}">
+    <input type="hidden" name="next" value="">
+    <template x-for="k in plan" :key="k">
+        <input type="hidden" name="plan" :value="k">
+    </template>
+
+    <p class="text-lg text-gray-500 dark:text-gray-400 mb-1">{{ event.name }}</p>
+    <h2 class="text-2xl font-bold mb-2">{{ 'Quelle recette, quel jour ?' if lang == 'fr' else 'どの日に何を作りますか？' }}</h2>
+    <p class="text-gray-600 dark:text-gray-400 mb-6">
+        {{ 'Pour chaque recette, touchez le ou les jours.' if lang == 'fr' else 'レシピごとに日付をタップしてください。' }}
+    </p>
+
+    <div class="space-y-4">
+        {% for recipe in recipes %}
+        <div class="bg-white dark:bg-gray-800 border-2 rounded-xl p-4 transition"
+             :class="dateIds.some(d => has({{ recipe.id }}, d)) ? 'border-green-500' : 'border-gray-200 dark:border-gray-700'">
+            <div class="flex items-center gap-4 mb-3">
+                <img src="{{ recipe.thumbnail_url or recipe.image_url or '/static/images/recipe-placeholder.jpg' }}"
+                     alt="" loading="lazy" class="w-16 h-16 rounded-lg object-cover flex-shrink-0">
+                <span class="text-lg font-bold leading-tight">{{ recipe.name }}</span>
+            </div>
+            <div class="flex flex-wrap gap-2">
+                {% for d in dates %}
+                <button type="button" @click="toggle({{ recipe.id }}, {{ d.id }})"
+                        :class="has({{ recipe.id }}, {{ d.id }})
+                                ? 'bg-green-600 text-white border-green-600'
+                                : 'bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 hover:border-green-500'"
+                        class="px-4 py-3 text-lg font-medium border-2 rounded-xl transition">
+                    {{ d.label }}
+                    <span class="block text-sm opacity-80">{{ d.people }} {{ 'pers.' if lang == 'fr' else '人' }}</span>
+                </button>
+                {% endfor %}
+                <button type="button" @click="toggleAll({{ recipe.id }})"
+                        :class="everyDay({{ recipe.id }}) ? 'bg-green-100 dark:bg-green-900/40 border-green-600' : 'border-dashed border-gray-400'"
+                        class="px-4 py-3 text-lg border-2 rounded-xl text-gray-700 dark:text-gray-200">
+                    {{ 'Tous les jours' if lang == 'fr' else '毎日' }}
+                </button>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    <!-- Navigation -->
+    <div class="sticky bottom-0 mt-6 py-4 bg-gray-50/95 dark:bg-gray-900/95">
+        <p x-show="missing() > 0" class="text-right text-orange-600 dark:text-orange-400 mb-2">
+            {% if lang == 'fr' %}
+            <span x-text="missing()"></span> recette(s) sans jour — ce n'est pas grave, vous pourrez le faire plus tard.
+            {% else %}
+            日付のないレシピ：<span x-text="missing()"></span>品（あとで設定できます）
+            {% endif %}
+        </p>
+        <div class="flex justify-between items-center gap-4">
+            <a href="/event-wizard/{{ event.id }}/recipes?lang={{ lang }}" data-wizard-nav
+               class="px-6 py-4 text-lg rounded-xl text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700">
+                ← {{ 'Retour' if lang == 'fr' else '戻る' }}
+            </a>
+            <button type="submit"
+                    class="px-10 py-4 text-xl font-bold rounded-xl bg-blue-600 text-white hover:bg-blue-700">
+                {{ 'Suivant' if lang == 'fr' else '次へ' }} →
+            </button>
+        </div>
+    </div>
+</form>
+{% endblock %}

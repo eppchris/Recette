@@ -25,6 +25,16 @@ async def recipes_list(request: Request, lang: str = Query("fr"), creator_id: Op
     user_id_filter = int(creator_id) if creator_id and creator_id.strip() else None
     rows = db.list_recipes(lang, user_id=user_id_filter)
 
+    # Les recettes incomplètes (sans ingrédient ou sans étape) ne sont visibles
+    # que par l'admin et par leur créateur
+    is_admin = request.session.get("is_admin", False)
+    current_user_id = request.session.get("user_id")
+    if not is_admin:
+        rows = [
+            r for r in rows
+            if (r["ingredient_count"] and r["step_count"]) or r["user_id"] == current_user_id
+        ]
+
     # Enrichir chaque recette avec ses catégories, tags et types de recette
     for recipe in rows:
         recipe['categories'] = db.get_recipe_categories(recipe['id'])
@@ -260,6 +270,29 @@ async def translate_recipe(slug: str, target_lang: str = Query(...)):
                 status_code=500
             )
 
+        # Traduire la description et les conseils
+        translated_description = service.translate_recipe_text(
+            recipe.get('description') or '',
+            source_lang,
+            target_lang
+        )
+        if translated_description is None:
+            return JSONResponse(
+                {"success": False, "message": "Erreur lors de la traduction de la description"},
+                status_code=500
+            )
+
+        translated_tips = service.translate_recipe_text(
+            recipe.get('tips') or '',
+            source_lang,
+            target_lang
+        )
+        if translated_tips is None:
+            return JSONResponse(
+                {"success": False, "message": "Erreur lors de la traduction des conseils"},
+                status_code=500
+            )
+
         # Traduire le type de recette
         recipe_type_map = {
             "fr": {
@@ -287,7 +320,9 @@ async def translate_recipe(slug: str, target_lang: str = Query(...)):
             recipe_id,
             target_lang,
             translated_title,
-            translated_type
+            translated_type,
+            translated_description,
+            translated_tips
         )
 
         # Insérer les traductions des ingrédients

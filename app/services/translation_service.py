@@ -2,9 +2,20 @@
 """Service de traduction utilisant l'API Groq"""
 
 import os
+import re
 from typing import Optional, List, Dict
 from groq import Groq
 import json
+
+# Détecte la présence de caractères japonais (hiragana/katakana/kanji).
+# Sert à repérer une traduction JP qui serait en réalité du charabia
+# (katakana cassé, romaji laissé tel quel, hallucination du modèle).
+_JAPANESE_CHARS = re.compile(r"[぀-ヿ一-鿿]")
+
+
+def _looks_like_japanese(text: Optional[str]) -> bool:
+    return bool(text) and bool(_JAPANESE_CHARS.search(text))
+
 
 class TranslationService:
     """Service pour traduire des recettes via l'API Groq"""
@@ -21,6 +32,10 @@ class TranslationService:
         # limite le nombre de tokens consommés par le raisonnement interne
         self.model = "openai/gpt-oss-120b"
         self.model_kwargs = {"reasoning_effort": "low"}
+        # Les noms d'ingrédients (mots isolés, sans contexte de phrase) sont le cas
+        # où le modèle hallucine le plus souvent un faux mot japonais phonétique
+        # plutôt que d'admettre ne pas connaître le terme : plus d'effort ici.
+        self.ingredient_model_kwargs = {"reasoning_effort": "medium"}
 
     def check_api_status(self) -> bool:
         """Vérifie si l'API Groq est opérationnelle
@@ -75,6 +90,43 @@ Titre: {title}"""
             print(f"Erreur lors de la traduction du titre: {e}")
             return None
 
+    def translate_recipe_text(self, text: str, source_lang: str, target_lang: str) -> Optional[str]:
+        """Traduit un texte libre de recette (description, conseils)
+
+        Args:
+            text: Texte à traduire
+            source_lang: Langue source (fr ou jp)
+            target_lang: Langue cible (fr ou jp)
+
+        Returns:
+            Texte traduit, chaîne vide si le texte d'origine est vide,
+            ou None en cas d'erreur
+        """
+        if not text or not text.strip():
+            return ''
+
+        lang_names = {"fr": "français", "jp": "japonais"}
+
+        try:
+            prompt = f"""Traduis ce texte de recette du {lang_names[source_lang]} vers le {lang_names[target_lang]}.
+Réponds UNIQUEMENT avec la traduction, sans aucune explication ni formatage.
+
+Texte: {text}"""
+
+            response = self.client.chat.completions.create(
+                messages=[{"role": "user", "content": prompt}],
+                model=self.model,
+                temperature=0.3,
+                max_tokens=1000,
+                **self.model_kwargs
+            )
+
+            return response.choices[0].message.content.strip()
+
+        except Exception as e:
+            print(f"Erreur lors de la traduction du texte de recette: {e}")
+            return None
+
     def translate_ingredients(
         self,
         ingredients: List[Dict[str, any]],
@@ -89,17 +141,17 @@ Titre: {title}"""
             target_lang: Langue cible (fr ou jp)
 
         Returns:
-            Liste de dictionnaires avec 'name' et 'notes' traduits, 'unit' copié, ou None en cas d'erreur
+            Liste de dictionnaires avec 'name', 'unit' et 'notes' traduits, ou None en cas d'erreur
         """
         if not ingredients:
             return []
 
         lang_names = {"fr": "français", "jp": "japonais"}
 
-        # Prépare les données à traduire (nom et notes si présentes)
+        # Prépare les données à traduire (nom, unité et notes si présentes)
         items_to_translate = []
         for ing in ingredients:
-            item = {'name': ing['name']}
+            item = {'name': ing['name'], 'unit': ing.get('unit') or ''}
             if ing.get('notes'):
                 item['notes'] = ing['notes']
             items_to_translate.append(item)
@@ -109,13 +161,21 @@ Titre: {title}"""
             prompt = f"""Traduis ces ingrédients de recette du {lang_names[source_lang]} vers le {lang_names[target_lang]}.
 
 IMPORTANT: Réponds UNIQUEMENT avec un tableau JSON valide, sans texte avant ou après.
-Format EXACT requis: [{{"name": "traduction"}}, {{"name": "traduction", "notes": "notes si présentes"}}]
+Format EXACT requis: [{{"name": "traduction", "unit": "traduction"}}, {{"name": "traduction", "unit": "traduction", "notes": "notes si présentes"}}]
 
 Règles:
-1. Chaque objet doit avoir au minimum la clé "name" avec la traduction
+1. Chaque objet doit avoir les clés "name" et "unit" avec leur traduction, dans cet ordre
 2. Ajoute la clé "notes" SEULEMENT si l'ingrédient original a des notes
-3. Assure-toi que tous les objets JSON sont complets avec guillemets et virgules
-4. Ne mets AUCUN texte explicatif, juste le JSON
+3. Pour "unit", traduis l'unité de mesure de cuisine vers son équivalent naturel dans la langue cible.
+   Exemples FR→JP: "pièce"/"p" → "個", "cs"/"c. à soupe"/"cuillère à soupe" → "大さじ",
+   "cc"/"c. à café"/"cuillère à café" → "小さじ", "gousse" → "かけ", "tranche"/"feuille" → "枚",
+   "pincée" → "少々". Les unités métriques universelles (g, kg, ml, l, cl, dl, cm) restent identiques
+   dans les deux langues. Si l'unité d'origine est vide, laisse "unit" vide.
+4. Si tu ne connais pas la traduction exacte d'un ingrédient inhabituel (marque, plat régional, terme
+   rare), NE PRENDS PAS le risque d'inventer un mot phonétique qui n'existe pas dans la langue cible.
+   Donne plutôt une traduction descriptive réelle (ex: décris l'ingrédient) — jamais un mot inventé.
+5. Assure-toi que tous les objets JSON sont complets avec guillemets et virgules
+6. Ne mets AUCUN texte explicatif, juste le JSON
 
 Ingrédients à traduire:
 {json.dumps(items_to_translate, ensure_ascii=False)}"""
@@ -125,11 +185,10 @@ Ingrédients à traduire:
                 model=self.model,
                 temperature=0.3,
                 max_tokens=1500,
-                **self.model_kwargs
+                **self.ingredient_model_kwargs
             )
 
             # Nettoyer la réponse et parser le JSON
-            import re
             response_text = response.choices[0].message.content.strip()
 
             # Si la réponse contient des blocs de code markdown, extraire juste le JSON
@@ -148,16 +207,18 @@ Ingrédients à traduire:
                 print(f"Réponse brute: {response_text[:800]}")
 
                 # Tentative de récupération manuelle par extraction de patterns
-                # Chercher tous les objets bien formés avec name et optionnellement notes
+                # Chercher tous les objets bien formés avec name, unit et optionnellement notes
                 objects = re.findall(
-                    r'\{\s*"name"\s*:\s*"([^"]+)"(?:\s*,\s*"notes"\s*:\s*"([^"]*)")?\s*\}',
+                    r'\{\s*"name"\s*:\s*"([^"]+)"\s*(?:,\s*"unit"\s*:\s*"([^"]*)")?(?:\s*,\s*"notes"\s*:\s*"([^"]*)")?\s*\}',
                     response_text
                 )
 
                 if objects:
                     translated_items = []
-                    for name, notes in objects:
+                    for name, unit, notes in objects:
                         item = {"name": name}
+                        if unit:
+                            item["unit"] = unit
                         if notes:
                             item["notes"] = notes
                         translated_items.append(item)
@@ -173,20 +234,89 @@ Ingrédients à traduire:
                         # Échec total
                         raise ValueError(f"Impossible de parser la réponse JSON. Erreur: {e}")
 
-            # Combine les traductions avec les unités originales
+            # Combine les traductions (repli sur l'unité d'origine si la traduction est absente)
             result = []
             for i, ing in enumerate(ingredients):
+                translated_unit = translated_items[i].get('unit')
+                if not translated_unit and ing.get('unit'):
+                    translated_unit = ing['unit']
                 result.append({
                     'name': translated_items[i]['name'],
-                    'unit': ing['unit'],  # Copie à l'identique
+                    'unit': translated_unit or '',
                     'notes': translated_items[i].get('notes', '')  # Notes traduites ou vide
                 })
+
+            # Vérifie que les noms traduits vers le japonais contiennent bien de
+            # l'écriture japonaise (et pas du charabia/romaji halluciné), et
+            # retente une fois pour les cas suspects avant d'accepter le résultat.
+            if target_lang == 'jp':
+                suspect_indices = [
+                    i for i, r in enumerate(result)
+                    if r['name'] and not _looks_like_japanese(r['name'])
+                ]
+                if suspect_indices:
+                    retried = self._retry_ingredient_names(
+                        [ingredients[i] for i in suspect_indices], source_lang, target_lang
+                    )
+                    for idx, retried_name in zip(suspect_indices, retried):
+                        if retried_name and _looks_like_japanese(retried_name):
+                            result[idx]['name'] = retried_name
+                        elif retried_name is not None:
+                            # Toujours pas fiable après relance : on laisse vide
+                            # plutôt que d'insérer un mot inventé en base.
+                            print(f"⚠ Traduction JP toujours suspecte pour {ingredients[idx]['name']!r}, laissée vide")
+                            result[idx]['name'] = ''
 
             return result
 
         except Exception as e:
             print(f"Erreur lors de la traduction des ingrédients: {e}")
             return None
+
+    def _retry_ingredient_names(
+        self,
+        ingredients: List[Dict[str, any]],
+        source_lang: str,
+        target_lang: str
+    ) -> List[Optional[str]]:
+        """Retente la traduction du seul champ 'name' pour des ingrédients dont la
+        première traduction semblait être du charabia. Utilisé en interne par
+        translate_ingredients() ; renvoie une liste de même longueur que `ingredients`
+        (None en cas d'échec pour un élément).
+        """
+        lang_names = {"fr": "français", "jp": "japonais"}
+        names = [ing['name'] for ing in ingredients]
+
+        try:
+            prompt = f"""Traduis ces noms d'ingrédients de cuisine du {lang_names[source_lang]} vers le {lang_names[target_lang]}.
+Ce sont des termes inhabituels (marque, plat régional, terme rare) : NE PRENDS PAS le risque d'inventer
+un mot phonétique qui n'existe pas dans la langue cible. Donne une traduction descriptive réelle.
+
+Réponds UNIQUEMENT avec un tableau JSON de chaînes, dans le même ordre, sans texte avant ou après.
+Format: ["traduction 1", "traduction 2"]
+
+Noms à traduire:
+{json.dumps(names, ensure_ascii=False)}"""
+
+            response = self.client.chat.completions.create(
+                messages=[{"role": "user", "content": prompt}],
+                model=self.model,
+                temperature=0.2,
+                max_tokens=600,
+                reasoning_effort="medium",
+            )
+
+            text = response.choices[0].message.content.strip()
+            text = re.sub(r'```(?:json)?', '', text).strip()
+            translated = json.loads(text)
+
+            if len(translated) != len(names):
+                return [None] * len(names)
+            return translated
+
+        except Exception as e:
+            print(f"Erreur lors de la relance de traduction d'ingrédients: {e}")
+            return [None] * len(names)
 
     def translate_steps(
         self,
@@ -227,7 +357,6 @@ Format attendu: ["traduction étape 1", "traduction étape 2", ...]
             )
 
             # Nettoyer la réponse et parser le JSON
-            import re
             response_text = response.choices[0].message.content.strip()
 
             # Si la réponse contient des blocs de code markdown, extraire juste le JSON

@@ -1,0 +1,119 @@
+{% extends 'event_wizard/_layout.html' %}
+
+{% block wizard_body %}
+<script type="application/json" id="wizard-recipes-data">[{% for r in recipes %}{{ {'id': r.id, 'name': (r.name or r.slug)|lower, 'types': r.event_type_ids}|tojson }}{{ ',' if not loop.last }}{% endfor %}]</script>
+<form method="post" action="/event-wizard/{{ event.id }}/recipes" id="wizard-form" data-save-on-leave
+      x-data="{ selected: {{ selected_ids|tojson }}, search: '', typeFilter: {{ initial_type_id }},
+                toggle(id) { const i = this.selected.indexOf(id); i >= 0 ? this.selected.splice(i, 1) : this.selected.push(id); },
+                visible(id, name, types) {
+                    if (!name.includes(this.search.trim().toLowerCase())) return false;
+                    if (this.typeFilter === -1) return this.selected.includes(id);
+                    return this.typeFilter === 0 || types.includes(this.typeFilter);
+                },
+                catalog: JSON.parse(document.getElementById('wizard-recipes-data').textContent),
+                visibleIds() { return this.catalog.filter(r => this.visible(r.id, r.name, r.types)).map(r => r.id); },
+                allVisibleSelected() { const ids = this.visibleIds(); return ids.length > 0 && ids.every(id => this.selected.includes(id)); },
+                toggleAllVisible() {
+                    const ids = this.visibleIds();
+                    if (this.allVisibleSelected()) {
+                        this.selected = this.selected.filter(id => !ids.includes(id));
+                    } else {
+                        ids.forEach(id => { if (!this.selected.includes(id)) this.selected.push(id); });
+                    }
+                } }">
+    <input type="hidden" name="lang" value="{{ lang }}">
+    <input type="hidden" name="next" value="">
+    <template x-for="id in selected" :key="id">
+        <input type="hidden" name="recipe_ids" :value="id">
+    </template>
+
+    <p class="text-lg text-gray-500 dark:text-gray-400 mb-1">{{ event.name }}</p>
+    <h2 class="text-2xl font-bold mb-2">{{ 'Quelles recettes ?' if lang == 'fr' else 'どのレシピを作りますか？' }}</h2>
+    <p class="text-gray-600 dark:text-gray-400 mb-4">
+        {{ 'Touchez une recette pour la choisir. Touchez encore pour l\'enlever.' if lang == 'fr' else 'タップで選択、もう一度タップで取り消し。' }}
+    </p>
+
+    <input type="search" x-model="search"
+           placeholder="🔍 {{ 'Chercher une recette…' if lang == 'fr' else 'レシピを検索…' }}"
+           class="w-full px-5 py-4 text-xl border-2 border-gray-300 dark:border-gray-600 rounded-xl dark:bg-gray-700 dark:text-white mb-4">
+
+    <!-- Filtre par type d'événement -->
+    {% set chip = 'px-4 py-2 text-lg font-medium border-2 rounded-full transition' %}
+    {% set chip_on = 'bg-blue-600 text-white border-blue-600' %}
+    {% set chip_off = 'bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 hover:border-blue-400' %}
+    <div class="flex flex-wrap gap-2 mb-6">
+        <button type="button" @click="typeFilter = 0" class="{{ chip }}"
+                :class="typeFilter === 0 ? '{{ chip_on }}' : '{{ chip_off }}'">
+            {{ 'Toutes' if lang == 'fr' else 'すべて' }}
+        </button>
+        {% for et in event_types %}
+        <button type="button" @click="typeFilter = {{ et.id }}" class="{{ chip }}"
+                :class="typeFilter === {{ et.id }} ? '{{ chip_on }}' : '{{ chip_off }}'">
+            {{ (et.name_fr if lang == 'fr' else et.name_jp)|trim }}
+        </button>
+        {% endfor %}
+        <button type="button" @click="typeFilter = -1" class="{{ chip }}"
+                :class="typeFilter === -1 ? 'bg-green-600 text-white border-green-600' : '{{ chip_off }}'">
+            ✓ {{ 'Choisies' if lang == 'fr' else '選択済み' }} (<span x-text="selected.length"></span>)
+        </button>
+    </div>
+
+    <!-- Tout (dé)sélectionner parmi les recettes affichées -->
+    <button type="button" @click="toggleAllVisible()" x-show="visibleIds().length > 0"
+            class="mb-6 inline-flex items-center gap-3 px-5 py-3 text-lg font-bold border-2 rounded-xl transition"
+            :class="allVisibleSelected()
+                    ? 'bg-white dark:bg-gray-800 border-red-400 text-red-700 dark:text-red-300 hover:bg-red-50 dark:hover:bg-gray-700'
+                    : 'bg-white dark:bg-gray-800 border-green-600 text-green-700 dark:text-green-300 hover:bg-green-50 dark:hover:bg-gray-700'">
+        <span class="text-2xl" x-text="allVisibleSelected() ? '☐' : '☑'"></span>
+        {% if lang == 'fr' %}
+        <span x-text="(allVisibleSelected() ? 'Tout désélectionner' : 'Tout sélectionner') + ' (' + visibleIds().length + ')'"></span>
+        {% else %}
+        <span x-text="(allVisibleSelected() ? 'すべて解除' : 'すべて選択') + '（' + visibleIds().length + '品）'"></span>
+        {% endif %}
+    </button>
+
+    <div class="grid grid-cols-2 sm:grid-cols-3 gap-4">
+        {% for recipe in recipes %}
+        <button type="button" @click="toggle({{ recipe.id }})"
+                x-show='visible({{ recipe.id }}, {{ (recipe.name or recipe.slug)|lower|tojson }}, {{ recipe.event_type_ids|tojson }})'
+                :class="selected.includes({{ recipe.id }})
+                        ? 'border-green-600 ring-4 ring-green-200 dark:ring-green-900'
+                        : 'border-gray-200 dark:border-gray-700 hover:border-blue-400'"
+                class="relative text-left bg-white dark:bg-gray-800 border-2 rounded-xl overflow-hidden transition">
+            <img src="{{ recipe.thumbnail_url or recipe.image_url or '/static/images/recipe-placeholder.jpg' }}"
+                 alt="" loading="lazy" class="w-full h-28 sm:h-32 object-cover">
+            <span x-show="selected.includes({{ recipe.id }})"
+                  class="absolute top-2 right-2 w-9 h-9 rounded-full bg-green-600 text-white text-xl font-bold flex items-center justify-center">✓</span>
+            {% if recipe.id in suggested_ids %}
+            <span class="absolute top-2 left-2 px-2 py-0.5 rounded-full bg-yellow-400 text-yellow-900 text-xs font-bold">
+                ★ {{ 'Habituelle' if lang == 'fr' else 'おすすめ' }}
+            </span>
+            {% endif %}
+            <span class="block p-3 text-base font-medium leading-tight">{{ recipe.name }}</span>
+            {% if not recipe.ingredient_count %}
+            <span class="block px-3 pb-3 -mt-2 text-sm text-orange-600 dark:text-orange-400">
+                ⚠️ {{ 'Pas d\'ingrédients' if lang == 'fr' else '材料なし' }}
+            </span>
+            {% endif %}
+        </button>
+        {% endfor %}
+    </div>
+
+    <!-- Navigation -->
+    <div class="sticky bottom-0 mt-6 py-4 bg-gray-50/95 dark:bg-gray-900/95 flex justify-between items-center gap-4">
+        <a href="/event-wizard/{{ event.id }}/dates?lang={{ lang }}" data-wizard-nav
+           class="px-6 py-4 text-lg rounded-xl text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700">
+            ← {{ 'Retour' if lang == 'fr' else '戻る' }}
+        </a>
+        <button type="submit" :disabled="selected.length === 0"
+                class="px-8 py-4 text-xl font-bold rounded-xl bg-blue-600 text-white hover:bg-blue-700
+                       disabled:bg-gray-300 disabled:text-gray-500 dark:disabled:bg-gray-700 disabled:cursor-not-allowed">
+            {% if lang == 'fr' %}
+            <span x-text="selected.length + (selected.length > 1 ? ' recettes' : ' recette')"></span> · Suivant →
+            {% else %}
+            <span x-text="selected.length + '品'"></span>・次へ →
+            {% endif %}
+        </button>
+    </div>
+</form>
+{% endblock %}

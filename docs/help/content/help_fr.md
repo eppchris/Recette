@@ -256,9 +256,10 @@ Chaque utilisateur voit uniquement ses propres participants et groupes. L'admini
 ### Créer un événement
 
 1. Cliquez sur "Nouvel événement" depuis la liste des événements
-2. Remplissez les informations: nom, type, date(s), lieu, nombre de convives
-3. Ajoutez des notes si nécessaire
-4. Cliquez sur "Enregistrer"
+2. Remplissez les informations: nom, date(s), lieu, nombre de convives
+3. **Sélectionnez obligatoirement un type d'événement** — aucun type n'est pré-sélectionné par défaut. Si vous cliquez sur "Enregistrer" sans choisir de type, un message vous le rappellera.
+4. Ajoutez des notes si nécessaire
+5. Cliquez sur "Enregistrer"
 
 ### Copier un événement
 Créez rapidement un nouvel événement à partir d'un événement existant:
@@ -313,6 +314,36 @@ Ajoutez et gérez les participants inscrits à votre événement:
 > **💡 Astuce:** Si vous retirez un participant qui a été ajouté via un groupe, la page se rechargera pour éviter les incohérences. Les participants ajoutés individuellement peuvent être retirés instantanément.
 
 > **📌 Note:** Vous devez d'abord créer vos participants et groupes depuis le menu "Participants" avant de pouvoir les ajouter à un événement.
+
+### 🖨️ Détail des recettes (impression)
+
+Cette fonctionnalité permet d'afficher et d'imprimer toutes les recettes d'un événement avec les quantités d'ingrédients ajustées automatiquement au nombre de convives.
+
+**Cas d'usage typique :** Vous organisez un atelier PRO et vous souhaitez imprimer une fiche recette pour chaque participant, avec les bonnes quantités pour le groupe.
+
+**Accéder au détail des recettes :**
+
+1. Ouvrez un événement depuis la liste des événements
+2. Cliquez sur le bouton **🖨️ Détail des recettes** (affiché en sarcelle, visible si l'événement contient au moins une recette)
+3. Une page dédiée s'ouvre avec toutes les recettes listées
+
+**Contenu de chaque fiche recette :**
+
+- Photo de la recette (si disponible)
+- Nom et numéro (ex : 1/3)
+- Multiplicateur affiché (ex : "Base 4 portions → ×2,5 pour 10 personnes")
+- Ingrédients avec les quantités recalculées pour le nombre de convives
+- Étapes de préparation complètes
+
+**Imprimer :**
+
+Cliquez sur **🖨️ Imprimer** en haut ou en bas de la page.
+
+- Chaque recette est imprimée sur une page séparée
+- L'en-tête de navigation n'apparaît pas à l'impression
+- Fond blanc et textes noirs pour économiser l'encre
+
+> **💡 Astuce:** Chaque page indique le nom de l'événement et le nombre de convives pour faciliter la distribution aux participants.
 
 ---
 
@@ -513,6 +544,29 @@ Pour les événements existants:
 
 ---
 
+## ⚙️ Profil et préférences {#profile}
+
+### Langue d'interface par défaut
+
+Chaque utilisateur dispose d'une **langue par défaut** appliquée automatiquement à chaque connexion. Inutile de rebasculer manuellement à chaque fois.
+
+**Changer sa langue depuis le profil :**
+
+1. Accédez à la page **Profil** (icône utilisateur ou lien en bas du menu)
+2. En bas de la page, cliquez sur 🇫🇷 **Français** ou 🇯🇵 **日本語**
+3. La langue est enregistrée comme préférence permanente et appliquée immédiatement
+4. À la prochaine connexion, l'interface s'affichera directement dans cette langue
+
+**Modifier la langue d'un utilisateur (admin) :**
+
+1. Accédez à l'administration des utilisateurs
+2. Créez ou modifiez un utilisateur et sélectionnez la langue souhaitée dans le champ "Langue par défaut"
+3. La langue choisie sera appliquée dès la prochaine connexion de cet utilisateur
+
+> **💡 Astuce:** Vous pouvez toujours changer temporairement de langue via les boutons de langue dans l'interface, sans modifier votre préférence enregistrée.
+
+---
+
 ## ❓ Questions fréquentes
 
 ### Puis-je modifier le nombre de convives après avoir créé l'événement?
@@ -527,6 +581,15 @@ Oui! Lors de la création de l'événement, désélectionnez les jours où vous 
 ### Les prix du catalogue sont-ils obligatoires?
 Non, ils sont optionnels. Le catalogue sert surtout à gagner du temps en suggérant des prix lors de nouveaux événements.
 
+### Comment changer ma langue par défaut?
+Accédez à votre profil et cliquez sur 🇫🇷 Français ou 🇯🇵 日本語 en bas de page. La préférence est enregistrée et appliquée à la prochaine connexion.
+
+### Le bouton "Détail des recettes" est grisé, pourquoi?
+Ce bouton n'est actif que si l'événement contient au moins une recette. Ajoutez d'abord des recettes à l'événement.
+
+### Pourquoi dois-je choisir un type d'événement ?
+Le type est obligatoire pour classer et retrouver vos événements. Aucun type n'est présélectionné pour éviter les erreurs — un message s'affiche si vous oubliez de le sélectionner avant d'enregistrer.
+
 ---
 
-*Dernière mise à jour: Version 2.5 - Mars 2026*
+*Dernière mise à jour: Version 3.5 - Juillet 2026*

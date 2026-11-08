@@ -387,6 +387,11 @@ def remove_recipe_from_event(event_id: int, recipe_id: int):
     with get_db() as con:
         sql = "DELETE FROM event_recipe WHERE event_id = ? AND recipe_id = ?"
         con.execute(sql, (event_id, recipe_id))
+        # Retirer aussi la recette du planning (pas de FK vers event_recipe)
+        con.execute(
+            "DELETE FROM event_recipe_planning WHERE event_id = ? AND recipe_id = ?",
+            (event_id, recipe_id)
+        )
         return True
 
 
@@ -464,6 +469,7 @@ def get_event_recipes_with_ingredients(event_id: int, lang: str):
                 ri.id AS ingredient_id,
                 ri.position AS ingredient_position,
                 ri.quantity,
+                ri.linked_recipe_id,
                 COALESCE(rit.name, '') AS ingredient_name,
                 COALESCE(rit.unit, '') AS unit,
                 COALESCE(rit.notes, '') AS notes,
@@ -519,7 +525,8 @@ def get_event_recipes_with_ingredients(event_id: int, lang: str):
                     'name': row['ingredient_name'],
                     'name_fr': row['ingredient_name_fr'],  # Nom français pour le catalogue
                     'unit': row['unit'],
-                    'notes': row['notes']
+                    'notes': row['notes'],
+                    'linked_recipe_id': row['linked_recipe_id']
                 })
 
         # Convertir le dictionnaire en liste triée par position
@@ -529,6 +536,92 @@ def get_event_recipes_with_ingredients(event_id: int, lang: str):
         for recipe in result:
             del recipe['recipe_position']
 
+        return result
+
+
+def expand_linked_recipes(recipes_data: list, lang: str, max_depth: int = 3) -> list:
+    """
+    Remplace chaque ingrédient lié à une sous-recette (linked_recipe_id) par les
+    ingrédients de cette sous-recette, pour la liste de courses.
+
+    La sous-recette est comptée pour le même nombre de portions que la recette
+    qui l'utilise : quantités × (portions recette / portions sous-recette).
+    Une sous-recette sans ingrédients garde la ligne d'origine.
+
+    Args:
+        recipes_data: Résultat de get_event_recipes_with_ingredients()
+        lang: Code de langue ('fr' ou 'jp')
+        max_depth: Profondeur maximale de sous-recettes imbriquées
+
+    Returns:
+        Copie de recipes_data avec les sous-recettes développées
+    """
+    if not any(ing.get('linked_recipe_id') for r in recipes_data for ing in r['ingredients']):
+        return recipes_data
+
+    with get_db() as con:
+        servings = {
+            row['id']: row['servings_default'] or 1
+            for row in con.execute("SELECT id, servings_default FROM recipe").fetchall()
+        }
+        cache = {}
+
+        def ingredients_of(recipe_id):
+            if recipe_id not in cache:
+                rows = con.execute("""
+                    SELECT
+                        ri.quantity,
+                        ri.linked_recipe_id,
+                        COALESCE(rit.name, '') AS name,
+                        COALESCE(rit.unit, '') AS unit,
+                        COALESCE(rit.notes, '') AS notes,
+                        COALESCE(rit_fr.name, rit.name, '') AS name_fr
+                    FROM recipe_ingredient ri
+                    LEFT JOIN recipe_ingredient_translation rit
+                        ON rit.recipe_ingredient_id = ri.id AND rit.lang = ?
+                    LEFT JOIN recipe_ingredient_translation rit_fr
+                        ON rit_fr.recipe_ingredient_id = ri.id AND rit_fr.lang = 'fr'
+                    WHERE ri.recipe_id = ?
+                    ORDER BY ri.position
+                """, (lang, recipe_id)).fetchall()
+                cache[recipe_id] = [dict(row) for row in rows]
+            return cache[recipe_id]
+
+        def expand(ingredients, parent_servings, seen, depth):
+            result = []
+            for ingredient in ingredients:
+                child_id = ingredient.get('linked_recipe_id')
+                if not child_id or child_id in seen or child_id not in servings or depth >= max_depth:
+                    result.append(ingredient)
+                    continue
+                child_ingredients = expand(ingredients_of(child_id), servings[child_id],
+                                           seen | {child_id}, depth + 1)
+                if not child_ingredients:
+                    result.append(ingredient)
+                    continue
+                factor = parent_servings / servings[child_id]
+                for child in child_ingredients:
+                    quantity = child['quantity'] * factor if child['quantity'] is not None else None
+                    result.append({**child, 'quantity': quantity})
+            return result
+
+        return [
+            {**recipe, 'ingredients': expand(recipe['ingredients'], recipe.get('servings_default') or 1,
+                                             {recipe['recipe_id']}, 0)}
+            for recipe in recipes_data
+        ]
+
+
+def get_all_recipe_event_type_ids():
+    """
+    Returns:
+        Dict {recipe_id: [event_type_id, ...]} pour toutes les recettes
+    """
+    with get_db() as con:
+        rows = con.execute("SELECT recipe_id, event_type_id FROM recipe_event_type").fetchall()
+        result = {}
+        for row in rows:
+            result.setdefault(row['recipe_id'], []).append(row['event_type_id'])
         return result
 
 
@@ -658,19 +751,43 @@ def save_event_dates(event_id: int, dates: list):
 
     Args:
         event_id: ID de l'événement
-        dates: Liste de dicts avec 'date' et 'is_selected'
+        dates: Liste de dicts avec 'date', 'is_selected' et optionnellement
+               'attendees' (convives du jour, None = ceux de l'événement).
+               Sans clé 'attendees', la valeur déjà enregistrée pour ce jour est conservée.
     """
     with get_db() as con:
         cursor = con.cursor()
+        previous_attendees = {
+            row['date']: row['attendees']
+            for row in cursor.execute(
+                "SELECT date, attendees FROM event_date WHERE event_id = ?", (event_id,)
+            ).fetchall()
+        }
         # Supprimer les anciennes dates
         cursor.execute("DELETE FROM event_date WHERE event_id = ?", (event_id,))
         # Ajouter les nouvelles dates
         for date_info in dates:
+            attendees = date_info.get('attendees', previous_attendees.get(date_info['date']))
             cursor.execute(
-                "INSERT INTO event_date (event_id, date, is_selected) VALUES (?, ?, ?)",
-                (event_id, date_info['date'], date_info.get('is_selected', 1))
+                "INSERT INTO event_date (event_id, date, is_selected, attendees) VALUES (?, ?, ?, ?)",
+                (event_id, date_info['date'], date_info.get('is_selected', 1), attendees)
             )
         con.commit()
+
+
+def update_event_dates_attendees(event_id: int, attendees_by_date: dict):
+    """
+    Met à jour les convives par jour sans recréer les dates (le planning est conservé)
+
+    Args:
+        event_id: ID de l'événement
+        attendees_by_date: Dict {'YYYY-MM-DD': attendees ou None}
+    """
+    with get_db() as con:
+        con.executemany(
+            "UPDATE event_date SET attendees = ? WHERE event_id = ? AND date = ?",
+            [(attendees, event_id, d) for d, attendees in attendees_by_date.items()]
+        )
 
 
 def get_event_dates(event_id: int):
@@ -685,7 +802,7 @@ def get_event_dates(event_id: int):
     """
     with get_db() as con:
         sql = """
-            SELECT id, event_id, date, is_selected, created_at
+            SELECT id, event_id, date, is_selected, attendees, created_at
             FROM event_date
             WHERE event_id = ?
             ORDER BY date
@@ -839,7 +956,9 @@ def copy_event(event_id: int, new_name: str, new_event_type_id: int, new_date_de
         - Informations de base de l'événement (avec nouvelles valeurs)
         - Toutes les recettes avec leurs quantités (servings_multiplier)
         - Budget prévu et devise (pas les dépenses effectuées)
-        - Organisation/planning uniquement si même nombre de jours
+        - Organisation/planning et convives par jour uniquement si même nombre de jours
+        - Liste de courses (quantités modifiées, ingrédients retirés), à recalculer
+          ensuite avec refresh_shopping_list() pour le nouveau nombre de convives
     """
     with get_db() as conn:
         cursor = conn.cursor()
@@ -915,7 +1034,7 @@ def copy_event(event_id: int, new_name: str, new_event_type_id: int, new_date_de
         if new_nombre_jours == source_event['nombre_jours']:
             # Récupérer UNIQUEMENT les dates SÉLECTIONNÉES sources (is_selected = 1)
             cursor.execute("""
-                SELECT id, date
+                SELECT id, date, attendees
                 FROM event_date
                 WHERE event_id = ? AND is_selected = 1
                 ORDER BY date
@@ -936,6 +1055,10 @@ def copy_event(event_id: int, new_name: str, new_event_type_id: int, new_date_de
             for i, source_date in enumerate(source_dates):
                 if i < len(new_dates):
                     date_mapping[source_date['id']] = new_dates[i]['id']
+                    cursor.execute(
+                        "UPDATE event_date SET attendees = ? WHERE id = ?",
+                        (source_date['attendees'], new_dates[i]['id'])
+                    )
 
             # Copier la planification
             cursor.execute("""
@@ -954,6 +1077,20 @@ def copy_event(event_id: int, new_name: str, new_event_type_id: int, new_date_de
                         INSERT INTO event_recipe_planning (event_id, recipe_id, event_date_id, position)
                         VALUES (?, ?, ?, ?)
                     """, (new_event_id, entry['recipe_id'], new_date_id, entry['position']))
+
+        # 6. Copier la liste de courses (choix de l'utilisateur), sans les prix réels
+        cursor.execute("""
+            INSERT INTO shopping_list_item (
+                event_id, ingredient_name, needed_quantity, needed_unit,
+                purchase_quantity, purchase_unit, is_checked, notes, source_recipes,
+                position, planned_unit_price, excluded
+            )
+            SELECT ?, ingredient_name, needed_quantity, needed_unit,
+                   purchase_quantity, purchase_unit, 0, notes, source_recipes,
+                   position, planned_unit_price, excluded
+            FROM shopping_list_item
+            WHERE event_id = ?
+        """, (new_event_id, event_id))
 
         conn.commit()
         return new_event_id
