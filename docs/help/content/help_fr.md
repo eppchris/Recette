@@ -253,7 +253,122 @@ Chaque utilisateur voit uniquement ses propres participants et groupes. L'admini
 
 ## 📅 Gestion des événements {#events}
 
+### À quoi sert un événement ?
+
+Un **événement** regroupe tout ce qu'il faut pour préparer des repas pour un groupe de personnes, sur un ou plusieurs jours : un repas entre amis, une invitation, ou une formation (cours **MASTER** ou prestation **PRO**).
+
+Avec un événement, vous pouvez :
+
+- 🍽️ **Choisir les plats** à préparer parmi vos recettes
+- 📆 **Affecter chaque plat à une ou plusieurs dates**, avec le nombre de personnes de chaque jour
+- 🛒 **Obtenir la liste des ingrédients** à acheter, avec les quantités calculées automatiquement pour le bon nombre de personnes, puis l'imprimer ou l'envoyer sur votre téléphone
+- 🖨️ **Imprimer les recettes** avec les quantités ajustées, par exemple pour les distribuer aux participants d'un cours
+- 👥 **Inscrire les participants** et 💰 **suivre le budget** (prévu et dépensé)
+
+> **📌 Exemple:** Un cours MASTER de deux jours pour 10 personnes : vous choisissez les recettes du cours, vous indiquez lesquelles sont faites le samedi et le dimanche, puis l'application calcule les courses et prépare les fiches recettes à imprimer.
+
 ### Créer un événement
+
+Il existe deux façons de créer un événement :
+
+- **✨ Création guidée** (recommandée) : un parcours en 5 étapes simples, de la création jusqu'à la liste de courses. Idéal pour préparer un cours **MASTER** ou une prestation **PRO**.
+- **➕ Nouvel événement** : le formulaire complet, pour tout saisir d'un coup (lieu, notes…).
+
+Dans les deux cas, l'événement obtenu est le même : vous pouvez ensuite le compléter depuis sa fiche (participants, budget, impression des recettes…).
+
+### ✨ Création guidée (recommandée) {#event-wizard}
+
+**Où la trouver :** bouton bleu **✨ Création guidée** en haut de la liste des événements, ou lien **✨ Création guidée** dans le menu Événements.
+
+En haut de l'écran, 5 ronds indiquent où vous en êtes :
+
+**1 Nom → 2 Dates → 3 Recettes → 4 Jours → 5 Courses**
+
+- 🔵 l'étape en cours — 🟢 ✓ une étape terminée
+- Dès que l'événement est créé (après l'étape 2), vous pouvez **cliquer sur un rond pour revenir à une étape**. Ce que vous avez saisi est enregistré au passage.
+- Les boutons **← Retour** et **Suivant →** en bas de l'écran permettent aussi d'avancer et de reculer.
+
+**Reprendre plus tard :** sur la fiche d'un événement, le bouton bleu **✨ Création guidée** rouvre le parcours à l'étape 3 (Recettes). Vous pouvez ainsi ajouter des recettes, changer les jours ou revoir la liste de courses à tout moment. Ce bouton n'apparaît pas si des jours de l'événement ont été désélectionnés dans le formulaire classique (ex : week-ends) : utilisez alors la fiche de l'événement.
+
+#### Étape 1 — Nom
+
+1. **Comment s'appelle l'événement ?** Ex : « Cours de cuisine de décembre »
+2. **Combien de personnes ?** Le nombre habituel de participants (10 par défaut)
+3. **Quel type d'événement ?** Touchez **PRO**, **MASTER**, **INVITATION**…
+4. Cliquez sur **Suivant →** (le bouton reste grisé tant qu'aucun type n'est choisi)
+
+> **💡 Astuce:** Le type n'est pas qu'une étiquette : à l'étape 3, les recettes habituellement utilisées pour ce type sont affichées en premier.
+
+#### Étape 2 — Dates
+
+1. Choisissez **Un seul jour** ou **Plusieurs jours**
+2. Indiquez **Le jour**, ou le **Premier jour** et le **Dernier jour** (60 jours au maximum)
+3. **Combien de personnes chaque jour ?** Chaque jour reprend le nombre de l'étape 1. **Changez seulement les jours différents** (ex : 8 personnes le samedi, 12 le dimanche).
+4. Cliquez sur **Suivant →** : l'événement est créé.
+
+> **⚠️ Attention:** Si vous changez les dates plus tard, la répartition « quelle recette quel jour » (étape 4) est effacée et doit être refaite. Changer seulement le nombre de personnes d'un jour la conserve.
+
+#### Étape 3 — Recettes
+
+1. **Touchez une recette pour la choisir** (elle passe en vert). Touchez-la encore pour l'enlever.
+2. Utilisez les filtres en haut :
+   - **Toutes** : toutes les recettes
+   - **PRO**, **MASTER**… : les recettes associées à ce type
+   - **✓ Choisies (X)** : uniquement les recettes déjà choisies, pour vérifier votre sélection
+   - **🔍 Chercher une recette…** : recherche par nom
+3. **Tout sélectionner (X)** choisit d'un coup toutes les recettes affichées. Pratique pour reprendre tout le programme d'un type de cours, puis enlever les recettes en trop.
+4. Cliquez sur **X recettes · Suivant →**
+
+Repères sur les recettes :
+
+- **★ Habituelle** : recette associée au type de l'événement
+- **⚠️ Pas d'ingrédients** : la recette n'a pas d'ingrédients enregistrés, elle **n'apparaîtra pas dans la liste de courses**
+
+#### Étape 4 — Jours (quelle recette, quel jour ?)
+
+Cette étape n'apparaît que pour un événement de **plusieurs jours**. Pour un seul jour, toutes les recettes sont placées automatiquement sur ce jour et le parcours passe directement aux courses.
+
+1. Pour chaque recette, **touchez le ou les jours** où elle sera préparée (le bouton passe en vert). Chaque bouton rappelle le nombre de personnes du jour.
+2. **Tous les jours** : la recette est préparée chaque jour.
+3. Une recette peut rester sans jour : un message vous l'indique, vous pourrez la placer plus tard.
+4. Cliquez sur **Suivant →**
+
+**Les quantités suivent les personnes présentes :**
+
+- Recette prévue le samedi (8 pers.) → quantités pour **8**
+- Recette prévue le samedi et le dimanche (8 + 12) → quantités pour **20**
+- Recette sans jour → quantités pour le nombre de l'étape 1
+
+#### Étape 5 — Courses
+
+L'écran affiche **✓ C'est prêt !**, avec le nombre de recettes et le nombre de personnes par jour, puis la liste de courses calculée automatiquement.
+
+- **Décochez** ce qu'il ne faut pas acheter (ex : sel, huile, sauce soja déjà en stock)
+- **Modifiez une quantité ou une unité** directement dans la ligne : c'est enregistré tout de suite
+- Si un message ⚠️ liste des recettes « sans ingrédients », ces recettes ne sont pas dans la liste : complétez-les depuis la fiche recette
+
+Boutons en bas de l'écran :
+
+| Bouton | Action |
+|--------|--------|
+| 📱 Envoyer sur le téléphone | Ouvre le menu de partage (LINE, Messages, mail…) sur téléphone ou tablette. Sur un ordinateur, la liste est enregistrée en fichier. |
+| 💾 Enregistrer la liste | Télécharge la liste dans un fichier texte (.txt) |
+| 🖨️ Imprimer la liste | Imprime la liste de courses |
+| 📖 Imprimer les recettes | Ouvre le [détail des recettes](#recipes-print) imprimable, quantités ajustées |
+| Terminer ✓ | Ouvre la fiche de l'événement |
+
+Les ingrédients décochés ne sont ni imprimés, ni envoyés, ni enregistrés.
+
+> **📌 Exemple — Cours MASTER sur un week-end:**
+> 1. Nom : « Cours de cuisine coréenne », 10 personnes, type **MASTER**
+> 2. Plusieurs jours : samedi 14 → dimanche 15. Samedi : 8 personnes, dimanche : 12
+> 3. Filtre **MASTER**, **Tout sélectionner**, puis on enlève les recettes non prévues
+> 4. Japchae le samedi, bulgogi le dimanche, kimchi **Tous les jours**
+> 5. Le japchae est calculé pour 8, le bulgogi pour 12, le kimchi pour 20. On décoche le sel et l'huile, puis **📱 Envoyer sur le téléphone** avant de partir faire les courses.
+
+### ➕ Création classique (formulaire complet)
+
+Pour saisir en une seule fois toutes les informations de l'événement :
 
 1. Cliquez sur "Nouvel événement" depuis la liste des événements
 2. Remplissez les informations: nom, date(s), lieu, nombre de convives
@@ -315,7 +430,7 @@ Ajoutez et gérez les participants inscrits à votre événement:
 
 > **📌 Note:** Vous devez d'abord créer vos participants et groupes depuis le menu "Participants" avant de pouvoir les ajouter à un événement.
 
-### 🖨️ Détail des recettes (impression)
+### 🖨️ Détail des recettes (impression) {#recipes-print}
 
 Cette fonctionnalité permet d'afficher et d'imprimer toutes les recettes d'un événement avec les quantités d'ingrédients ajustées automatiquement au nombre de convives.
 
@@ -401,14 +516,18 @@ La liste de courses est générée automatiquement à partir des recettes de l'�
 
 - Les ingrédients sont regroupés et additionnés
 - Les unités sont converties automatiquement quand possible
-- La liste se met à jour si vous changez le nombre de convives
+- **Les sous-recettes sont développées** : si une recette en utilise une autre (ex : le torikatsu dans l'Oyakodon), les ingrédients de la sous-recette sont ajoutés à la liste
+- Les quantités tiennent compte du nombre de personnes **de chaque jour** où la recette est prévue
+- La liste se met à jour si vous changez le nombre de convives, les jours ou les recettes
+- **Vos choix sont conservés** lors de ces recalculs et lors de la copie d'un événement : ingrédients décochés et quantités modifiées à la main
 
 ### Utilisation
 
-1. Ouvrez un événement
-2. Cliquez sur "Liste de courses"
-3. Cochez les articles achetés
-4. Modifiez les quantités si nécessaire
+1. Ouvrez un événement et cliquez sur **📝 Liste d'ingrédients** (ou passez par l'étape 5 de la [création guidée](#event-wizard))
+2. **Décochez ce qu'il ne faut pas acheter** : l'ingrédient est barré et n'est ni imprimé, ni envoyé, ni compté dans le budget. Les boutons **☑ Tout cocher** et **☐ Tout décocher** agissent sur toute la liste.
+3. Cliquez sur **✏️ Modifier** à côté d'un ingrédient pour changer la quantité, l'unité, les prix, ou cocher **Acheté**
+4. **📱 Envoyer** : ouvre le menu de partage du téléphone ou de la tablette (LINE, Messages, mail…). Sur un ordinateur, la liste est enregistrée en fichier.
+5. **💾 Enregistrer** : télécharge la liste dans un fichier texte (.txt)
 
 ---
 
@@ -581,6 +700,18 @@ Oui! Lors de la création de l'événement, désélectionnez les jours où vous 
 ### Les prix du catalogue sont-ils obligatoires?
 Non, ils sont optionnels. Le catalogue sert surtout à gagner du temps en suggérant des prix lors de nouveaux événements.
 
+### Création guidée ou « Nouvel événement » : lequel choisir ?
+La **✨ Création guidée** est la plus simple : elle enchaîne nom, dates, recettes, jours et liste de courses. Le formulaire **➕ Nouvel événement** sert à tout saisir d'un coup (lieu, notes…). Dans les deux cas, l'événement se modifie ensuite depuis sa fiche, et le bouton **✨ Création guidée** de la fiche permet de reprendre le parcours.
+
+### J'ai changé les dates et mes recettes ne sont plus réparties par jour, pourquoi ?
+Changer les dates recrée les jours de l'événement : la répartition « quelle recette quel jour » est effacée. Refaites l'étape **4 Jours** de la création guidée, ou utilisez la [planification](#planning). Changer seulement le nombre de personnes d'un jour ne l'efface pas.
+
+### Une recette n'apparaît pas dans la liste de courses, pourquoi ?
+Soit la recette n'a pas d'ingrédients enregistrés (repère **⚠️ Pas d'ingrédients**), soit ses ingrédients ont été décochés. Complétez la recette depuis sa fiche, ou recochez les ingrédients dans la liste.
+
+### Comment envoyer la liste de courses sur mon téléphone ?
+Bouton **📱 Envoyer sur le téléphone** : sur un téléphone ou une tablette, choisissez l'application (LINE, Messages, mail…). Sur un ordinateur, la liste est enregistrée en fichier .txt que vous pouvez vous envoyer.
+
 ### Comment changer ma langue par défaut?
 Accédez à votre profil et cliquez sur 🇫🇷 Français ou 🇯🇵 日本語 en bas de page. La préférence est enregistrée et appliquée à la prochaine connexion.
 
@@ -592,4 +723,4 @@ Le type est obligatoire pour classer et retrouver vos événements. Aucun type n
 
 ---
 
-*Dernière mise à jour: Version 3.5 - Juillet 2026*
+*Dernière mise à jour: Version 3.6 - Novembre 2026*

@@ -217,6 +217,14 @@
         <div class="flex flex-wrap gap-2 mb-6">
 
             {% if event %}
+            <!-- Création guidée : proposée seulement si aucun jour n'est désélectionné
+                 (l'étape « Dates » du parcours ne gère que des jours consécutifs) -->
+            {% if event_dates and event_dates|selectattr('is_selected')|list|length == event_dates|length %}
+            <a href="/event-wizard/{{ event.id }}/recipes?lang={{ lang }}"
+               class="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium text-sm">
+                <span>✨</span><span>{{ 'Création guidée' if lang == 'fr' else 'かんたん作成' }}</span>
+            </a>
+            {% endif %}
             <!-- Participants -->
             <button @click="showParticipantsModal = true"
                     class="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-medium text-sm">

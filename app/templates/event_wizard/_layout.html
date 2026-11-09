@@ -5,7 +5,13 @@
   {{ S('events_list') }}
 </a>
 <span class="mx-2">›</span>
+{% if event %}
+<a href="/events/{{ event.id }}?lang={{ lang }}" class="hover:text-gray-900 dark:hover:text-gray-100 transition-colors">{{ event.name }}</a>
+<span class="mx-2">›</span>
+<span class="text-gray-900 dark:text-gray-100">{{ 'Création guidée' if lang == 'fr' else 'かんたん作成' }}</span>
+{% else %}
 <span class="text-gray-900 dark:text-gray-100">{{ 'Nouvel événement' if lang == 'fr' else '新しいイベント' }}</span>
+{% endif %}
 {% endblock %}
 
 {% block content %}
