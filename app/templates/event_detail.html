@@ -465,24 +465,42 @@
         {% if event %}
         <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6 mb-6">
             <div class="flex justify-between items-center mb-4">
-                <h2 class="text-xl font-bold text-gray-900 dark:text-white">{{ S('recipes') }}</h2>
-                <div class="flex gap-2">
-                    <form method="POST" action="/events/{{ event.id }}/recipes/add-all-by-type"
-                          onsubmit="return confirm('{% if lang == 'fr' %}Ajouter toutes les recettes {{ event.event_type_name_fr }} ?{% else %}すべての{{ event.event_type_name_jp }}レシピを追加しますか？{% endif %}');">
-                        <input type="hidden" name="lang" value="{{ lang }}">
-                        <button type="submit"
-                                class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm whitespace-nowrap">
-                            ++ {% if lang == 'fr' %}Tout {{ event.event_type_name_fr }}{% else %}すべて{{ event.event_type_name_jp }}{% endif %}
-                        </button>
-                    </form>
-                    <button @click="showAddRecipe = !showAddRecipe"
-                            class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm">
-                        <span x-show="!showAddRecipe">+ {{ S('add_recipe') }}</span>
-                        <span x-show="showAddRecipe">{{ S('cancel') }}</span>
-                    </button>
+                {# Avec un planning par jour, la section montre l'organisation ;
+                   le titre « Recettes » passe au-dessus du bloc d'ajout #}
+                <h2 class="text-xl font-bold text-gray-900 dark:text-white">
+                    {% if recipes and recipe_days %}{{ 'Organisation' if lang == 'fr' else '企画' }}{% else %}{{ S('recipes') }}{% endif %}
+                </h2>
+                <div class="flex gap-2 flex-wrap justify-end">
+                    {% if recipes and recipe_days %}
+                    <a href="/events/{{ event.id }}/planning?lang={{ lang }}&from=event"
+                       class="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 text-sm whitespace-nowrap">
+                        ✏️ {{ 'Modifier la planification' if lang == 'fr' else 'プランニングを編集' }}
+                    </a>
+                    {% endif %}
                 </div>
             </div>
 
+            {# Boutons et formulaire d'ajout : au-dessus des recettes sans date
+               (là où arrivent les recettes ajoutées), sinon au-dessus de la liste #}
+            {% set add_recipes_block %}
+            {% if recipes and recipe_days %}
+            <h2 class="text-xl font-bold text-gray-900 dark:text-white pt-4 mb-3">{{ S('recipes') }}</h2>
+            {% endif %}
+            <div class="flex gap-2 flex-wrap mb-3">
+                    <form method="POST" action="/events/{{ event.id }}/recipes/add-all-by-type"
+                      onsubmit="return confirm('{% if lang == 'fr' %}Ajouter toutes les recettes {{ event.event_type_name_fr }} ?{% else %}すべての{{ event.event_type_name_jp }}レシピを追加しますか？{% endif %}');">
+                    <input type="hidden" name="lang" value="{{ lang }}">
+                    <button type="submit"
+                            class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm whitespace-nowrap">
+                        ++ {% if lang == 'fr' %}Tout {{ event.event_type_name_fr }}{% else %}すべて{{ event.event_type_name_jp }}{% endif %}
+                    </button>
+                </form>
+                <button @click="showAddRecipe = !showAddRecipe"
+                        class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm">
+                    <span x-show="!showAddRecipe">+ {{ S('add_recipe') }}</span>
+                    <span x-show="showAddRecipe">{{ S('cancel') }}</span>
+                </button>
+            </div>
             <!-- Formulaire ajout recette -->
             <div x-show="showAddRecipe" class="mb-6 p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
                 <form method="POST" action="/events/{{ event.id }}/recipes/add">
@@ -541,11 +559,10 @@
                     </div>
                 </form>
             </div>
+            {% endset %}
 
             <!-- Liste des recettes -->
-            {% if recipes %}
-            <div class="space-y-3">
-                {% for recipe in recipes %}
+            {% macro recipe_row(recipe) %}
                 <div class="flex items-center justify-between p-4 border border-gray-200 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700">
                     <div class="flex-1">
                         <a href="/recipe/{{ recipe.slug }}?lang={{ lang }}&event_id={{ event.id }}"
@@ -564,9 +581,46 @@
                         </button>
                     </form>
                 </div>
+            {% endmacro %}
+
+            {% if recipes and recipe_days %}
+            <!-- Recettes par jour de la planification (comme l'écran Organisation) -->
+            <div class="space-y-4">
+                {% for day in recipe_days %}
+                {% if not day.label %}{{ add_recipes_block }}{% endif %}
+                <div class="rounded-lg overflow-hidden border-2 {{ 'border-blue-200 dark:border-blue-800' if day.label else 'border-amber-300 dark:border-amber-700' }}">
+                    <div class="px-4 py-2 flex justify-between items-center gap-2 flex-wrap {{ 'bg-gradient-to-r from-blue-500 to-blue-600 text-white' if day.label else 'bg-amber-100 dark:bg-amber-900/40 text-amber-900 dark:text-amber-100' }}">
+                        <h3 class="font-bold">
+                            {% if day.label %}📅 {{ day.label }}{% else %}⚠️ {{ 'Liste des recettes sans date' if lang == 'fr' else '日付のないレシピ一覧' }}{% endif %}
+                        </h3>
+                        <span class="text-sm opacity-90">
+                            {% if day.label %}{{ day.people }} {{ 'personnes' if lang == 'fr' else '名' }} · {% endif %}{{ day.recipes | length }} {{ 'recette(s)' if lang == 'fr' else 'レシピ' }}
+                        </span>
+                    </div>
+                    <div class="p-3 space-y-2">
+                        {% for recipe in day.recipes %}
+                        {{ recipe_row(recipe) }}
+                        {% else %}
+                        <a href="/events/{{ event.id }}/planning?lang={{ lang }}&from=event"
+                           class="block text-center text-sm text-gray-500 dark:text-gray-400 py-3 hover:text-blue-600">
+                            📭 {{ 'Aucune recette ce jour — cliquez pour en affecter' if lang == 'fr' else 'この日のレシピはまだありません — タップして割り当て' }}
+                        </a>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endfor %}
+                {# Toutes les recettes ont un jour : le bloc d'ajout vient après les jours #}
+                {% if recipe_days[-1].label %}{{ add_recipes_block }}{% endif %}
+            </div>
+            {% elif recipes %}
+            {{ add_recipes_block }}
+            <div class="space-y-3">
+                {% for recipe in recipes %}
+                {{ recipe_row(recipe) }}
                 {% endfor %}
             </div>
             {% else %}
+            {{ add_recipes_block }}
             <p class="text-gray-500 dark:text-gray-400 text-center py-8">
                 {{ 'Aucune recette ajoutée' if lang == 'fr' else 'レシピが追加されていません' }}
             </p>

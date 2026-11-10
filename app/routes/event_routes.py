@@ -1,5 +1,5 @@
 # app/routes/event_routes.py
-from fastapi import APIRouter, Request, Form, HTTPException, UploadFile, File
+from fastapi import APIRouter, Request, Form, HTTPException, UploadFile, File, Query
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 from typing import Optional
 from datetime import datetime
@@ -173,6 +173,32 @@ async def event_create(
     return RedirectResponse(url=redirect_url, status_code=303)
 
 
+def _recipes_by_day(event: dict, recipes: list, event_dates: list, lang: str) -> Optional[list]:
+    """
+    Recettes de l'événement regroupées par jour de la planification, plus un
+    groupe final (label None) pour les recettes affectées à aucun jour.
+    None pour un événement d'un seul jour sans planning : la liste simple suffit.
+    """
+    from app.routes.event_wizard_routes import _day_label
+    planning = db.get_recipe_planning(event['id'], lang)
+    if len(planning) <= 1 and not any(day['recipes'] for day in planning.values()):
+        return None
+
+    recipes_by_id = {r['id']: r for r in recipes}
+    people_by_date = {d['date']: d['attendees'] or event['attendees'] for d in event_dates}
+    days, planned_ids = [], set()
+    for day in planning.values():
+        day_recipes = [recipes_by_id[r['id']] for r in day['recipes'] if r['id'] in recipes_by_id]
+        planned_ids.update(r['id'] for r in day_recipes)
+        days.append({'label': _day_label(day['date'], lang),
+                     'people': people_by_date.get(day['date'], event['attendees']),
+                     'recipes': day_recipes})
+    unplanned = [r for r in recipes if r['id'] not in planned_ids]
+    if unplanned:
+        days.append({'label': None, 'people': event['attendees'], 'recipes': unplanned})
+    return days
+
+
 # Type de recette proposé par défaut quand son nom diffère de celui du type d'événement
 _RECIPE_TYPE_FOR_EVENT_TYPE = {'INVITATION': 'PERSO'}
 
@@ -204,6 +230,7 @@ async def event_detail(
     default_recipe_type_id = next((rt['id'] for rt in recipe_types if rt['name_fr'] == wanted_type), None)
     event_types = db.list_event_types()
     event_dates = db.get_event_dates(event_id)
+    recipe_days = _recipes_by_day(event, recipes, event_dates, lang)
 
     shopping_list_items = db.get_shopping_list_items(event_id, lang)
     has_shopping_list = len(shopping_list_items) > 0
@@ -235,6 +262,7 @@ async def event_detail(
             "from_page": from_page,
             "recipes": recipes,
             "all_recipes": all_recipes,
+            "recipe_days": recipe_days,
             "recipe_types": recipe_types,
             "default_recipe_type_id": default_recipe_type_id,
             "has_shopping_list": has_shopping_list,
@@ -1479,8 +1507,15 @@ async def event_organization_view(request: Request, event_id: int, lang: str = "
     )
 
 
+def _planning_back_url(event_id: int, lang: str, from_page: str) -> str:
+    """Fiche événement si la planification a été ouverte depuis celle-ci, sinon l'organisation."""
+    if from_page == "event":
+        return f"/events/{event_id}?lang={lang}"
+    return f"/events/{event_id}/organization?lang={lang}"
+
+
 @router.get("/events/{event_id}/planning")
-async def event_planning_edit(request: Request, event_id: int, lang: str = "fr"):
+async def event_planning_edit(request: Request, event_id: int, lang: str = "fr", from_page: str = Query("", alias="from")):
     """
     Écran de planification avec drag & drop des recettes vers les dates
     """
@@ -1508,7 +1543,10 @@ async def event_planning_edit(request: Request, event_id: int, lang: str = "fr")
             "event": event,
             "recipes": recipes,
             "selected_dates": selected_dates,
-            "planning_by_date": planning_by_date
+            "planning_by_date": planning_by_date,
+            # Venu de la fiche événement : retour et enregistrement y ramènent
+            "from_page": from_page,
+            "back_url": _planning_back_url(event_id, lang, from_page),
         }
     )
 
@@ -1517,7 +1555,8 @@ async def event_planning_edit(request: Request, event_id: int, lang: str = "fr")
 async def event_planning_save(
     request: Request,
     event_id: int,
-    lang: str = Form("fr")
+    lang: str = Form("fr"),
+    from_page: str = Form("", alias="from")
 ):
     """
     Sauvegarde la planification des recettes par jour
@@ -1542,10 +1581,7 @@ async def event_planning_save(
     # Sauvegarder la planification
     db.save_recipe_planning(event_id, planning_data)
 
-    return RedirectResponse(
-        url=f"/events/{event_id}/organization?lang={lang}",
-        status_code=303
-    )
+    return RedirectResponse(url=_planning_back_url(event_id, lang, from_page), status_code=303)
 
 
 # ============================================================================
