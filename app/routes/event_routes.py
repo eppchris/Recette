@@ -219,7 +219,10 @@ async def event_detail(
     _check_event_access(event, request)
 
     recipes = db.get_event_recipes(event_id, lang)
-    all_recipes = db.list_recipes(lang)
+    # Liste d'ajout : seulement les recettes pas encore dans l'événement
+    # (une recette n'y figure qu'une fois, même prévue plusieurs jours)
+    event_recipe_ids = {r['id'] for r in recipes}
+    all_recipes = [r for r in db.list_recipes(lang) if r['id'] not in event_recipe_ids]
     types_by_recipe = db.get_all_recipe_recipe_type_ids()
     for recipe in all_recipes:
         recipe['recipe_type_ids'] = types_by_recipe.get(recipe['id'], [])
