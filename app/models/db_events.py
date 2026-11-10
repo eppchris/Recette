@@ -718,6 +718,19 @@ def delete_recipe_type(recipe_type_id: int):
         con.execute("DELETE FROM recipe_type WHERE id = ?", (recipe_type_id,))
 
 
+def get_all_recipe_recipe_type_ids():
+    """
+    Returns:
+        Dict {recipe_id: [recipe_type_id, ...]} pour toutes les recettes
+    """
+    with get_db() as con:
+        rows = con.execute("SELECT recipe_id, recipe_type_id FROM recipe_recipe_type").fetchall()
+        result = {}
+        for row in rows:
+            result.setdefault(row['recipe_id'], []).append(row['recipe_type_id'])
+        return result
+
+
 def get_recipe_recipe_types(recipe_id: int):
     with get_db() as con:
         rows = con.execute(

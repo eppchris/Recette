@@ -30,11 +30,13 @@ def list_recipes(lang: str, user_id: int = None):
                 r.thumbnail_url,
                 r.prep_time,
                 r.cook_time,
-                COALESCE(rt.name, r.slug) AS name,
+                -- Recette non traduite : nom dans l'autre langue plutôt que le slug
+                COALESCE(rt.name, rt_other.name, r.slug) AS name,
                 rt.recipe_type AS type,
                 r.user_id,
                 COALESCE(u.display_name, u.username) AS creator_name,
                 CASE WHEN rt_other.recipe_id IS NOT NULL THEN 1 ELSE 0 END AS has_other_lang,
+                CASE WHEN rt.recipe_id IS NOT NULL THEN 1 ELSE 0 END AS translated,
                 (SELECT COUNT(*) FROM recipe_ingredient ri WHERE ri.recipe_id = r.id) AS ingredient_count,
                 (SELECT COUNT(*) FROM step s WHERE s.recipe_id = r.id AND s.type = 'text') AS step_count
             FROM recipe r

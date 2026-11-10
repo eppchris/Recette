@@ -487,15 +487,45 @@
             <div x-show="showAddRecipe" class="mb-6 p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
                 <form method="POST" action="/events/{{ event.id }}/recipes/add">
                     <input type="hidden" name="lang" value="{{ lang }}">
-                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <script type="application/json" id="add-recipe-data">[{% for r in all_recipes %}{{ {'id': r.id, 'label': r.name ~ ' (' ~ r.servings ~ ' ' ~ S('servings') ~ ')', 'types': r.recipe_type_ids, 'translated': r.translated}|tojson }}{{ ',' if not loop.last }}{% endfor %}]</script>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4"
+                         x-data="{ recipes: JSON.parse(document.getElementById('add-recipe-data').textContent),
+                                   typeId: {{ (default_recipe_type_id or none) | tojson }}, recipeId: '',
+                                   visible(translated) { return this.recipes.filter(r => !!r.translated === translated && (this.typeId === null || r.types.includes(this.typeId))); } }">
+                        <!-- Filtres par type de recette (comme dans la liste des recettes) -->
+                        <div class="md:col-span-3 flex gap-2 flex-wrap">
+                            <button type="button" @click="typeId = null; recipeId = ''"
+                                    :class="typeId === null ? 'bg-gray-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'"
+                                    class="px-4 py-2 rounded-lg font-medium transition-colors">
+                                {{ 'Toutes' if lang == 'fr' else 'すべて' }}
+                            </button>
+                            {% for rt in recipe_types | default([]) %}
+                            <button type="button" @click="typeId = {{ rt.id }}; recipeId = ''"
+                                    :class="typeId === {{ rt.id }} ? 'bg-indigo-600 text-white' : 'bg-indigo-100 text-indigo-700 hover:bg-indigo-200'"
+                                    class="px-4 py-2 rounded-lg font-medium transition-colors">
+                                {{ rt.name_fr if lang == 'fr' else (rt.name_jp or rt.name_fr) }}
+                            </button>
+                            {% endfor %}
+                        </div>
                         <div class="md:col-span-2">
-                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ S('recipes') }}</label>
-                            <select name="recipe_id" required
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                {{ S('recipes') }} (<span x-text="visible(true).length + visible(false).length"></span>)
+                            </label>
+                            <select name="recipe_id" required x-model="recipeId"
                                     class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-600 dark:text-white">
                                 <option value="">{{ 'Sélectionner une recette' if lang == 'fr' else 'レシピを選択' }}</option>
-                                {% for recipe in all_recipes %}
-                                <option value="{{ recipe.id }}">{{ recipe.name }} ({{ recipe.servings }} {{ S('servings') }})</option>
-                                {% endfor %}
+                                <template x-for="r in visible(true)" :key="r.id">
+                                    <option :value="r.id" x-text="r.label"></option>
+                                </template>
+                                {# Recettes sans traduction : à la fin, signalées pour ne pas les confondre #}
+                                {# x-if plutôt que x-show : Safari ne masque pas un optgroup en display:none #}
+                                <template x-if="visible(false).length">
+                                    <optgroup label="{{ '⚠️ Non traduites en français' if lang == 'fr' else '⚠️ 未翻訳のレシピ（日本語なし）' }}">
+                                        <template x-for="r in visible(false)" :key="r.id">
+                                            <option :value="r.id" x-text="'{{ '🇯🇵' if lang == 'fr' else '🇫🇷' }} ' + r.label"></option>
+                                        </template>
+                                    </optgroup>
+                                </template>
                             </select>
                         </div>
                         <div>

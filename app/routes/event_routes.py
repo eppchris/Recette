@@ -173,6 +173,10 @@ async def event_create(
     return RedirectResponse(url=redirect_url, status_code=303)
 
 
+# Type de recette proposé par défaut quand son nom diffère de celui du type d'événement
+_RECIPE_TYPE_FOR_EVENT_TYPE = {'INVITATION': 'PERSO'}
+
+
 @router.get("/events/{event_id}", response_class=HTMLResponse)
 async def event_detail(
     request: Request,
@@ -190,6 +194,14 @@ async def event_detail(
 
     recipes = db.get_event_recipes(event_id, lang)
     all_recipes = db.list_recipes(lang)
+    types_by_recipe = db.get_all_recipe_recipe_type_ids()
+    for recipe in all_recipes:
+        recipe['recipe_type_ids'] = types_by_recipe.get(recipe['id'], [])
+    # Filtre initial de l'ajout de recette : le type de recette qui correspond
+    # au type de l'événement (même nom, INVITATION → PERSO), sinon « Toutes »
+    recipe_types = db.get_all_recipe_types()
+    wanted_type = _RECIPE_TYPE_FOR_EVENT_TYPE.get(event['event_type_name_fr'], event['event_type_name_fr'])
+    default_recipe_type_id = next((rt['id'] for rt in recipe_types if rt['name_fr'] == wanted_type), None)
     event_types = db.list_event_types()
     event_dates = db.get_event_dates(event_id)
 
@@ -223,6 +235,8 @@ async def event_detail(
             "from_page": from_page,
             "recipes": recipes,
             "all_recipes": all_recipes,
+            "recipe_types": recipe_types,
+            "default_recipe_type_id": default_recipe_type_id,
             "has_shopping_list": has_shopping_list,
             "event_participants": event_participants,
             "all_participants": all_participants,
