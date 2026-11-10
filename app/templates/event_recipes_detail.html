@@ -23,6 +23,7 @@
         break-after: auto;
       }
       .print-event-header { display: flex !important; }
+      .day-title { break-after: avoid; page-break-after: avoid; }
       body { font-size: 11pt; background: white; color: black; }
       .ingredient-row:nth-child(even) { background-color: #f5f5f5; }
       table { width: 100%; border-collapse: collapse; }
@@ -33,6 +34,14 @@
     }
   </style>
 </head>
+{# Dates de l'événement : « 20/11/2026 → 23/11/2026 » ou « 2026/11/20〜11/23 » #}
+{% set d1 = event.date_debut or event.event_date or '' %}
+{% set d2 = event.date_fin or d1 %}
+{% if lang == 'fr' %}
+  {% set event_dates = d1[8:10] ~ '/' ~ d1[5:7] ~ '/' ~ d1[:4] ~ ((' → ' ~ d2[8:10] ~ '/' ~ d2[5:7] ~ '/' ~ d2[:4]) if d2 != d1 else '') %}
+{% else %}
+  {% set event_dates = d1.replace('-', '/') ~ (('〜' ~ d2[5:].replace('-', '/')) if d2 != d1 else '') %}
+{% endif %}
 <body class="bg-gray-50 text-gray-900 min-h-screen" x-data="{ darkMode: localStorage.getItem('darkMode') === 'true' }" :class="{ 'dark bg-gray-900 text-gray-100': darkMode }">
 
   <!-- ══════════════════════════════════════════
@@ -52,6 +61,9 @@
         <p class="text-sm font-semibold text-gray-700 dark:text-gray-300">
           {{ 'Détail des recettes' if lang == 'fr' else 'レシピ詳細' }}
         </p>
+        {% if d1 %}
+        <p class="text-xs text-gray-500 dark:text-gray-400">📅 {{ event_dates }}</p>
+        {% endif %}
         <p class="text-xs text-gray-500 dark:text-gray-400">
           {{ event.attendees }} {{ 'personnes' if lang == 'fr' else '名' }} ·
           {{ recipes | length }} {{ 'recette' if lang == 'fr' else 'レシピ' }}{{ 's' if lang == 'fr' and recipes | length > 1 else '' }}
@@ -78,15 +90,32 @@
     </div>
     {% endif %}
 
-    {% for recipe in recipes %}
+    {# Numérotation continue des fiches, dans l'ordre d'apparition #}
+    {% set counter = namespace(n=0) %}
+    {% for day in days %}
+    {% if day.label or days | length > 1 %}
+    <!-- Titre du jour (imprimé en haut de la page de sa première recette) -->
+    <h2 class="day-title flex items-baseline gap-3 pt-4 border-b-2 border-gray-300 dark:border-gray-600 pb-2 {{ '' if loop.first else 'mt-4' }}">
+      <span class="text-2xl font-bold text-gray-900 dark:text-gray-100">
+        📅 {{ day.label or ('Sans date' if lang == 'fr' else '日付なし') }}
+      </span>
+      <span class="text-sm text-gray-500 dark:text-gray-400">
+        {{ day.people }} {{ 'personnes' if lang == 'fr' else '名' }} ·
+        {{ day.recipes | length }} {{ 'recette' if lang == 'fr' else 'レシピ' }}{{ 's' if lang == 'fr' and day.recipes | length > 1 else '' }}
+      </span>
+    </h2>
+    {% endif %}
+
+    {% for recipe in day.recipes %}
+    {% set counter.n = counter.n + 1 %}
     {# ── Quantité ajustée : qty_brute × multiplicateur_final ── #}
 
     <div class="recipe-section bg-white dark:bg-gray-800 rounded-xl shadow-md overflow-hidden border border-gray-200 dark:border-gray-700">
 
       <!-- En-tête visible uniquement à l'impression (identifie l'événement sur chaque page) -->
       <div class="print-event-header items-center justify-between text-xs text-gray-500 px-6 pt-4 pb-0">
-        <span>{{ event.name }}{% if event.event_date %} · {{ event.event_date }}{% endif %}</span>
-        <span>{{ event.attendees }} {{ 'personnes' if lang == 'fr' else '名' }}</span>
+        <span>{{ event.name }}{% if d1 %} · {{ event_dates }}{% endif %}</span>
+        <span>{% if day.label %}{{ day.label }} · {% endif %}{{ recipe.event_attendees }} {{ 'personnes' if lang == 'fr' else '名' }}</span>
       </div>
 
       <!-- En-tête de la recette -->
@@ -100,7 +129,7 @@
           {% endif %}
           <div class="flex-1 min-w-0">
             <p class="text-gray-500 dark:text-gray-400 text-sm font-medium mb-1">
-              {{ loop.index }}/{{ recipes | length }}
+              {{ counter.n }}/{{ nb_sheets }}
             </p>
             <h2 class="text-2xl font-bold text-gray-900 dark:text-gray-100 leading-tight">{{ recipe.recipe_name }}</h2>
             <p class="text-gray-600 dark:text-gray-400 text-sm mt-1">
@@ -210,6 +239,7 @@
 
       </div><!-- /grid -->
     </div><!-- /recipe-section -->
+    {% endfor %}
     {% endfor %}
 
   </div><!-- /max-w -->

@@ -649,6 +649,36 @@ async def event_recipes_detail(request: Request, event_id: int, lang: str = "fr"
     for recipe in recipes:
         recipe['steps'] = steps_by_recipe.get(recipe['recipe_id'], [])
 
+    # Recettes regroupées par jour, dans l'ordre de la planification.
+    # Une recette prévue plusieurs jours apparaît chaque jour, ses quantités
+    # réparties selon les convives de chaque jour.
+    from app.routes.event_wizard_routes import _day_label
+    recipes_by_id = {r['recipe_id']: r for r in recipes}
+    people_by_date = {d['date']: d['attendees'] or event['attendees']
+                      for d in db.get_event_dates(event_id) if d['is_selected']}
+    planning = db.get_recipe_planning(event_id, lang).values()
+    people_by_recipe = {}
+    for day in planning:
+        for planned in day['recipes']:
+            people_by_recipe[planned['id']] = people_by_recipe.get(planned['id'], 0) + people_by_date.get(day['date'], 0)
+
+    days = []
+    for day in planning:
+        day_people = people_by_date.get(day['date'], event['attendees'])
+        day_recipes = []
+        for planned in day['recipes']:
+            recipe = recipes_by_id.get(planned['id'])
+            if not recipe:
+                continue
+            multiplier = recipe['servings_multiplier'] * day_people / (people_by_recipe[planned['id']] or 1)
+            day_recipes.append({**recipe, 'servings_multiplier': multiplier,
+                                'event_attendees': round(multiplier * recipe['servings_default'])})
+        if day_recipes:
+            days.append({'label': _day_label(day['date'], lang), 'people': day_people, 'recipes': day_recipes})
+    unplanned = [r for r in recipes if r['recipe_id'] not in people_by_recipe]
+    if unplanned:
+        days.append({'label': None, 'people': event['attendees'], 'recipes': unplanned})
+
     return templates.TemplateResponse(
         "event_recipes_detail.html",
         {
@@ -656,6 +686,8 @@ async def event_recipes_detail(request: Request, event_id: int, lang: str = "fr"
             "lang": lang,
             "event": event,
             "recipes": recipes,
+            "days": days,
+            "nb_sheets": sum(len(d['recipes']) for d in days),
         }
     )
 
