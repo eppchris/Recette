@@ -126,7 +126,7 @@ async def event_create(
     date_debut: str = Form(...),
     date_fin: str = Form(...),
     nombre_jours: int = Form(1),
-    location: str = Form(...),
+    location: str = Form(""),
     attendees: int = Form(...),
     notes: str = Form(""),
     from_page: str = Form("")
@@ -251,7 +251,7 @@ async def event_update(
     date_debut: str = Form(...),
     date_fin: str = Form(...),
     nombre_jours: int = Form(1),
-    location: str = Form(...),
+    location: str = Form(""),
     attendees: int = Form(...),
     notes: str = Form(""),
     from_page: str = Form("")
