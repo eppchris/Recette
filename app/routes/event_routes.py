@@ -14,10 +14,9 @@ router = APIRouter()
 
 
 def _check_event_access(event: dict, request: Request):
-    """Lève 403 si l'utilisateur n'est pas propriétaire de l'événement (sauf admin)."""
+    """Lève 403 si l'utilisateur n'est pas propriétaire de l'événement (admin compris)."""
     user_id = request.session.get('user_id')
-    is_admin = bool(request.session.get('is_admin', False))
-    if not is_admin and event.get('user_id') != user_id:
+    if event.get('user_id') != user_id:
         raise HTTPException(status_code=403, detail="Accès non autorisé")
 
 
@@ -35,16 +34,10 @@ def _refresh_shopping_list_if_any(event_id: int, lang: str):
 async def events_list(request: Request, lang: str = "fr"):
     """
     Affiche la liste des événements
-    - L'utilisateur 'admin' voit tous les événements
-    - Les autres utilisateurs voient uniquement leurs événements
+    Chaque utilisateur, admin compris, ne voit que ses propres événements.
     """
     user_id = request.session.get('user_id')
-    is_admin = bool(request.session.get('is_admin', False))
-
-    if is_admin:
-        events = db.list_events(lang=lang)
-    else:
-        events = db.list_events(user_id=user_id, lang=lang)
+    events = db.list_events(user_id=user_id, lang=lang)
 
     # Enrichir chaque événement
     for ev in events:
@@ -234,6 +227,9 @@ async def event_detail(
     event_types = db.list_event_types()
     event_dates = db.get_event_dates(event_id)
     recipe_days = _recipes_by_day(event, recipes, event_dates, lang)
+    # Recettes planifiées par jour : le formulaire prévient avant de les retirer d'un jour
+    planned_by_date = {day['date']: [r['name'] for r in day['recipes']]
+                       for day in db.get_recipe_planning(event_id, lang).values() if day['recipes']}
 
     shopping_list_items = db.get_shopping_list_items(event_id, lang)
     has_shopping_list = len(shopping_list_items) > 0
@@ -266,6 +262,7 @@ async def event_detail(
             "recipes": recipes,
             "all_recipes": all_recipes,
             "recipe_days": recipe_days,
+            "planned_by_date": planned_by_date,
             "recipe_types": recipe_types,
             "default_recipe_type_id": default_recipe_type_id,
             "has_shopping_list": has_shopping_list,

@@ -767,24 +767,41 @@ def save_event_dates(event_id: int, dates: list):
         dates: Liste de dicts avec 'date', 'is_selected' et optionnellement
                'attendees' (convives du jour, None = ceux de l'événement).
                Sans clé 'attendees', la valeur déjà enregistrée pour ce jour est conservée.
+
+    Les jours déjà enregistrés gardent leur id : le planning qui y est rattaché
+    est conservé. Seuls les jours retirés sont supprimés, avec leur planning ;
+    un jour désélectionné perd aussi son planning (ses recettes repassent sans date).
     """
     with get_db() as con:
         cursor = con.cursor()
-        previous_attendees = {
-            row['date']: row['attendees']
+        existing = {
+            row['date']: row
             for row in cursor.execute(
-                "SELECT date, attendees FROM event_date WHERE event_id = ?", (event_id,)
+                "SELECT id, date, attendees FROM event_date WHERE event_id = ?", (event_id,)
             ).fetchall()
         }
-        # Supprimer les anciennes dates
-        cursor.execute("DELETE FROM event_date WHERE event_id = ?", (event_id,))
-        # Ajouter les nouvelles dates
+        new_dates = {d['date'] for d in dates}
+        # Supprimer les jours retirés et leur planning (pas de cascade SQLite active)
+        removed_ids = [row['id'] for d, row in existing.items() if d not in new_dates]
+        for date_id in removed_ids:
+            cursor.execute("DELETE FROM event_recipe_planning WHERE event_date_id = ?", (date_id,))
+            cursor.execute("DELETE FROM event_date WHERE id = ?", (date_id,))
+        # Mettre à jour les jours conservés, ajouter les nouveaux
         for date_info in dates:
-            attendees = date_info.get('attendees', previous_attendees.get(date_info['date']))
-            cursor.execute(
-                "INSERT INTO event_date (event_id, date, is_selected, attendees) VALUES (?, ?, ?, ?)",
-                (event_id, date_info['date'], date_info.get('is_selected', 1), attendees)
-            )
+            row = existing.get(date_info['date'])
+            attendees = date_info.get('attendees', row['attendees'] if row else None)
+            if row:
+                if not date_info.get('is_selected', 1):
+                    cursor.execute("DELETE FROM event_recipe_planning WHERE event_date_id = ?", (row['id'],))
+                cursor.execute(
+                    "UPDATE event_date SET is_selected = ?, attendees = ? WHERE id = ?",
+                    (date_info.get('is_selected', 1), attendees, row['id'])
+                )
+            else:
+                cursor.execute(
+                    "INSERT INTO event_date (event_id, date, is_selected, attendees) VALUES (?, ?, ?, ?)",
+                    (event_id, date_info['date'], date_info.get('is_selected', 1), attendees)
+                )
         con.commit()
 
 

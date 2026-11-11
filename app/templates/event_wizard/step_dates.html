@@ -25,7 +25,21 @@
                 },
                 count(iso) { return this.counts[iso] || this.base; },
                 change(iso, delta) { this.counts[iso] = Math.max(1, this.count(iso) + delta); },
-                daysValue() { return this.dayList().map(d => d + ":" + this.count(d)).join(","); } }'>
+                daysValue() { return this.dayList().map(d => d + ":" + this.count(d)).join(","); },
+                planned: {{ (planned_by_date or {})|tojson }},
+                confirmSave(event) {
+                    const kept = new Set(this.dayList());
+                    const lost = Object.entries(this.planned).filter(([iso]) => !kept.has(iso));
+                    if (!lost.length) return;
+                    const lines = lost.map(([iso, names]) => "• " + this.label(iso) + " : " + names.join({{ (", " if lang == "fr" else "、")|tojson }}));
+                    const message = {{ ("Attention : ces jours ne font plus partie de l’événement. Leurs recettes passeront dans « Liste des recettes sans date »."
+                                        if lang == "fr" else
+                                        "ご注意：次の日付が外れます。その日のレシピは「日付のないレシピ一覧」に移ります。")|tojson }}
+                        + "\n\n" + lines.join("\n") + "\n\n"
+                        + {{ ("Enregistrer quand même ?" if lang == "fr" else "このまま保存しますか？")|tojson }};
+                    if (!confirm(message)) event.preventDefault();
+                } }'
+      @submit="confirmSave($event)">
     <input type="hidden" name="lang" value="{{ lang }}">
     <input type="hidden" name="next" value="">
     {% if not event %}

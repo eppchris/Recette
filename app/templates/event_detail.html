@@ -36,6 +36,7 @@
                 dateFin: '{{ event.date_fin if event and event.date_fin else prefill_date_fin }}',
                 nombreJours: {{ event.nombre_jours if event and event.nombre_jours else 1 }},
                 dates: [],
+                plannedByDate: {{ (planned_by_date or {}) | tojson }},
 
                 init() {
                     this.darkMode = localStorage.getItem('darkMode') === 'true' || false;
@@ -82,6 +83,23 @@
                 toggleDate(index) {
                     this.dates[index].selected = !this.dates[index].selected;
                     this.nombreJours = this.dates.filter(d => d.selected).length;
+                },
+
+                // Avant d'enregistrer : prévenir si des jours planifiés sont retirés ou désélectionnés
+                confirmSave(event) {
+                    if (event.defaultPrevented) return;
+                    const kept = new Set(this.dates.filter(d => d.selected).map(d => d.date));
+                    const lost = Object.entries(this.plannedByDate).filter(([date]) => !kept.has(date));
+                    if (!lost.length) return;
+                    const lines = lost.map(([date, names]) =>
+                        '• ' + new Date(date).toLocaleDateString('{{ 'fr-FR' if lang == 'fr' else 'ja-JP' }}', {day: '2-digit', month: '2-digit'})
+                        + ' : ' + names.join('{{ ', ' if lang == 'fr' else '、' }}'));
+                    const message = {{ ('Attention : ces jours sont retirés ou désélectionnés. Leurs recettes passeront dans « Liste des recettes sans date ».'
+                                        if lang == 'fr' else
+                                        'ご注意：次の日付が外れます。その日のレシピは「日付のないレシピ一覧」に移ります。') | tojson }}
+                        + '\n\n' + lines.join('\n') + '\n\n'
+                        + {{ ('Enregistrer quand même ?' if lang == 'fr' else 'このまま保存しますか？') | tojson }};
+                    if (!confirm(message)) event.preventDefault();
                 },
 
                 async addParticipant(participantId) {
@@ -337,6 +355,7 @@
             </h2>
             <form method="POST" action="{{ '/events/new' if not event else '/events/' + (event.id|string) + '/edit' }}"
                   novalidate
+                  @submit="confirmSave($event)"
                   onsubmit="const sel=document.getElementById('event_type_select');if(!sel.value){document.getElementById('event_type_error').classList.remove('hidden');sel.focus();return false;}">
                 <input type="hidden" name="lang" value="{{ lang }}">
                 <input type="hidden" name="from_page" value="{{ from_page }}">

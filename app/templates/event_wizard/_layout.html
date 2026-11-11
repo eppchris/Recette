@@ -64,7 +64,8 @@
         if (!link || !form) return;
         e.preventDefault();
         form.querySelector('input[name="next"]').value = link.getAttribute('href');
-        form.submit();
+        // Événement submit synthétique : l'étape peut demander confirmation (et annuler)
+        if (form.dispatchEvent(new Event('submit', {cancelable: true}))) form.submit();
     });
 </script>
 {% endblock %}

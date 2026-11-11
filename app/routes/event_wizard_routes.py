@@ -287,6 +287,8 @@ async def wizard_dates_edit(request: Request, event_id: int, lang: str = "fr"):
              date_fin=event['date_fin'] or event['event_date'],
              day_counts={d['date']: d['attendees'] for d in db.get_event_dates(event_id)
                          if d['is_selected'] and d['attendees']},
+             planned_by_date={day['date']: [r['name'] for r in day['recipes']]
+                              for day in db.get_recipe_planning(event_id, lang).values() if day['recipes']},
              form_action=f"/event-wizard/{event_id}/dates",
              back_url=f"/event-wizard/{event_id}/info?lang={lang}")
     )
@@ -322,7 +324,7 @@ async def wizard_dates_save(
             date_fin=dates[-1],
             nombre_jours=len(dates)
         )
-        # Recrée les dates : le planning associé est supprimé en cascade
+        # Recrée les dates : le planning des jours retirés est supprimé
         db.save_event_dates(event_id, [
             {'date': d, 'is_selected': True, 'attendees': attendees_by_date[d]} for d in dates
         ])
