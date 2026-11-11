@@ -115,7 +115,10 @@
                              target="_blank"
                              class="hover:underline hover:text-blue-600 dark:hover:text-blue-300">
                             {{ recipe.recipe_name }}
-                        </a> (×{{ recipe.servings_multiplier }})
+                        </a>
+                        <span class="text-blue-600 dark:text-blue-300">
+                            ({{ ('recette pour %s → %s pers. · ×%s' if lang == 'fr' else '%s人分 → %s人分 · ×%s')|format(recipe.servings_default, (recipe.servings_default * recipe.servings_multiplier)|round|int, '%g'|format(recipe.servings_multiplier|round(2))) }})
+                        </span>
                     </li>
                     {% endfor %}
                 </ul>

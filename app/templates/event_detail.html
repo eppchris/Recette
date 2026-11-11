@@ -587,7 +587,10 @@
                         <a href="/recipe/{{ recipe.slug }}?lang={{ lang }}&event_id={{ event.id }}"
                            class="font-medium text-blue-600 dark:text-blue-400 hover:underline">{{ recipe.name }}</a>
                         <p class="text-sm text-gray-500 dark:text-gray-400">
-                            {{ recipe.servings_default }} × {{ recipe.servings_multiplier }} = {{ (recipe.servings_default * recipe.servings_multiplier)|int }} {{ S('servings') }}
+                            {# servings_multiplier = rapport convives du jour / convives de l'événement #}
+                            {% set people = (event.attendees * recipe.servings_multiplier)|round|int %}
+                            {% set coef = (event.attendees * recipe.servings_multiplier / (recipe.servings_default or 1))|round(2) %}
+                            {{ ('Recette pour %s → %s pers. · ×%s' if lang == 'fr' else '%s人分のレシピ → %s人分 · ×%s')|format(recipe.servings_default, people, '%g'|format(coef)) }}
                         </p>
                     </div>
                     <form method="POST" action="/events/{{ event.id }}/recipes/{{ recipe.id }}/remove"

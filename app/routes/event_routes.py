@@ -345,17 +345,11 @@ async def event_update(
     if dates:
         db.save_event_dates(event_id, dates)
 
-    # Si le nombre de participants a changé, ajuster les multiplicateurs de portions
-    # et régénérer la liste de courses si elle existe
-    if old_attendees is not None and old_attendees != attendees and old_attendees > 0:
-        # Calculer le ratio de changement du nombre de participants
-        ratio = attendees / old_attendees
-
-        # Mettre à jour tous les servings_multiplier des recettes de l'événement
-        db.update_event_recipes_multipliers(event_id, ratio)
-
-        # Si une liste de courses existe, la recalculer avec les nouvelles quantités
-        _refresh_shopping_list_if_any(event_id, lang)
+    # Les quantités suivent déjà le nombre de convives de l'événement
+    # (convives / portions recette × servings_multiplier) : on recalcule seulement
+    # le rapport jour/événement de chaque recette, puis la liste de courses
+    from app.routes.event_wizard_routes import _sync_servings
+    _sync_servings(event_id, lang, force_refresh=old_attendees != attendees)
 
     redirect_url = f"/events/{event_id}?lang={lang}"
     if from_page:
