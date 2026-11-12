@@ -46,7 +46,8 @@
     <div x-ref="toolbarAnchor" class="scroll-mt-[73px] md:scroll-mt-0"></div>
 
     <!-- Barre d'outils : recherche + colonnes (collée en haut sur téléphone) -->
-    <div class="sticky top-[73px] z-20 -mx-3 px-3 sm:-mx-6 sm:px-6 pt-2 pb-2 bg-gray-50 dark:bg-gray-900
+    <div :style="`top: ${toolbarTop}px`"
+         class="sticky top-[73px] z-20 -mx-3 px-3 sm:-mx-6 sm:px-6 pt-2 pb-2 bg-gray-50 dark:bg-gray-900
                 md:static md:mx-0 md:px-0 md:pt-0 md:pb-0 md:bg-transparent md:dark:bg-transparent mb-2 md:mb-4">
     <div class="flex flex-col sm:flex-row gap-3">
 
@@ -149,16 +150,19 @@
                 <template x-if="event.first_photo">
                     <img :src="event.first_photo" alt="" class="w-11 h-11 rounded-lg object-cover flex-shrink-0">
                 </template>
-                <template x-if="!event.first_photo">
-                    <div class="w-11 h-11 rounded-lg bg-gray-100 dark:bg-gray-700 flex items-center justify-center flex-shrink-0 text-xl">📅</div>
-                </template>
                 <div class="min-w-0 flex-1">
-                    <div class="font-semibold text-gray-900 dark:text-white truncate" x-text="event.name"></div>
-                    <div class="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400 min-w-0">
+                    <div class="font-semibold text-gray-900 dark:text-white truncate" x-html="highlight(event.name)"></div>
+                    <div class="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-gray-600 dark:text-gray-400 min-w-0">
                         <span class="whitespace-nowrap" x-text="formatRange(event)"></span>
                         <span class="whitespace-nowrap text-xs" x-text="`👤${event.attendees} 🍽️${(event.recipes_data || []).length}`"></span>
-                        <span class="truncate px-1.5 rounded-full text-xs font-medium bg-purple-100 dark:bg-purple-900 text-purple-800 dark:text-purple-200"
+                        <span class="whitespace-nowrap px-1.5 rounded-full text-xs font-medium bg-purple-100 dark:bg-purple-900 text-purple-800 dark:text-purple-200"
                               x-text="{{ 'event.event_type_name_fr' if lang == 'fr' else 'event.event_type_name_jp' }}"></span>
+                        <!-- Ce qui correspond à la recherche (recette, participant, groupe, lieu, notes) -->
+                        <template x-for="(m, i) in matchesFor(event)" :key="i">
+                            <span class="max-w-full truncate px-2 rounded-full text-xs bg-amber-50 dark:bg-amber-900/40 text-gray-800 dark:text-amber-100 border border-amber-300 dark:border-amber-700">
+                                <span x-text="m.icon"></span> <span x-html="highlight(m.text)"></span>
+                            </span>
+                        </template>
                     </div>
                 </div>
                 <span class="text-gray-400 text-xl flex-shrink-0">›</span>
@@ -458,6 +462,11 @@
 <style>[x-cloak] { display: none !important; }</style>
 
 <script>
+// Sans accents ni majuscules
+function normalizeText(t) {
+    return (t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+}
+
 function eventsTable() {
     const STORAGE_KEY = 'events_columns_v5';
 
@@ -487,6 +496,8 @@ function eventsTable() {
         // Filtres rapides (téléphone) ; sur ordinateur ils restent inactifs
         period: window.innerWidth < 768 ? 'upcoming' : 'all',
         typeFilter: null,
+        // Position de la barre de recherche collée (73 px = barre « Recette App »)
+        toolbarTop: 73,
         periods: [
             { key: 'upcoming', label: '{{ "À venir" if lang == "fr" else "今後" }}' },
             { key: 'past',     label: '{{ "Passés" if lang == "fr" else "過去" }}' },
@@ -499,6 +510,15 @@ function eventsTable() {
         eventToDelete: null,
 
         init() {
+            // Clavier iOS : Safari décale la zone visible sans bouger les éléments collés ;
+            // on recale la barre de recherche en haut de la zone réellement visible
+            if (window.visualViewport) {
+                const vv = window.visualViewport;
+                const update = () => { this.toolbarTop = vv.offsetTop > 0 ? Math.round(vv.offsetTop) : 73; };
+                vv.addEventListener('resize', update);
+                vv.addEventListener('scroll', update);
+                update();
+            }
             // « À venir » par défaut sur téléphone, sauf s'il n'y a rien à venir
             const today = new Date().toISOString().slice(0, 10);
             if (this.period === 'upcoming' && !ALL_EVENTS.some(e => (e.date_fin || e.event_date || '') >= today)) {
@@ -525,10 +545,9 @@ function eventsTable() {
 
             if (this.search.trim()) {
                 // Sans accents ni majuscules, chaque mot doit être trouvé
-                const norm = t => (t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
-                const words = norm(this.search).split(/\s+/).filter(Boolean);
+                const words = this.searchWords();
                 result = result.filter(e => {
-                    const text = norm([e.name, e.location, e.participants, e.groups, e.notes,
+                    const text = normalizeText([e.name, e.location, e.participants, e.groups, e.notes,
                                        e.event_type_name_fr, e.event_type_name_jp,
                                        ...(e.recipes_data || []).map(r => r.name)].join(' '));
                     return words.every(w => text.includes(w));
@@ -570,6 +589,57 @@ function eventsTable() {
         scrollSearchToTop() {
             if (window.innerWidth >= 768) return;
             setTimeout(() => this.$refs.toolbarAnchor.scrollIntoView({ block: 'start', behavior: 'smooth' }), 300);
+        },
+
+        searchWords() {
+            return normalizeText(this.search).split(/\s+/).filter(Boolean);
+        },
+
+        // Texte échappé avec les mots recherchés surlignés (sans tenir compte des accents)
+        highlight(text) {
+            text = text || '';
+            const chars = [...text];
+            const esc = c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c] || c);
+            const words = this.searchWords();
+            if (!words.length) return chars.map(esc).join('');
+            // Texte normalisé caractère par caractère, avec la position d'origine de chaque caractère
+            let norm = '';
+            const origin = [];
+            chars.forEach((c, i) => { for (const n of normalizeText(c)) { norm += n; origin.push(i); } });
+            const marked = new Array(chars.length).fill(false);
+            words.forEach(w => {
+                for (let pos = norm.indexOf(w); pos !== -1; pos = norm.indexOf(w, pos + 1)) {
+                    for (let k = pos; k < pos + w.length; k++) marked[origin[k]] = true;
+                }
+            });
+            let html = '';
+            chars.forEach((c, i) => {
+                if (marked[i] && !marked[i - 1]) html += '<mark style="background:#fde047;color:#111827;border-radius:2px;padding:0 1px">';
+                html += esc(c);
+                if (marked[i] && !marked[i + 1]) html += '</mark>';
+            });
+            return html;
+        },
+
+        // Éléments de l'événement qui correspondent à la recherche (hors nom, déjà surligné)
+        matchesFor(e) {
+            const words = this.searchWords();
+            if (!words.length) return [];
+            const hit = t => { const n = normalizeText(t); return words.some(w => n.includes(w)); };
+            const list = t => (t || '').split(', ').filter(Boolean);
+            const out = [];
+            (e.recipes_data || []).filter(r => hit(r.name)).forEach(r => out.push({ icon: '🍽️', text: r.name }));
+            list(e.participants).filter(hit).forEach(p => out.push({ icon: '👤', text: p }));
+            list(e.groups).filter(hit).forEach(g => out.push({ icon: '👥', text: g }));
+            if (hit(e.location)) out.push({ icon: '📍', text: e.location });
+            if (hit(e.notes)) {
+                // Extrait des notes autour du premier mot trouvé
+                const n = normalizeText(e.notes);
+                const at = Math.min(...words.map(w => n.indexOf(w)).filter(i => i >= 0));
+                const start = Math.max(0, at - 20);
+                out.push({ icon: '📝', text: (start > 0 ? '…' : '') + [...e.notes].slice(start, at + 40).join('') + '…' });
+            }
+            return out.slice(0, 6);
         },
 
         formatRange(e) {
