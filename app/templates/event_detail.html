@@ -31,6 +31,23 @@
                 allParticipants: {% if event %}(window.participantsData.participants || []){% else %}[]{% endif %},
                 allGroups: {% if event %}(window.participantsData.groups || []){% else %}[]{% endif %},
 
+                // Filtre des listes « Ajouter un participant / un groupe » (sans accents ni majuscules)
+                participantFilter: '',
+                normalize(text) {
+                    return (text || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+                },
+                matchesFilter(...fields) {
+                    const words = this.normalize(this.participantFilter).split(/\s+/).filter(Boolean);
+                    const haystack = this.normalize(fields.join(' '));
+                    return words.every(w => haystack.includes(w));
+                },
+                get filteredParticipants() {
+                    return this.allParticipants.filter(p => this.matchesFilter(p.nom, p.prenom, p.role));
+                },
+                get filteredGroups() {
+                    return this.allGroups.filter(g => this.matchesFilter(g.nom));
+                },
+
                 // Sélecteur de dates
                 dateDebut: '{{ event.date_debut if event and event.date_debut else prefill_date_debut }}',
                 dateFin: '{{ event.date_fin if event and event.date_fin else prefill_date_fin }}',
@@ -157,8 +174,30 @@
                 this.lightbox = idx;
             },
 
+            // Copier-coller d'une image n'importe où sur la page (comme pour les recettes)
+            setupPasteListener() {
+                document.addEventListener('paste', (event) => {
+                    const items = (event.clipboardData || window.clipboardData)?.items || [];
+                    const item = Array.from(items).find(i => i.type.startsWith('image/'));
+                    if (!item) return;  // texte collé dans un champ : comportement normal
+                    event.preventDefault();
+                    if (this.photos.length >= 2) {
+                        this.error = '{{ "Maximum 2 photos : supprimez-en une avant d’en coller une autre" if lang == "fr" else "写真は最大2枚です。追加する前に1枚削除してください" }}';
+                        return;
+                    }
+                    // Une image collée n'a pas toujours de nom : le serveur a besoin de l'extension
+                    const ext = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'image/gif': 'gif' }[item.type] || 'png';
+                    const blob = item.getAsFile();
+                    this.uploadFile(new File([blob], `photo-collee.${ext}`, { type: item.type }));
+                });
+            },
+
             async upload(event) {
-                const file = event.target.files[0];
+                await this.uploadFile(event.target.files[0]);
+                event.target.value = '';
+            },
+
+            async uploadFile(file) {
                 if (!file) return;
                 this.error = '';
                 this.uploading = true;
@@ -178,7 +217,6 @@
                     this.error = '{{ "Erreur réseau" if lang == "fr" else "ネットワークエラー" }}';
                 } finally {
                     this.uploading = false;
-                    event.target.value = '';
                 }
             },
 
@@ -655,7 +693,8 @@
         ================================================================ -->
         {% if event %}
         <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6 mb-6"
-             x-data="eventPhotos({{ event.id }}, window.eventPhotosData || [])">
+             x-data="eventPhotos({{ event.id }}, window.eventPhotosData || [])"
+             x-init="setupPasteListener()">
 
             <div class="flex justify-between items-center mb-4">
                 <h2 class="text-lg font-semibold text-gray-900 dark:text-white">
@@ -719,7 +758,7 @@
             </template>
             <template x-if="photos.length === 0">
                 <p class="text-gray-400 dark:text-gray-500 text-sm text-center py-6">
-                    {{ 'Aucune photo — cliquez sur Ajouter pour en ajouter une' if lang == 'fr' else '写真なし' }}
+                    {{ 'Aucune photo — cliquez sur Ajouter ou collez une image (⌘V / Ctrl+V)' if lang == 'fr' else '写真なし — 追加をクリックするか、画像を貼り付けてください（⌘V / Ctrl+V）' }}
                 </p>
             </template>
 
@@ -836,12 +875,22 @@
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <!-- Colonne gauche : Ajouter -->
                 <div class="min-h-[400px]">
+                    <!-- Filtre commun aux participants et aux groupes -->
+                    <div class="relative mb-4">
+                        <input type="search" x-model="participantFilter"
+                               x-effect="if (showParticipantsModal) $nextTick(() => $el.focus())"
+                               placeholder="🔍 {{ 'Chercher un nom ou un groupe…' if lang == 'fr' else '名前またはグループを検索…' }}"
+                               class="w-full px-4 py-2.5 text-base border-2 border-gray-300 dark:border-gray-600 rounded-lg
+                                      focus:border-blue-500 focus:ring-0 dark:bg-gray-700 dark:text-white">
+                    </div>
                     <div class="mb-6">
                         <h4 class="font-medium text-gray-900 dark:text-white mb-3">
                             {{ 'Ajouter un participant' if lang == 'fr' else '参加者を追加' }}
+                            <span x-show="participantFilter" class="text-sm font-normal text-gray-500 dark:text-gray-400"
+                                  x-text="`(${filteredParticipants.length})`"></span>
                         </h4>
                         <div class="grid grid-cols-1 gap-2 max-h-60 overflow-y-auto">
-                            <template x-for="participant in allParticipants" :key="participant.id">
+                            <template x-for="participant in filteredParticipants" :key="participant.id">
                                 <button @click="addParticipant(participant.id)"
                                         class="p-3 text-left bg-gray-50 dark:bg-gray-700 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors">
                                     <div class="font-medium text-gray-900 dark:text-white"
@@ -855,14 +904,21 @@
                                     {{ 'Aucun participant disponible' if lang == 'fr' else '利用可能な参加者なし' }}
                                 </p>
                             </template>
+                            <template x-if="allParticipants.length > 0 && filteredParticipants.length === 0">
+                                <p class="text-gray-500 dark:text-gray-400 text-center py-4">
+                                    {{ 'Aucun participant ne correspond' if lang == 'fr' else '該当する参加者なし' }}
+                                </p>
+                            </template>
                         </div>
                     </div>
                     <div>
                         <h4 class="font-medium text-gray-900 dark:text-white mb-3">
                             {{ 'Ajouter un groupe' if lang == 'fr' else 'グループを追加' }}
+                            <span x-show="participantFilter" class="text-sm font-normal text-gray-500 dark:text-gray-400"
+                                  x-text="`(${filteredGroups.length})`"></span>
                         </h4>
                         <div class="grid grid-cols-1 gap-2 max-h-60 overflow-y-auto">
-                            <template x-for="group in allGroups" :key="group.id">
+                            <template x-for="group in filteredGroups" :key="group.id">
                                 <div class="flex items-center gap-2 p-3 bg-gray-50 dark:bg-gray-700 hover:bg-green-50 dark:hover:bg-green-900/20 rounded-lg transition-colors">
                                     <button @click="addGroup(group.id)" class="flex-1 text-left">
                                         <div class="font-medium text-gray-900 dark:text-white" x-text="group.nom"></div>
@@ -881,6 +937,11 @@
                             <template x-if="allGroups.length === 0">
                                 <p class="text-gray-500 dark:text-gray-400 text-center py-4">
                                     {{ 'Aucun groupe disponible' if lang == 'fr' else '利用可能なグループなし' }}
+                                </p>
+                            </template>
+                            <template x-if="allGroups.length > 0 && filteredGroups.length === 0">
+                                <p class="text-gray-500 dark:text-gray-400 text-center py-4">
+                                    {{ 'Aucun groupe ne correspond' if lang == 'fr' else '該当するグループなし' }}
                                 </p>
                             </template>
                         </div>

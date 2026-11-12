@@ -118,6 +118,8 @@ def list_events(user_id: int = None, lang: str = 'fr'):
                 e.currency,
                 e.budget_planned,
                 e.user_id,
+                e.date_debut,
+                e.date_fin,
                 et.id AS event_type_id,
                 et.name_fr AS event_type_name_fr,
                 et.name_jp AS event_type_name_jp,
