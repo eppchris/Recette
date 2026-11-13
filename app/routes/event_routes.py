@@ -1582,12 +1582,27 @@ async def event_planning_save(
 # Routes photos d'événement
 # ============================================================================
 
+def _event_photo_access_error(event_id: int, request: Request):
+    """Réponse d'erreur JSON si l'événement n'existe pas ou n'appartient pas à l'utilisateur (sauf admin)."""
+    event = db.get_event_by_id(event_id)
+    if not event:
+        return JSONResponse({"error": "Événement non trouvé"}, status_code=404)
+    try:
+        _check_event_access(event, request)
+    except HTTPException:
+        return JSONResponse({"error": "Accès non autorisé"}, status_code=403)
+    return None
+
+
 @router.post("/api/events/{event_id}/photos/upload")
 async def upload_event_photo(request: Request, event_id: int, file: UploadFile = File(...)):
     from app.services.image_service import save_event_photo
     user_id = request.session.get('user_id')
     if not user_id:
         return JSONResponse({"error": "Non authentifié"}, status_code=401)
+    error = _event_photo_access_error(event_id, request)
+    if error:
+        return error
 
     existing = db.get_event_photos(event_id)
     if len(existing) >= 2:
@@ -1608,6 +1623,9 @@ async def delete_event_photo(request: Request, event_id: int, photo_id: int):
     user_id = request.session.get('user_id')
     if not user_id:
         return JSONResponse({"error": "Non authentifié"}, status_code=401)
+    error = _event_photo_access_error(event_id, request)
+    if error:
+        return error
 
     photo_url = db.delete_event_photo(photo_id, event_id)
     if photo_url is None:
